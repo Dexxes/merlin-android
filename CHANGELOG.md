@@ -27,6 +27,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Settings screen: account management, connection test, reading preferences,
   cache management, and a developer mode
 - Haptic feedback for key interactions
+- Localization pipeline: string resources (`res/values(-de)/strings_i18n.xml`)
+  generated from the shared `merlin-translations` source of truth; onboarding
+  and settings screens migrated to `stringResource()`/`pluralStringResource()`
 
 ### Known limitations
 
@@ -36,3 +39,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Reading-position sync is fire-and-forget with no offline retry
 - Settings sync has no offline retry queue (unlike the article/highlight
   mutation queues)
+- Most screens (article list/reader, onboarding tour, reminders, share,
+  sheets) still have hardcoded strings and are not yet migrated to string
+  resources
