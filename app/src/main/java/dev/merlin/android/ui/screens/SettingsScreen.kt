@@ -40,10 +40,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import androidx.hilt.navigation.compose.hiltViewModel
 import dev.merlin.android.BuildConfig
+import dev.merlin.android.R
 import dev.merlin.android.models.ArticleFilter
 import dev.merlin.android.models.ProgressEdge
 import dev.merlin.android.network.CredentialsStore
@@ -108,10 +111,13 @@ fun SettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Einstellungen") },
+                title = { Text(stringResource(R.string.common_settings)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Zurück")
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.common_back),
+                        )
                     }
                 },
             )
@@ -126,7 +132,9 @@ fun SettingsScreen(
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             // MARK: – Nextcloud-Konto
-            SectionHeader("Konto")
+            SectionHeader(stringResource(R.string.settings_account_sectionHeader))
+            // Backend-Namen ("Nextcloud"/"Standalone-Server") bewusst nicht lokalisiert -
+            // Eigennamen, analog zu SettingsView.swift's `Picker("Backend", ...)`.
             SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
                 SegmentedButton(
                     selected = backendKind == CredentialsStore.BackendKind.NEXTCLOUD,
@@ -144,7 +152,8 @@ fun SettingsScreen(
             OutlinedTextField(
                 value = serverUrlInput,
                 onValueChange = { serverUrlInput = it },
-                label = { Text("Server-URL") },
+                label = { Text(stringResource(R.string.settings_account_urlLabel)) },
+                placeholder = { Text(stringResource(R.string.settings_account_urlPlaceholder)) },
                 singleLine = true,
                 enabled = !isLoginLoading,
                 modifier = Modifier.fillMaxWidth(),
@@ -154,18 +163,29 @@ fun SettingsScreen(
                 enabled = !isLoginLoading && serverUrlInput.isNotBlank() && serverUrlInput != "https://",
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text(if (backendKind == CredentialsStore.BackendKind.STANDALONE) "Mit Standalone-Server anmelden" else "Mit Nextcloud anmelden")
+                Text(
+                    stringResource(
+                        if (backendKind == CredentialsStore.BackendKind.STANDALONE) {
+                            R.string.settings_account_loginButtonStandalone
+                        } else {
+                            R.string.settings_account_loginButton
+                        },
+                    ),
+                )
             }
             if (isLoginLoading) {
                 Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                     CircularProgressIndicator(modifier = Modifier.padding(end = 8.dp))
-                    Text("Warte auf Login im Browser …", style = MaterialTheme.typography.bodySmall)
-                    TextButton(onClick = { viewModel.cancelLogin() }) { Text("Abbrechen") }
+                    Text(
+                        stringResource(R.string.settings_account_waitingForBrowser),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    TextButton(onClick = { viewModel.cancelLogin() }) { Text(stringResource(R.string.common_cancel)) }
                 }
             }
             if (loginSuccess) {
                 Text(
-                    "Erfolgreich angemeldet!",
+                    stringResource(R.string.settings_account_loggedInSuccess),
                     color = MaterialTheme.colorScheme.primary,
                     style = MaterialTheme.typography.bodySmall,
                 )
@@ -175,7 +195,7 @@ fun SettingsScreen(
             }
             if (isConfigured) {
                 Text(
-                    "Angemeldet als $username",
+                    stringResource(R.string.settings_account_loggedInAs, username),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -183,14 +203,14 @@ fun SettingsScreen(
                     onClick = { showLogoutConfirm = true },
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text("Abmelden", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.common_logout), color = MaterialTheme.colorScheme.error)
                 }
             }
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
             // MARK: – Verbindung testen
-            SectionHeader("Verbindung testen")
+            SectionHeader(stringResource(R.string.settings_testConnection_button))
             Button(
                 onClick = { viewModel.testConnection() },
                 enabled = !isTestingConnection && isConfigured,
@@ -199,7 +219,7 @@ fun SettingsScreen(
                 if (isTestingConnection) {
                     CircularProgressIndicator(modifier = Modifier.padding(end = 8.dp))
                 }
-                Text("Verbindung testen")
+                Text(stringResource(R.string.settings_testConnection_button))
             }
             testResult?.let { result ->
                 val (text, color) = when (result) {
@@ -212,8 +232,8 @@ fun SettingsScreen(
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
             // MARK: – Präferenzen
-            SectionHeader("Präferenzen")
-            Text("Standardansicht", style = MaterialTheme.typography.labelLarge)
+            SectionHeader(stringResource(R.string.settings_preferences_sectionHeader))
+            Text(stringResource(R.string.settings_preferences_defaultViewLabel), style = MaterialTheme.typography.labelLarge)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 ArticleFilter.entries.forEach { filter ->
                     FilterChip(
@@ -224,7 +244,7 @@ fun SettingsScreen(
                 }
             }
             Text(
-                "Fortschrittsbalken",
+                stringResource(R.string.settings_preferences_progressBarLabel),
                 style = MaterialTheme.typography.labelLarge,
                 modifier = Modifier.padding(top = 8.dp),
             )
@@ -238,17 +258,17 @@ fun SettingsScreen(
                 }
             }
             SettingsToggleRow(
-                label = "Leseposition speichern",
+                label = stringResource(R.string.settings_preferences_saveProgressLabel),
                 checked = saveProgress,
                 onCheckedChange = { viewModel.setSaveProgress(it) },
             )
             SettingsToggleRow(
-                label = "Beim Öffnen fortsetzen",
+                label = stringResource(R.string.settings_preferences_resumeOnOpenLabel),
                 checked = resumeOnOpen,
                 onCheckedChange = { viewModel.setResumeOnOpen(it) },
             )
             Text(
-                "Einstellungen synchronisieren automatisch mit deinem Nextcloud-Konto.",
+                stringResource(R.string.settings_preferences_footer),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -256,13 +276,13 @@ fun SettingsScreen(
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
             // MARK: – Cache
-            SectionHeader("Cache")
+            SectionHeader(stringResource(R.string.settings_cache_sectionHeader))
             SettingsToggleRow(
-                label = "Bilder nur über WLAN vorladen",
+                label = stringResource(R.string.settings_cache_wifiOnlyToggle),
                 checked = prefetchWifiOnly,
                 onCheckedChange = { viewModel.setPrefetchWifiOnly(it) },
             )
-            Text("Artikel offline speichern")
+            Text(stringResource(R.string.settings_cache_retentionLabel))
             Slider(
                 value = cacheRetentionDays.toFloat(),
                 onValueChange = { viewModel.setCacheRetentionDays(it.toInt()) },
@@ -270,7 +290,11 @@ fun SettingsScreen(
                 steps = 364,
             )
             Text(
-                if (cacheRetentionDays == 0) "Artikel nicht offline speichern" else "$cacheRetentionDays Tage",
+                if (cacheRetentionDays == 0) {
+                    stringResource(R.string.settings_cache_retentionOff)
+                } else {
+                    pluralStringResource(R.plurals.settings_cache_retentionDaysFormat, cacheRetentionDays, cacheRetentionDays)
+                },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -278,18 +302,17 @@ fun SettingsScreen(
                 onClick = { showClearCacheConfirm = true },
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text("Cache leeren", color = MaterialTheme.colorScheme.error)
+                Text(stringResource(R.string.settings_cache_clearButton), color = MaterialTheme.colorScheme.error)
             }
             if (cacheCleared) {
                 Text(
-                    "Cache erfolgreich gelöscht.",
+                    stringResource(R.string.settings_cache_clearedSuccess),
                     color = MaterialTheme.colorScheme.primary,
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
             Text(
-                "Entfernt alle zwischengespeicherten Artikel, Bilder, Leseposition, das Web-" +
-                    "Cache des Readers und deine Nextcloud-Zugangsdaten. Du wirst dadurch abgemeldet.",
+                stringResource(R.string.settings_cache_footer),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -297,18 +320,18 @@ fun SettingsScreen(
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
             // MARK: – Über
-            SectionHeader("Über")
+            SectionHeader(stringResource(R.string.settings_about_sectionHeader))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("Version")
+                Text(stringResource(R.string.settings_about_versionLabel))
                 Text(BuildConfig.VERSION_NAME, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
             // MARK: – Entwickler
-            SectionHeader("Entwickler")
+            SectionHeader(stringResource(R.string.settings_developer_sectionHeader))
             SettingsToggleRow(
-                label = "Entwicklermodus",
+                label = stringResource(R.string.settings_developer_modeToggle),
                 checked = developerMode,
                 onCheckedChange = { viewModel.setDeveloperMode(it) },
             )
@@ -329,13 +352,15 @@ fun SettingsScreen(
     if (showLogoutConfirm) {
         AlertDialog(
             onDismissRequest = { showLogoutConfirm = false },
-            title = { Text("Abmelden?") },
-            text = { Text("Deine Nextcloud-Zugangsdaten werden von diesem Gerät entfernt. Zwischengespeicherte Artikel und Lesepositionen bleiben erhalten.") },
+            title = { Text(stringResource(R.string.settings_account_logoutDialogTitle)) },
+            text = { Text(stringResource(R.string.settings_account_logoutDialogMessage)) },
             confirmButton = {
-                TextButton(onClick = { showLogoutConfirm = false; viewModel.logout() }) { Text("Abmelden") }
+                TextButton(onClick = { showLogoutConfirm = false; viewModel.logout() }) {
+                    Text(stringResource(R.string.common_logout))
+                }
             },
             dismissButton = {
-                TextButton(onClick = { showLogoutConfirm = false }) { Text("Abbrechen") }
+                TextButton(onClick = { showLogoutConfirm = false }) { Text(stringResource(R.string.common_cancel)) }
             },
         )
     }
@@ -343,13 +368,15 @@ fun SettingsScreen(
     if (showClearCacheConfirm) {
         AlertDialog(
             onDismissRequest = { showClearCacheConfirm = false },
-            title = { Text("Cache leeren?") },
-            text = { Text("Alle zwischengespeicherten Artikel, Bilder, Lesepositionen, das Reader-Web-Cache und deine Nextcloud-Zugangsdaten werden gelöscht. Du wirst abgemeldet.") },
+            title = { Text(stringResource(R.string.settings_cache_clearDialogTitle)) },
+            text = { Text(stringResource(R.string.settings_cache_clearDialogMessage)) },
             confirmButton = {
-                TextButton(onClick = { showClearCacheConfirm = false; viewModel.clearCache() }) { Text("Leeren") }
+                TextButton(onClick = { showClearCacheConfirm = false; viewModel.clearCache() }) {
+                    Text(stringResource(R.string.settings_cache_clearDialogConfirm))
+                }
             },
             dismissButton = {
-                TextButton(onClick = { showClearCacheConfirm = false }) { Text("Abbrechen") }
+                TextButton(onClick = { showClearCacheConfirm = false }) { Text(stringResource(R.string.common_cancel)) }
             },
         )
     }
