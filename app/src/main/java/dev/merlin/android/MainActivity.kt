@@ -34,6 +34,7 @@ import dev.merlin.android.ui.screens.ArticleListScreen
 import dev.merlin.android.ui.screens.OnboardingScreen
 import dev.merlin.android.ui.screens.RemindersScreen
 import dev.merlin.android.ui.screens.SettingsScreen
+import dev.merlin.android.ui.screens.SiteCredentialsScreen
 import dev.merlin.android.ui.theme.MerlinTheme
 import dev.merlin.android.viewmodel.ArticlesViewModel
 import javax.inject.Inject
@@ -150,6 +151,9 @@ class MainActivity : ComponentActivity() {
                                             }
                                         }
                                     },
+                                    onNavigateToSiteCredentials = { domain ->
+                                        navController.navigate("site-credentials?domain=$domain")
+                                    },
                                 )
                             }
                             composable("reminders") {
@@ -169,6 +173,22 @@ class MainActivity : ComponentActivity() {
                                         isConfigured = false
                                         navController.popBackStack("list", inclusive = true)
                                     },
+                                    onSiteCredentialsClick = { navController.navigate("site-credentials") },
+                                )
+                            }
+                            composable(
+                                route = "site-credentials?domain={domain}",
+                                arguments = listOf(
+                                    navArgument("domain") {
+                                        type = NavType.StringType
+                                        nullable = true
+                                        defaultValue = null
+                                    },
+                                ),
+                            ) { backStackEntry ->
+                                SiteCredentialsScreen(
+                                    onBack = { navController.popBackStack() },
+                                    preselectedDomain = backStackEntry.arguments?.getString("domain"),
                                 )
                             }
                         }

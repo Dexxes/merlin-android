@@ -4,9 +4,13 @@ import dev.merlin.android.models.Article
 import dev.merlin.android.models.FavoritedAtSerializer
 import dev.merlin.android.models.Highlight
 import dev.merlin.android.models.HighlightCreate
+import dev.merlin.android.models.SiteCredentialInfo
+import dev.merlin.android.models.SiteCredentialUpdateRequest
+import dev.merlin.android.models.SiteCredentialsResponse
 import dev.merlin.android.models.Tag
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
@@ -135,6 +139,34 @@ interface MerlinApi {
     /** Share-Link widerrufen. */
     @DELETE("api/articles/{articleId}/share")
     suspend fun deleteShare(@Path("articleId") articleId: Int): SuccessResponse
+
+    // ── Paywall-Site-Credentials ────────────────────────────────────────────
+    // Äquivalent zu `SiteCredentialsView.swift`/`SiteCredentialsViewModel.swift`
+    // (siehe `SiteCredentialsScreen.kt`/`SiteCredentialsViewModel.kt`). Domain-basierte
+    // Login-Zugangsdaten, mit denen der Server Paywall-Artikel (z.B. Tagesspiegel Plus)
+    // vollständig extrahieren kann. `update`/`delete` werfen bei Fehlern `HttpException`
+    // (siehe [SiteCredentialsViewModel.save] für die 400/401-Fehler-Body-Auswertung,
+    // analog zu `ShareViewModel.saveArticle`).
+
+    /** Liefert bereits verbundene Domains ([SiteCredentialInfo.status]) sowie alle serverseitig unterstützten Domains. */
+    @GET("api/user/site-credentials")
+    suspend fun getSiteCredentials(): SiteCredentialsResponse
+
+    /** Legt Zugangsdaten für `domain` an oder ersetzt sie. Antwort enthält nie das Passwort. */
+    @PUT("api/user/site-credentials/{domain}")
+    suspend fun updateSiteCredential(
+        @Path("domain") domain: String,
+        @Body body: SiteCredentialUpdateRequest,
+    ): SiteCredentialInfo
+
+    /**
+     * Entfernt die Zugangsdaten für `domain` wieder. Anders als die übrigen `DELETE`s
+     * dieses Interfaces liefert dieser Endpunkt laut `merlin-api.yaml` **keinen** Body
+     * (Erfolg = beliebiger 2xx-Status) – daher `Response<Unit>` statt `SuccessResponse`,
+     * damit ein leerer Response-Body den JSON-Konverter nicht zum Scheitern bringt.
+     */
+    @DELETE("api/user/site-credentials/{domain}")
+    suspend fun deleteSiteCredential(@Path("domain") domain: String): Response<Unit>
 }
 
 @Serializable

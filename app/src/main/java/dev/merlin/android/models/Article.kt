@@ -77,6 +77,12 @@ data class Article(
     // + Default greift, kein Crash).
     val scrollProgress: Float = 0f,
     val scrollUpdatedAt: Long = 0L,
+    // Paywall-Hinweis (siehe PaywallWarningBanner/SiteCredentialsScreen): vom Server gesetzt,
+    // wenn die Volltext-Extraktion an einer Paywall gescheitert ist und keine gültigen
+    // Site-Credentials für die Domain vorlagen. `requiresLoginPage` ist nur gesetzt, wenn auch
+    // `requiresLoginDomain` gesetzt ist (Login-Seiten-URL für diese Domain).
+    val requiresLoginDomain: String? = null,
+    val requiresLoginPage: String? = null,
 ) {
     /** true, sobald [favoritedAt] gesetzt ist – Bool-Convenience für bestehenden UI-Code. */
     val isFavorite: Boolean
