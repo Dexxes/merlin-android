@@ -19,6 +19,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import dev.merlin.android.models.Article
 import dev.merlin.android.models.Highlight
 import dev.merlin.android.models.HighlightCreate
+import dev.merlin.android.network.VideoStreamResponse
 import dev.merlin.android.viewmodel.ArticleReaderViewModel
 
 /**
@@ -56,6 +57,10 @@ fun ReaderWebView(
     // Der Ziel-Pixelwert wird gegen die *aktuelle* Inhaltshöhe berechnet – das ist
     // zugleich robuster gegen Reflow/Bild-Nachladen als ein fester Pixelwert.
     initialScrollProgress: Float,
+    // Steuert (via `ReaderHtmlBuilder`), ob das Titelbild aus dem Artikeltext entfernt wird – nur
+    // wenn `NativeVideoPlayerCard` tatsächlich einen Stream anzeigt (siehe dortiger Kommentar).
+    // `null` bis der `/video-stream`-Check abgeschlossen ist.
+    videoStream: VideoStreamResponse?,
     onCreateHighlight: (HighlightCreate) -> Unit,
     onHighlightTap: (Int) -> Unit,
     onImageTap: (index: Int, srcs: List<String>) -> Unit,
@@ -84,8 +89,8 @@ fun ReaderWebView(
     // Bei Theme AUTO muss ein System-Dark-Mode-Wechsel (z.B. Tag/Nacht-Umschaltung während der
     // Lesesitzung) das HTML neu bauen – daher als Key in `remember` mit aufgenommen.
     val isSystemDark = isSystemInDarkTheme()
-    val html = remember(article.id, highlights, appearance, isSystemDark) {
-        ReaderHtmlBuilder.build(article, highlights, appearance, isSystemDark)
+    val html = remember(article.id, highlights, appearance, isSystemDark, videoStream) {
+        ReaderHtmlBuilder.build(article, highlights, appearance, isSystemDark, videoStream)
     }
     // Breite des linken Streifens, den wir vom System-Edge-Swipe-Zurück ausnehmen wollen –
     // siehe Kommentar bei `update` unten.

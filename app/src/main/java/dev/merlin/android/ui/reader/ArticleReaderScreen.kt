@@ -156,6 +156,7 @@ fun ArticleReaderScreen(
     val error by viewModel.error.collectAsState()
     val deleted by viewModel.deleted.collectAsState()
     val highlights by viewModel.highlights.collectAsState()
+    val videoStream by viewModel.videoStream.collectAsState()
     val appearance by viewModel.appearance.collectAsState()
     val progressEdge by viewModel.progressEdge.collectAsState()
     val accentColorHex by viewModel.accentColorHex.collectAsState()
@@ -487,6 +488,7 @@ fun ArticleReaderScreen(
                                     NativeVideoPlayerCard(
                                         articleId = currentArticle.id,
                                         posterUrl = currentArticle.imageUrl,
+                                        videoStream = videoStream,
                                     )
                                 }
                                 ReaderWebView(
@@ -494,6 +496,7 @@ fun ArticleReaderScreen(
                                     highlights = highlights,
                                     appearance = appearance,
                                     initialScrollProgress = initialScrollProgress ?: 0f,
+                                    videoStream = videoStream,
                                     onCreateHighlight = { payload: HighlightCreate -> viewModel.createHighlight(payload) },
                                     onHighlightTap = { id -> pendingHighlightDeleteId = id },
                                     onImageTap = { index, srcs -> lightboxState = LightboxState(initialIndex = index, imageURLs = srcs) },

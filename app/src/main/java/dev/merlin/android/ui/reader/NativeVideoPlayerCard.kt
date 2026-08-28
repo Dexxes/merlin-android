@@ -46,6 +46,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
 import dev.merlin.android.R
+import dev.merlin.android.network.VideoStreamResponse
 import dev.merlin.android.network.VideoStreamVariant
 import dev.merlin.android.viewmodel.ArticleReaderViewModel
 
@@ -65,11 +66,12 @@ object NativeVideoHost {
 }
 
 /**
- * Lädt und spielt den nativen ARD/ZDF/Arte-Stream für einen Artikel ab. Fragt den
- * `/video-stream`-Endpunkt nur einmal pro Artikel ab ([LaunchedEffect] auf `articleId`) und
- * bleibt unsichtbar (`variants.isEmpty()`), wenn kein Stream verfügbar ist (z. B. Sendung nicht
- * mehr online) – analog zu `VideoPlayer.vue`, das bei `available == false` ebenfalls nichts
- * rendert, und zu `NativeVideoPlayerCard` in `NativeVideoPlayerView.swift`.
+ * Spielt den nativen ARD/ZDF/Arte-Stream für einen Artikel ab. Der `/video-stream`-Abruf selbst
+ * passiert zentral im [ArticleReaderViewModel] (`videoStream`, einmal pro Artikel-Load) – diese
+ * Karte übernimmt das Ergebnis nur noch und bleibt unsichtbar (`variants.isEmpty()`), wenn kein
+ * Stream verfügbar ist (z. B. Sendung nicht mehr online) – analog zu `VideoPlayer.vue`, das bei
+ * `available == false` ebenfalls nichts rendert, und zu `NativeVideoPlayerCard` in
+ * `NativeVideoPlayerView.swift`.
  *
  * **Architekturabweichung von iOS:** dort sitzt die Karte als scrollendes Element *innerhalb* der
  * äußeren `ScrollView`, direkt über dem `ArticleWebView`. Der Android-Reader rendert Header +
@@ -82,6 +84,11 @@ object NativeVideoHost {
 fun NativeVideoPlayerCard(
     articleId: Int,
     posterUrl: String?,
+    // Vom [ArticleReaderViewModel] beim Artikel-Load einmalig geladen (siehe dortiger
+    // `loadVideoStreamIfNeeded`-Kommentar) statt hier ein zweites Mal abgefragt – so sieht auch
+    // `ReaderHtmlBuilder` denselben Stand und entfernt das Titelbild nur, wenn diese Karte
+    // tatsächlich etwas anzeigt.
+    videoStream: VideoStreamResponse?,
     modifier: Modifier = Modifier,
     viewModel: ArticleReaderViewModel = hiltViewModel(),
 ) {
@@ -102,12 +109,11 @@ fun NativeVideoPlayerCard(
         onDispose { player.release() }
     }
 
-    LaunchedEffect(articleId) {
-        val response = runCatching { viewModel.getVideoStream(articleId) }.getOrNull()
-        val responseVariants = response?.variants
-        if (response != null && response.available && !responseVariants.isNullOrEmpty()) {
+    LaunchedEffect(articleId, videoStream) {
+        val responseVariants = videoStream?.variants
+        if (videoStream != null && videoStream.available && !responseVariants.isNullOrEmpty()) {
             variants = responseVariants
-            selectedIndex = (response.defaultIndex ?: 0).coerceIn(0, responseVariants.size - 1)
+            selectedIndex = (videoStream.defaultIndex ?: 0).coerceIn(0, responseVariants.size - 1)
         }
     }
 

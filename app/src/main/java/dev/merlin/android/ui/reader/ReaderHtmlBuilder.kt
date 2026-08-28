@@ -3,6 +3,7 @@ package dev.merlin.android.ui.reader
 import dev.merlin.android.models.Article
 import dev.merlin.android.models.Highlight
 import dev.merlin.android.models.ReaderTheme
+import dev.merlin.android.network.VideoStreamResponse
 import dev.merlin.android.viewmodel.ArticleReaderViewModel
 
 /**
@@ -39,10 +40,15 @@ object ReaderHtmlBuilder {
         // System-Dark-Mode-Signal von außen (Compose `isSystemInDarkTheme()`) – die WebView selbst
         // kennt den App-weiten Dark-Mode-Status nicht, siehe `buildCss`-Kommentar zu AUTO.
         isSystemDark: Boolean,
+        // Ergebnis von `ArticleReaderViewModel.videoStream` – erst wenn dieser Stream tatsächlich
+        // abspielbare `variants` liefert, zeigt `NativeVideoPlayerCard` den Player und darf das
+        // Titelbild hier entfernt werden (siehe `stripHeroImageIfShownAsVideoCover`-Kommentar).
+        videoStream: VideoStreamResponse?,
     ): String {
+        val hasPlayableVideo = videoStream?.available == true && !videoStream.variants.isNullOrEmpty()
         val bodyHtml = stripHeroImageIfShownAsVideoCover(
             article.content ?: "<p>${escapeHtml(article.excerpt ?: "")}</p>",
-            article.url,
+            hasPlayableVideo,
         )
         val (_, fg, mutedFg) = themeColors(appearance.theme, isSystemDark)
         val css = buildCss(appearance, isSystemDark)
@@ -78,9 +84,15 @@ object ReaderHtmlBuilder {
      * Artikeltext oft eine andere Auflösungs-/Query-Variante als für das separat gespeicherte
      * Teaser-Bild (`article.imageUrl`), ein URL-Abgleich schlug deshalb in der Praxis fehl. Das
      * erste Bild im Text ist bei gescrapten ARD/ZDF/Arte-Seiten zuverlässig genau das Titelbild.
+     *
+     * `hasPlayableVideo` statt eines reinen URL-Host-Checks: ob der `/video-stream`-Endpunkt
+     * wirklich eine abspielbare Variante liefert, steht erst asynchron nach dem Artikel-Load fest
+     * (`ArticleReaderViewModel.videoStream`). Ein reiner Host-Match hätte das Titelbild auch dann
+     * entfernt, wenn `NativeVideoPlayerCard` mangels Stream (Fehler, `available == false`, leere
+     * Sendung) gar nichts zeigt – dann fehlten Player UND Titelbild gleichzeitig.
      */
-    private fun stripHeroImageIfShownAsVideoCover(content: String, articleUrl: String): String {
-        if (!NativeVideoHost.matches(articleUrl)) return content
+    private fun stripHeroImageIfShownAsVideoCover(content: String, hasPlayableVideo: Boolean): String {
+        if (!hasPlayableVideo) return content
         val match = firstImageOrFigureRegex.find(content) ?: return content
         return content.removeRange(match.range)
     }

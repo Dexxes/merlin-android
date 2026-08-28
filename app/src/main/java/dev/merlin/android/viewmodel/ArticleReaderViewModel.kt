@@ -28,6 +28,8 @@ import dev.merlin.android.network.CreateShareRequest
 import dev.merlin.android.network.CreateTagRequest
 import dev.merlin.android.network.MerlinApi
 import dev.merlin.android.network.UpdateProgressRequest
+import dev.merlin.android.network.VideoStreamResponse
+import dev.merlin.android.ui.reader.NativeVideoHost
 import java.io.IOException
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
@@ -84,6 +86,25 @@ class ArticleReaderViewModel @Inject constructor(
     private val _deleted = MutableStateFlow(false)
     /** Wird true, sobald der Artikel gelöscht wurde – Reader-Screen sollte dann zurücknavigieren. */
     val deleted: StateFlow<Boolean> = _deleted.asStateFlow()
+
+    // MARK: – ARD/ZDF/Arte-Videostream
+
+    /**
+     * `null` bis der `/video-stream`-Check (für passende Hosts) abgeschlossen ist, danach die
+     * Antwort des Servers (ggf. `available == false`/leere `variants`). Zentral im ViewModel statt
+     * in [dev.merlin.android.ui.reader.NativeVideoPlayerCard] selbst geladen, damit
+     * [dev.merlin.android.ui.reader.ReaderHtmlBuilder] das Titelbild im Artikeltext erst entfernt,
+     * wenn tatsächlich ein Stream verfügbar ist – sonst verschwindet bei einem Fehler/`available ==
+     * false` sowohl das Video (kein Player, siehe `NativeVideoPlayerCard`) als auch das Titelbild
+     * (vorschnell aus dem beim Artikel-Load einmalig gebauten HTML entfernt).
+     */
+    private val _videoStream = MutableStateFlow<VideoStreamResponse?>(null)
+    val videoStream: StateFlow<VideoStreamResponse?> = _videoStream.asStateFlow()
+
+    private suspend fun loadVideoStreamIfNeeded(loaded: Article) {
+        if (!NativeVideoHost.matches(loaded.url)) return
+        _videoStream.value = runCatching { api.getVideoStream(loaded.id) }.getOrNull()
+    }
 
     // MARK: – Wiederherzustellende Leseposition (Fraktion 0..1)
 
@@ -189,6 +210,7 @@ class ArticleReaderViewModel @Inject constructor(
                 _article.value = fetched
                 articleCacheService.upsert(fetched)
                 reconcileInitialScroll(fetched)
+                loadVideoStreamIfNeeded(fetched)
             } catch (e: Exception) {
                 val cached = articleCacheService.loadFiltered(ArticleFilter.ALL, tagId = null)
                     .firstOrNull { it.id == articleId }
@@ -197,6 +219,7 @@ class ArticleReaderViewModel @Inject constructor(
                 if (cached != null) {
                     _article.value = cached
                     reconcileInitialScroll(cached)
+                    loadVideoStreamIfNeeded(cached)
                 } else {
                     _error.value = e.message ?: "Artikel konnte nicht geladen werden"
                     // Ohne Artikel keine sinnvolle Server-Position – von oben starten,
@@ -472,14 +495,6 @@ class ArticleReaderViewModel @Inject constructor(
     fun setTags(tagIds: Set<Int>) {
         viewModelScope.launch { doSetTags(tagIds) }
     }
-
-    /**
-     * Dünner Pass-through zu [MerlinApi.getVideoStream] (siehe `getVideoStream` in
-     * `MerlinAPI.swift`) – für [dev.merlin.android.ui.reader.NativeVideoPlayerCard], die keinen
-     * eigenen Netzwerkzugriff besitzen soll (`api` ist bewusst `private`, siehe Klassenkommentar
-     * oben zur Kapselung der Netzwerk-/Cache-Schicht im ViewModel).
-     */
-    suspend fun getVideoStream(articleId: Int) = api.getVideoStream(articleId)
 
     private suspend fun doSetTags(tagIds: Set<Int>) {
         val current = _article.value ?: return
