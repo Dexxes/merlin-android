@@ -55,6 +55,7 @@ class PreferencesStore @Inject constructor(
         val EXCLUDED_TAG_IDS = stringPreferencesKey("excluded_tag_ids")
         val REPORT_BACKEND_URL = stringPreferencesKey("report_backend_url")
         val CACHE_RETENTION_DAYS = intPreferencesKey("cache_retention_days")
+        val NEEDS_SETTINGS_SYNC = booleanPreferencesKey("needs_settings_sync")
     }
 
     private fun positionKey(articleId: Int) = doublePreferencesKey("pos_$articleId")
@@ -164,6 +165,15 @@ class PreferencesStore @Inject constructor(
     }
 
     // MARK: – Server-Sync
+
+    /**
+     * Merkt sich, dass ein `updateSettings`-Push wegen fehlender Verbindung fehlgeschlagen ist
+     * und noch aussteht – gelesen/geschrieben von [SettingsSyncQueue]. Persistiert (statt
+     * In-Memory), damit ein Prozess-Tod zwischen Fehlschlag und WorkManager-Retry das Flag nicht
+     * verliert.
+     */
+    suspend fun needsSettingsSync(): Boolean = dataStore.data.first()[Keys.NEEDS_SETTINGS_SYNC] ?: false
+    suspend fun setNeedsSettingsSync(value: Boolean) = dataStore.edit { it[Keys.NEEDS_SETTINGS_SYNC] = value }
 
     /** Wendet ein vom Server geladenes Settings-Objekt an (Server gewinnt). */
     suspend fun loadFromServer(settings: Settings) {

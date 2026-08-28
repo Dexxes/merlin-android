@@ -8,10 +8,12 @@ import dev.merlin.android.data.ArticleCacheService
 import dev.merlin.android.data.HighlightCacheService
 import dev.merlin.android.data.ImageCacheService
 import dev.merlin.android.data.PreferencesStore
+import dev.merlin.android.data.SettingsSyncQueue
 import dev.merlin.android.models.ArticleFilter
 import dev.merlin.android.models.ProgressEdge
 import dev.merlin.android.network.CredentialsStore
 import dev.merlin.android.network.MerlinApi
+import java.io.IOException
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -43,6 +45,7 @@ class SettingsViewModel @Inject constructor(
     private val articleCacheService: ArticleCacheService,
     private val imageCacheService: ImageCacheService,
     private val highlightCacheService: HighlightCacheService,
+    private val settingsSyncQueue: SettingsSyncQueue,
 ) : ViewModel() {
 
     /** Äquivalent zu `SettingsView.TestResult` (Swift-Enum). */
@@ -199,13 +202,20 @@ class SettingsViewModel @Inject constructor(
     }
 
     /**
-     * Äquivalent zu `SettingsView.syncPreferences()`. iOS fängt `networkError` ab und
-     * markiert `SettingsSyncQueue` für einen späteren Retry – dieses Offline-Queue-Äquivalent
-     * existiert auf Android noch nicht (todo.md), daher wird ein Fehlschlag hier bewusst
-     * verschluckt: der lokale Wert bleibt in jedem Fall gesetzt, nur der Server-Sync entfällt.
+     * Äquivalent zu `SettingsView.syncPreferences()`: pusht die aktuellen Präferenzen. Ein echter
+     * Verbindungsfehler (`IOException`) markiert [SettingsSyncQueue] für einen späteren Retry
+     * (Äquivalent zu iOS' `SettingsSyncQueue.shared.markDirty()`), statt den Push wie zuvor
+     * stillschweigend zu verlieren – der lokale Wert bleibt in jedem Fall sofort gesetzt.
      */
     private suspend fun syncPreferences() {
-        runCatching { api.updateSettings(preferencesStore.toServerSettings()) }
+        try {
+            api.updateSettings(preferencesStore.toServerSettings())
+        } catch (e: Exception) {
+            if (e is IOException) {
+                settingsSyncQueue.markDirty()
+                settingsSyncQueue.scheduleRetry()
+            }
+        }
     }
 
     /**

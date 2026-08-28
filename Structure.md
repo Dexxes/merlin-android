@@ -303,7 +303,7 @@ Letzter offener Punkt aus Abschnitt 9 in `todo.md` – Äquivalent zu `SettingsV
 
 | Datei | Zweck |
 |---|---|
-| `viewmodel/SettingsViewModel.kt` | `@HiltViewModel`. Login-Logik bewusst aus `OnboardingViewModel` dupliziert statt injiziert (ViewModels referenzieren keine anderen ViewModels) – beide kapseln denselben `LoginFlowService`, analog zu iOS' separaten `@StateObject`s in `OnboardingView`/`SettingsView`. Exponiert `preferencesStore` public (gleiches Pattern wie `ArticleReaderViewModel`, siehe `AppearanceSheet.kt`): UI liest dessen `Flow`s direkt per `collectAsState()`, schreibt aber über die Setter hier (`setDefaultFilter`/`setProgressEdge`/`setSaveProgress`/`setResumeOnOpen`/`setPrefetchWifiOnly`/`setDeveloperMode`), die bei sync-fähigen Feldern automatisch `syncPreferences()` anstoßen. `testConnection()` ruft mangels eigenem `/test`-Endpoint einfach `api.getSettings()` auf (gleiche Vereinfachung wie iOS' `MerlinAPI.testConnection()`). `syncPreferences()` ist ein einfaches `runCatching { api.updateSettings(...) }` – Android hat (noch) kein `SettingsSyncQueue`-Äquivalent für Offline-Retry, ein Fehlschlag wird daher bewusst verschluckt (lokaler Wert bleibt trotzdem gesetzt). `clearCache()` löscht Artikel-/Bild-/Highlight-Cache, Lesepositionen und Zugangsdaten – loggt den Nutzer dadurch implizit aus |
+| `viewmodel/SettingsViewModel.kt` | `@HiltViewModel`. Login-Logik bewusst aus `OnboardingViewModel` dupliziert statt injiziert (ViewModels referenzieren keine anderen ViewModels) – beide kapseln denselben `LoginFlowService`, analog zu iOS' separaten `@StateObject`s in `OnboardingView`/`SettingsView`. Exponiert `preferencesStore` public (gleiches Pattern wie `ArticleReaderViewModel`, siehe `AppearanceSheet.kt`): UI liest dessen `Flow`s direkt per `collectAsState()`, schreibt aber über die Setter hier (`setDefaultFilter`/`setProgressEdge`/`setSaveProgress`/`setResumeOnOpen`/`setPrefetchWifiOnly`/`setDeveloperMode`), die bei sync-fähigen Feldern automatisch `syncPreferences()` anstoßen. `testConnection()` ruft mangels eigenem `/test`-Endpoint einfach `api.getSettings()` auf (gleiche Vereinfachung wie iOS' `MerlinAPI.testConnection()`). `syncPreferences()` fängt einen `IOException`-Fehlschlag ab und markiert `SettingsSyncQueue` (siehe unten) für einen späteren Retry statt ihn stillschweigend zu verlieren – der lokale Wert bleibt in jedem Fall sofort gesetzt. `clearCache()` löscht Artikel-/Bild-/Highlight-Cache, Lesepositionen und Zugangsdaten – loggt den Nutzer dadurch implizit aus |
 | `ui/screens/SettingsScreen.kt` | Eigene Route (`Scaffold` + Zurück-`TopAppBar`) statt iOS' `Form`/Sheet: Konto-Sektion (Server-URL-Feld, „Mit Nextcloud anmelden"-Button öffnet die `loginUrl` per Custom Tabs wie `OnboardingScreen`, Lade-/Erfolgs-/Fehleranzeige, „Abmelden" mit `AlertDialog`-Bestätigung), Verbindungstest-Sektion, Präferenzen (`FilterChip`-Reihen für `ArticleFilter`/`ProgressEdge`, `Switch` für `saveProgress`/`resumeOnOpen`), Cache-Sektion (`Switch` für WLAN-only-Vorladen, „Cache leeren" mit `AlertDialog`-Bestätigung), Über-Sektion (`BuildConfig.VERSION_NAME`), Entwickler-Sektion (`Switch` + Debug-Infos). `onLoggedOut`-Callback feuert per `LaunchedEffect(isConfigured)`, sobald `isConfigured` von `true` auf `false` wechselt (Logout/Cache leeren) |
 
 Einstieg über neues Zahnrad-Icon in der `ArticleListScreen`-TopAppBar
@@ -334,6 +334,27 @@ Route `site-credentials?domain={domain}` in `MainActivity.kt`; Einstieg über
 neue Zeile "Site-Zugangsdaten verwalten" in `SettingsScreen.kt`
 (`onSiteCredentialsClick`).
 
+## Settings-Sync mit Offline-Retry (`data/SettingsSyncQueue.kt`)
+
+Äquivalent zu `SettingsSyncQueue.swift`, schließt die in `SettingsView.swift`/`ArticleReaderView.swift`
+referenzierte Lücke (bisheriges Android-`todo.md`: „Android hat (noch) kein `SettingsSyncQueue`-
+Äquivalent, ein Fehlschlag wird bewusst verschluckt"). Anders als `OfflineMutationQueue`/
+`OfflineHighlightQueue` muss sich diese Queue nicht merken, *was* sich geändert hat: Settings werden
+immer als ein flaches Snapshot-Objekt gepusht (`PreferencesStore.toServerSettings()`), ein einzelnes
+Dirty-Flag genügt daher – beliebig viele Offline-Änderungen fassen sich beim Retry automatisch zu
+einem PUT mit dem dann aktuellen lokalen Stand zusammen.
+
+| Datei | Zweck |
+|---|---|
+| `data/SettingsSyncQueue.kt` | `isDirty()`/`markDirty()` (Persistenz über `PreferencesStore.needsSettingsSync`/`setNeedsSettingsSync`, DataStore-Boolean statt In-Memory, damit ein Prozess-Tod das Flag nicht verliert), `retryIfNeeded()` (Mutex-isoliert, pusht `toServerSettings()` erneut und löscht das Flag nur bei Erfolg), `scheduleRetry()` (netzwerkabhängiger `OneTimeWorkRequest` über WorkManager, `NetworkType.CONNECTED`, `ExistingWorkPolicy.KEEP`) |
+| `data/SettingsSyncWorker.kt` | `@HiltWorker`-`CoroutineWorker`, ruft `SettingsSyncQueue.retryIfNeeded()` – Äquivalent zum `NWPathMonitor`-Trigger im iOS-Original, hier als WorkManager-Job (robuster gegen Prozess-Tod als ein reiner `ConnectivityManager.NetworkCallback`), analog `MutationDrainWorker` |
+
+`SettingsViewModel.syncPreferences()` und `ArticleReaderViewModel.syncAppearanceToServer()` (Appearance-
+Push aus `AppearanceSheet.kt`) sind die beiden Aufrufer: beide fangen jetzt `IOException` (echter
+Verbindungsfehler, Äquivalent zu iOS' `MerlinAPIError.networkError`) ab und rufen
+`settingsSyncQueue.markDirty()` + `scheduleRetry()` auf, statt den Fehlschlag wie zuvor stillschweigend
+zu verschlucken.
+
 ### Paywall-Hinweis im Reader (`ui/reader/PaywallWarningBanner.kt`)
 
 Äquivalent zum Paywall-Banner in `ArticleReaderView.swift`. `Article.kt` trägt
@@ -352,7 +373,7 @@ Reader wie bei `delete()` verlassen).
 
 ## Bewusst noch nicht angelegt
 
-Siehe `todo.md` für die vollständige Liste; insbesondere fehlen noch: TTS-Pipeline (Media3) und der `OnboardingTour`-Screen (inkl. der UI-seitige Notification-Permission-Prompt), SSE-Client, ein `SettingsSyncQueue`-Äquivalent für Offline-Retry der Settings-Synchronisation.
+Siehe `todo.md` für die vollständige Liste; insbesondere fehlen noch: TTS-Pipeline (Media3) und der `OnboardingTour`-Screen (inkl. der UI-seitige Notification-Permission-Prompt), SSE-Client.
 
 ## Bekannte offene Punkte für den ersten Android-Studio-Sync
 
