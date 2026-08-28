@@ -476,6 +476,19 @@ fun ArticleReaderScreen(
                         // WebView-HTML-Inhalt gerendert (siehe `buildHeaderHtml` dort) und scrollen
                         // dadurch ganz normal mit dem Artikeltext mit, statt fixiert zu bleiben.
                         Box(modifier = Modifier.fillMaxSize()) {
+                            // Video-Karte + WebView werden vertikal gestapelt (eigene innere
+                            // `Column`), die restlichen Geschwister unten (Highlight-Toolbar,
+                            // Info-Popover, Bottom-Bar) bleiben direkte Kinder der äußeren `Box`,
+                            // da sie `Modifier.align(...)` benötigen (nur in `BoxScope` verfügbar,
+                            // siehe Kommentar an `AnimatedVisibility` weiter unten für denselben
+                            // Scope-Fallstrick).
+                            Column(modifier = Modifier.fillMaxSize()) {
+                                if (NativeVideoHost.matches(currentArticle.url)) {
+                                    NativeVideoPlayerCard(
+                                        articleId = currentArticle.id,
+                                        posterUrl = currentArticle.imageUrl,
+                                    )
+                                }
                                 ReaderWebView(
                                     article = currentArticle,
                                     highlights = highlights,
@@ -504,10 +517,11 @@ fun ArticleReaderScreen(
                                         }
                                         lastScrollOffsetPx = newOffset
                                     },
-                                    modifier = Modifier.fillMaxSize(),
+                                    modifier = Modifier.fillMaxWidth().weight(1f),
                                 )
+                            }
 
-                                selectionRect?.let {
+                            selectionRect?.let {
                                     HighlightColorToolbar(
                                         onColorSelected = { color ->
                                             webViewRef?.evaluateJavascript(

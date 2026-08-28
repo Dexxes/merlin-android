@@ -21,6 +21,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Reader with adjustable appearance (theme, font, size, line height, accent
   color, progress bar edge), text highlighting, image lightbox, and article
   reporting
+- Native ARD/ZDF/Arte-Mediathek video playback in the reader (Media3/
+  ExoPlayer), resolving the `/video-stream` endpoint with variant and
+  subtitle-track selection, matching the iOS implementation
 - Reminders for articles via `AlarmManager`, with a dedicated overview screen
 - Cross-device reading-position sync with last-write-wins conflict resolution
 - Share-to-Merlin support via the Android share sheet (`ShareActivity`)
