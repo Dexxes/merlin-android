@@ -66,6 +66,7 @@ import dev.merlin.android.viewmodel.SettingsViewModel
 fun SettingsScreen(
     onBack: () -> Unit,
     onLoggedOut: () -> Unit,
+    onSiteCredentialsClick: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val context = LocalContext.current
@@ -205,6 +206,23 @@ fun SettingsScreen(
                     Text(stringResource(R.string.common_logout), color = MaterialTheme.colorScheme.error)
                 }
             }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+            // MARK: – Paywall-Site-Zugangsdaten (getrennt vom Nextcloud-/Server-Login oben,
+            // siehe `SiteCredentialsScreen`/`SiteCredentialsViewModel`).
+            SectionHeader("Site-Zugangsdaten")
+            OutlinedButton(
+                onClick = onSiteCredentialsClick,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("Site-Zugangsdaten verwalten")
+            }
+            Text(
+                "Verwalte Login-Zugangsdaten für Paywall-Seiten, damit Merlin den vollständigen Artikelinhalt abrufen kann.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 

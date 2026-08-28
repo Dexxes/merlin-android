@@ -95,7 +95,7 @@ Adaptive-Vordergrund 108/162/216/324/432px (jeweils mdpi→xxxhdpi).
 
 | Datei | Zweck |
 |---|---|
-| `MerlinApi.kt` | Retrofit-Interface auf Basis von `merlin-api.yaml`: Artikel-CRUD/-Suche/-Counts, Read/Favorite/Archive-Toggle, Tags-CRUD, Tag-Zuordnung, Settings. SSE-Stream (`articleUpdateStream`) bewusst ausgeklammert – eigener Task |
+| `MerlinApi.kt` | Retrofit-Interface auf Basis von `merlin-api.yaml`: Artikel-CRUD/-Suche/-Counts, Read/Favorite/Archive-Toggle, Tags-CRUD, Tag-Zuordnung, Settings, Paywall-Site-Zugangsdaten (`/api/user/site-credentials`, siehe eigener Abschnitt unten). SSE-Stream (`articleUpdateStream`) bewusst ausgeklammert – eigener Task |
 | `AuthInterceptor.kt` | OkHttp-Interceptor für HTTP-Basic-Auth; `CredentialsProvider`-Interface als Abstraktion, jetzt von `CredentialsStore` implementiert |
 | `CredentialsStore.kt` | Äquivalent zu `CredentialsStore.swift`: `nextcloudUrl`/`username`/`appPassword` verschlüsselt via `EncryptedSharedPreferences` (Android-Keystore-backed); implementiert `CredentialsProvider` direkt. Keine Shared-Access-Group nötig (anders als iOS), da Hauptapp und künftiges Share-Target dieselbe App-UID nutzen. Enthält zusätzlich `BackendKind`-Enum (`NEXTCLOUD`/`STANDALONE`) für den unabhängigen `merlin-server` als zweites Backend; `supportsNextcloudOnlyFeatures` blendet darüber TTS/SSE/Settings-Sync/Public-Share/YouTube-Embed-Proxy für `STANDALONE` aus. Default `NEXTCLOUD`, bleibt bei `clearCredentials()` bewusst erhalten (Vorbelegung für die nächste Anmeldung) |
 | `BaseUrlInterceptor.kt` | Schreibt Scheme/Host/Port (und ggf. Unterpfad) jeder Anfrage zur Laufzeit auf die in `CredentialsStore.nextcloudUrl` hinterlegte Server-URL um, da Retrofits `baseUrl` nur als nie angefragter Platzhalter dient. Bei `BackendKind.STANDALONE` wird zusätzlich das Nextcloud-App-Routing-Präfix `/index.php/apps/merlin` aus dem Pfad entfernt, da `merlin-server` dieselben API-Pfade direkt unter `/api` anbietet (siehe `merlin-server/public/index.php`) |
@@ -311,6 +311,44 @@ Einstieg über neues Zahnrad-Icon in der `ArticleListScreen`-TopAppBar
 setzt bei `onLoggedOut` sein lokales `isConfigured` auf `false` zurück
 (`popBackStack("list", inclusive = true)`), wodurch wieder der
 `OnboardingScreen` angezeigt wird.
+
+## Paywall-Site-Zugangsdaten (`ui/screens/SiteCredentialsScreen.kt`, `viewmodel/SiteCredentialsViewModel.kt`)
+
+Äquivalent zu `SiteCredentialsView.swift`/`SiteCredentialsViewModel.swift`
+(merlin-ios). Getrennt von der Nextcloud-/Server-Anmeldung
+(`SettingsViewModel`/`CredentialsStore`, oben) – hier geht es um Login-
+Zugangsdaten pro Paywall-Domain (z.B. Tagesspiegel Plus), mit denen der
+*Server* bei der Volltext-Extraktion eines Artikels einloggt. Endpunkte in
+`MerlinApi.kt` gemäß `merlin-api.yaml` (`/api/user/site-credentials`):
+`GET` (Liste + verfügbare Domains), `PUT /{domain}` (anlegen/ersetzen,
+Antwort `SiteCredentialInfo` – nie das Passwort), `DELETE /{domain}` (kein
+Body laut Contract, daher `Response<Unit>` statt `SuccessResponse`).
+
+| Datei | Zweck |
+|---|---|
+| `models/SiteCredential.kt` | `SiteCredentialInfo` (`domain`, `status`, `lastLoginAt`; `statusEnum`-Convenience-Property für `ok`/`invalid_credentials`/`login_flow_broken`/sonstiges→`PENDING`), `SiteCredentialsResponse` (`GET`-Antwort), `SiteCredentialUpdateRequest` (`PUT`-Body), `SiteCredentialErrorResponse` (400/401-Fehler-Body `{ message, reason? }`) |
+| `viewmodel/SiteCredentialsViewModel.kt` | `@HiltViewModel`. `credentials`/`availableDomains`/`connectableDomains` (Differenzmenge per `combine`)/`isLoading`/`errorMessage` als `StateFlow`s. `save()` ist die einzige Stelle im Client, die einen typisierten `HttpException`-Fehler-Body parst (`e.response()?.errorBody()` → `SiteCredentialErrorResponse` über das Hilt-`Json`-Singleton aus `NetworkModule`) – analog zum `try/catch(HttpException)`-Muster aus `ShareViewModel.saveArticle`, aber mit Body-Auswertung statt reiner Statuscode-Unterscheidung |
+| `ui/screens/SiteCredentialsScreen.kt` | Eigene Route: "Verbunden"-Sektion (bestehende Zugangsdaten, farbcodierter Status, Swipe-to-Delete wie `RemindersScreen`s `ReminderRow`, Bearbeiten-Icon öffnet den Edit-Dialog erneut) + "Hinzufügen"-Sektion (`connectableDomains`, Tap öffnet den Dialog für eine neue Domain). `preselectedDomain`-Parameter öffnet den Dialog beim Betreten automatisch (Aufruf aus `PaywallWarningBanner`). Edit-Dialog als `AlertDialog` (Username/Passwort, Speichern deaktiviert bis beide Felder gefüllt, zeigt nach dem Speichern inline Erfolg/Fehler) |
+
+Route `site-credentials?domain={domain}` in `MainActivity.kt`; Einstieg über
+neue Zeile "Site-Zugangsdaten verwalten" in `SettingsScreen.kt`
+(`onSiteCredentialsClick`).
+
+### Paywall-Hinweis im Reader (`ui/reader/PaywallWarningBanner.kt`)
+
+Äquivalent zum Paywall-Banner in `ArticleReaderView.swift`. `Article.kt` trägt
+dafür zwei zusätzliche, vom Server gesetzte Felder: `requiresLoginDomain`
+(Paywall-Domain, wenn die Extraktion mangels gültiger Zugangsdaten
+gescheitert ist) und `requiresLoginPage` (nur gesetzt, wenn auch
+`requiresLoginDomain` gesetzt ist). `ArticleReaderScreen.kt` zeigt den Banner
+oben im Artikelbereich, solange `requiresLoginDomain` gesetzt und der Banner
+nicht lokal weggewischt ist (nicht-persistenter `remember`-State, pro
+`articleId` zurückgesetzt – Parität zu iOS' Session-Dismiss). "Verbinden"
+navigiert über den neuen `onNavigateToSiteCredentials`-Parameter zu
+`SiteCredentialsScreen` mit vorausgewählter Domain; "Erneut versuchen" ruft
+`ArticleReaderViewModel.retryPaywall()` auf (löscht den Artikel und legt ihn
+mit derselben URL neu an, analog zu iOS' Retry-Verhalten, dann wird der
+Reader wie bei `delete()` verlassen).
 
 ## Bewusst noch nicht angelegt
 

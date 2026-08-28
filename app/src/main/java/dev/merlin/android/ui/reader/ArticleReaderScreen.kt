@@ -145,6 +145,10 @@ fun ArticleReaderScreen(
     // berechnet).
     onArticleChanged: (Article) -> Unit = {},
     onArticleDeleted: (Int) -> Unit = {},
+    // Äquivalent zu iOS' Navigation aus dem Paywall-Banner zu `SiteCredentialsView`: der Reader
+    // kennt keine eigene Navigationsroute für `SiteCredentialsScreen`, daher reicht `MainActivity`
+    // hier nur die Sprung-Aktion durch (gleiches Muster wie `onNavigateNext`).
+    onNavigateToSiteCredentials: (domain: String) -> Unit = {},
     viewModel: ArticleReaderViewModel = hiltViewModel(),
 ) {
     val article by viewModel.article.collectAsState()
@@ -225,6 +229,9 @@ fun ArticleReaderScreen(
     var infoPopover by remember { mutableStateOf<ReaderJsBridge.InfoPopover?>(null) }
     var scrollProgress by remember { mutableStateOf(0f) }
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
+    // Nicht-persistenter Dismiss-State für PaywallWarningBanner (siehe dortiger Kommentar) –
+    // pro Artikel zurückgesetzt, damit ein Wechsel zu `nextArticleId` den Banner wieder zeigt.
+    var paywallBannerDismissed by remember(viewModel.articleId) { mutableStateOf(false) }
 
     // Bottom-Bar-Sichtbarkeit – Äquivalent zu iOS' `onScrollGeometryChange`-Paar in
     // ArticleReaderView.swift: beim Scrollen nach unten wird die Leiste ausgeblendet, außer man
@@ -454,6 +461,15 @@ fun ArticleReaderScreen(
                         CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
                     }
                     else -> {
+                        currentArticle.requiresLoginDomain?.takeIf { !paywallBannerDismissed }?.let { domain ->
+                            PaywallWarningBanner(
+                                domain = domain,
+                                onConnect = { onNavigateToSiteCredentials(domain) },
+                                onRetry = { viewModel.retryPaywall() },
+                                onDismiss = { paywallBannerDismissed = true },
+                                modifier = Modifier.align(Alignment.TopCenter),
+                            )
+                        }
                         // Kein eigener, sticky Header mehr über der WebView (Äquivalent zu iOS'
                         // `articleHeader`, ArticleReaderView.swift): die Meta-Zeile (Site/Autor/
                         // Lesezeit) + Tags werden jetzt von `ReaderHtmlBuilder` direkt in den

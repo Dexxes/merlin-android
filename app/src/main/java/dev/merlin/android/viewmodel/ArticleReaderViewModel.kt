@@ -23,6 +23,7 @@ import dev.merlin.android.models.ReaderTheme
 import dev.merlin.android.models.Reminder
 import dev.merlin.android.models.Tag
 import dev.merlin.android.network.ArticleShareResponse
+import dev.merlin.android.network.CreateArticleRequest
 import dev.merlin.android.network.CreateShareRequest
 import dev.merlin.android.network.CreateTagRequest
 import dev.merlin.android.network.MerlinApi
@@ -445,6 +446,26 @@ class ArticleReaderViewModel @Inject constructor(
                     _error.value = e.message ?: "Unbekannter Fehler"
                 }
             }
+        }
+    }
+
+    /**
+     * Äquivalent zum "Erneut versuchen"-Button in `PaywallWarningBanner` (iOS:
+     * `ArticleReaderView.swift`s Paywall-Banner-Handling): löscht den Artikel und legt ihn mit
+     * derselben URL neu an, damit der Server die Volltext-Extraktion erneut versucht – z.B.
+     * nachdem in [dev.merlin.android.ui.screens.SiteCredentialsScreen] gültige Zugangsdaten für
+     * die Paywall-Domain hinterlegt wurden. Nutzt dieselben API-Calls wie [delete]/
+     * `ArticlesViewModel.addArticle`, dupliziert sie hier aber bewusst dünn (siehe Klassenkommentar
+     * oben zu Listen-Mutationen) statt eine `ArticlesViewModel`-Referenz zu injizieren. Schließt den
+     * Reader danach immer (auch bei Fehlern) – der neue Artikel taucht beim nächsten Laden der Liste auf.
+     */
+    fun retryPaywall() {
+        val current = _article.value ?: return
+        viewModelScope.launch {
+            runCatching { api.deleteArticle(current.id) }
+            articleCacheService.remove(current.id)
+            runCatching { api.createArticle(CreateArticleRequest(url = current.url)) }
+            _deleted.value = true
         }
     }
 
