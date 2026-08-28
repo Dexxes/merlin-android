@@ -88,6 +88,8 @@ dependencies {
     implementation("io.coil-kt:coil:2.7.0")
     implementation("io.coil-kt:coil-compose:2.7.0")
     implementation("androidx.media3:media3-exoplayer:1.10.1")
+    // PlayerView (ARD/ZDF/Arte-Wiedergabe, siehe NativeVideoPlayerCard.kt)
+    implementation("androidx.media3:media3-ui:1.10.1")
 
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.3.0")

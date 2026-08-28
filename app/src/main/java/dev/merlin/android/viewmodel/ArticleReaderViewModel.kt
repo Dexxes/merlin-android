@@ -473,6 +473,14 @@ class ArticleReaderViewModel @Inject constructor(
         viewModelScope.launch { doSetTags(tagIds) }
     }
 
+    /**
+     * Dünner Pass-through zu [MerlinApi.getVideoStream] (siehe `getVideoStream` in
+     * `MerlinAPI.swift`) – für [dev.merlin.android.ui.reader.NativeVideoPlayerCard], die keinen
+     * eigenen Netzwerkzugriff besitzen soll (`api` ist bewusst `private`, siehe Klassenkommentar
+     * oben zur Kapselung der Netzwerk-/Cache-Schicht im ViewModel).
+     */
+    suspend fun getVideoStream(articleId: Int) = api.getVideoStream(articleId)
+
     private suspend fun doSetTags(tagIds: Set<Int>) {
         val current = _article.value ?: return
         // Gegen server-frischen Stand diffen statt gegen `current` (analog

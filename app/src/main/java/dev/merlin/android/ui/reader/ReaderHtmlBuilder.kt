@@ -40,7 +40,10 @@ object ReaderHtmlBuilder {
         // kennt den App-weiten Dark-Mode-Status nicht, siehe `buildCss`-Kommentar zu AUTO.
         isSystemDark: Boolean,
     ): String {
-        val bodyHtml = article.content ?: "<p>${escapeHtml(article.excerpt ?: "")}</p>"
+        val bodyHtml = stripHeroImageIfShownAsVideoCover(
+            article.content ?: "<p>${escapeHtml(article.excerpt ?: "")}</p>",
+            article.url,
+        )
         val (_, fg, mutedFg) = themeColors(appearance.theme, isSystemDark)
         val css = buildCss(appearance, isSystemDark)
         val headerHtml = buildHeaderHtml(article, fg, mutedFg, appearance.accentColorHex)
@@ -64,6 +67,28 @@ object ReaderHtmlBuilder {
             </html>
         """.trimIndent()
     }
+
+    /**
+     * Entfernt das erste Bild aus dem gerenderten Artikeltext, wenn ARD/ZDF/Arte bereits als
+     * Player-Cover dasselbe Titelbild zeigt (siehe [NativeVideoPlayerCard]) - sonst erscheint es
+     * doppelt: einmal als Cover, einmal im Text darunter. Äquivalent zu
+     * `stripHeroImageIfShownAsVideoCover` in `ArticleReaderView.swift`.
+     *
+     * Matched absichtlich NICHT über die exakte Bild-URL: ARD liefert für dasselbe Foto im
+     * Artikeltext oft eine andere Auflösungs-/Query-Variante als für das separat gespeicherte
+     * Teaser-Bild (`article.imageUrl`), ein URL-Abgleich schlug deshalb in der Praxis fehl. Das
+     * erste Bild im Text ist bei gescrapten ARD/ZDF/Arte-Seiten zuverlässig genau das Titelbild.
+     */
+    private fun stripHeroImageIfShownAsVideoCover(content: String, articleUrl: String): String {
+        if (!NativeVideoHost.matches(articleUrl)) return content
+        val match = firstImageOrFigureRegex.find(content) ?: return content
+        return content.removeRange(match.range)
+    }
+
+    private val firstImageOrFigureRegex = Regex(
+        """<figure>\s*<img\b[^>]*>\s*(?:<figcaption>.*?</figcaption>\s*)?</figure>|<img\b[^>]*>""",
+        setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL),
+    )
 
     /**
      * Nennt am Ende des Artikeltexts noch einmal "Autor, Medium" (z.B. "Hans Müller, taz.de") –

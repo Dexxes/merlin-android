@@ -93,6 +93,16 @@ interface MerlinApi {
     @DELETE("api/articles/{articleId}/tags/{tagId}")
     suspend fun removeTagFromArticle(@Path("articleId") articleId: Int, @Path("tagId") tagId: Int): SuccessResponse
 
+    /**
+     * Löst die native HLS-Stream-URL für ARD/ZDF/Arte-Artikel auf (siehe
+     * `VideoStreamResolverService`/`VideoStreamController` in beiden Backends – identischer
+     * Pfad und identisches Antwortformat auf Nextcloud und merlin-server, nur das
+     * API-Präfix unterscheidet sich, siehe [BaseUrlInterceptor]). Äquivalent zu
+     * `MerlinAPI.getVideoStream(articleId:)` in `MerlinAPI.swift`.
+     */
+    @GET("api/articles/{id}/video-stream")
+    suspend fun getVideoStream(@Path("id") id: Int): VideoStreamResponse
+
     @GET("api/articles/{articleId}/highlights")
     suspend fun getHighlights(@Path("articleId") articleId: Int): List<Highlight>
 
@@ -264,6 +274,34 @@ data class Settings(
     // Default "" = nicht konfiguriert, siehe ReportService.kt.
     @Serializable(with = CoercingStringSerializer::class)
     val reportBackendUrl: String = "",
+)
+
+// MARK: – Native video (ARD/ZDF/Arte direct-stream playback)
+
+/**
+ * Eine abspielbare Variante aus `GET /articles/{id}/video-stream` (z. B. eine Sprachfassung oder
+ * Gebärdensprachversion). `subtitleLanguage` ist Arte-spezifisch (bei ARD/ZDF nicht gesetzt) und
+ * erzwingt nach dem Laden die passende Untertitelspur (siehe `NativeVideoPlayerCard`). Äquivalent
+ * zu `MerlinAPI.VideoStreamVariant` in `MerlinAPI.swift`.
+ */
+@Serializable
+data class VideoStreamVariant(
+    val label: String,
+    val url: String,
+    val subtitleLanguage: String? = null,
+)
+
+/**
+ * Antwort des Stream-Resolvers. `available == false`, wenn die Artikel-URL zwar von
+ * `ardmediathek.de`/`zdf.de`/`arte.tv` stammt, sich aber kein Stream auflösen ließ. Äquivalent zu
+ * `MerlinAPI.VideoStreamResponse` in `MerlinAPI.swift`.
+ */
+@Serializable
+data class VideoStreamResponse(
+    val available: Boolean,
+    val type: String? = null,
+    val variants: List<VideoStreamVariant>? = null,
+    val defaultIndex: Int? = null,
 )
 
 @Serializable
