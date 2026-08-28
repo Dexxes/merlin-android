@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Eigenes Splash-Icon (statt direkt @mipmap/ic_launcher_foreground): die SplashScreen-API
+     beschneidet ein Icon OHNE eigene Hintergrund-Ebene auf einen deutlich engeren Kreis
+     (480/768 ≈ 62,5% des Canvas) als ein Icon MIT Hintergrund-Ebene (768/1152 ≈ 66,7%) – siehe
+     offizielle SplashScreen-Spezifikation. Unser `ic_launcher_foreground.png` ist exakt auf die
+     66%-Adaptive-Icon-Safe-Zone (62% Inhalt) ausgelegt, lag also bei reiner Vordergrund-Referenz
+     hauchdünn AUSSERHALB der engeren 62,5%-Kreismaske → sichtbar abgeschnittene/abgerundete Ecken.
+     Durch Verpacken als <adaptive-icon> mit Hintergrund-Ebene (hier identisch zu `ic_launcher.xml`)
+     erkennt das System "Icon mit Hintergrund" und wendet die großzügigere 66,7%-Maske an, unter der
+     unser 62%-Inhalt komfortabel Platz hat. -->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/ic_launcher_background" />
+    <foreground android:drawable="@mipmap/ic_launcher_foreground" />
+</adaptive-icon>

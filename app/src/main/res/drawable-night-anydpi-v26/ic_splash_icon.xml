@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Dunkles Pendant zu drawable-anydpi-v26/ic_splash_icon.xml: Hintergrund-Ebene in echtem
+     Schwarz statt @color/ic_launcher_background (Weiß), passend zu
+     `values-night/themes.xml`s `windowSplashScreenBackground` (@android:color/black) – sonst
+     bliebe trotz schwarzem Fenster-Hintergrund ein heller weißer Kasten um das Icon sichtbar. -->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@android:color/black" />
+    <foreground android:drawable="@mipmap/ic_launcher_foreground" />
+</adaptive-icon>

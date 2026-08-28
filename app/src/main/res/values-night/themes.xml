@@ -1,0 +1,24 @@
+<resources>
+    <!-- Dunkles Pendant zu values/themes.xml: vermeidet einen hellen Fenster-/Splash-Flash
+         beim App-Start, wenn das System im Dark Mode ist. Das eigentliche Theming läuft
+         weiterhin ausschließlich über Compose (ui/theme/Theme.kt) anhand der Nutzer-Einstellung
+         (PreferencesStore.readerTheme) – dieses XML-Theme kennt nur den System-Modus, nicht die
+         explizite App-Auswahl. Wählt der Nutzer z. B. "Dunkel" bei hellem System-Theme (oder
+         umgekehrt), bleibt der kurze Splash-Moment in der System-Farbe; technisch ohne eigene
+         Splash-Activity nicht vermeidbar. -->
+    <style name="Theme.Merlin" parent="android:Theme.Material.NoActionBar" />
+
+    <!-- Dunkles Pendant zu Theme.Merlin.Starting (values/themes.xml): echtes Schwarz statt des
+         hellen Icon-Hintergrunds, passend zum Dark-Mode-Prinzip "echtes Schwarz" (siehe
+         ui/theme/Theme.kt DarkColors.background) statt des Material-Default-Splash-Scrims. Icon =
+         dieselbe nackte Vordergrund-PNG wie im Light-Theme, aber mit schwarzer
+         `windowSplashScreenIconBackgroundColor` statt @color/ic_launcher_background – siehe
+         Kommentar in values/themes.xml für den Grund (Icon-Hintergrundfarbe statt eigenem
+         <adaptive-icon>-Drawable, das im Compat-Pfad nicht zuverlässig gerendert wurde). -->
+    <style name="Theme.Merlin.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@android:color/black</item>
+        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher_foreground</item>
+        <item name="windowSplashScreenIconBackgroundColor">@android:color/black</item>
+        <item name="postSplashScreenTheme">@style/Theme.Merlin</item>
+    </style>
+</resources>

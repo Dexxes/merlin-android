@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Hintergrundfarbe des Adaptive Icons – Äquivalent zum weißen Hintergrund
+         des iOS-AppIcons (Sources/Merlin/Assets.xcassets/AppIcon.appiconset/AppIcon.png),
+         dessen Hund+Buch-Motiv auf transparentem Grund liegt. -->
+    <color name="ic_launcher_background">#FFFFFF</color>
+</resources>
