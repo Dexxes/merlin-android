@@ -27,6 +27,33 @@ DataStore, WorkManager, Coil.
 | `app/build.gradle.kts` | App-Modul: `applicationId dev.merlin.android`, minSdk 23 (siehe Begründung in todo.md, Abschnitt „Offene Fragen"), targetSdk/compileSdk 34, alle Dependencies (Compose, Retrofit, Room, Hilt, Media3, Coil) |
 | `app/src/main/AndroidManifest.xml` | Permissions (Internet, Notifications, Exact Alarm), `android:icon`/`android:roundIcon` → `@mipmap/ic_launcher`/`ic_launcher_round` (siehe „App-Icon" unten), `MainActivity` als Launcher; `ShareActivity` mit `ACTION_SEND`/`text/plain`-Intent-Filter (Abschnitt 10), `excludeFromRecents`/`noHistory` da reine Overlay-Activity |
 
+## Lokalisierung (`res/values(-de)/strings_i18n.xml`)
+
+`merlin-translations` ist die zentrale Quelle für alle UI-Strings
+(`localization/strings/<lang>.json`, siehe `schema.md` dort). `export.py
+--platform android` generiert daraus `res/values/strings_i18n.xml`
+(Quellsprache `en`) und `res/values-de/strings_i18n.xml` – eigene Datei statt
+Einträge in der bestehenden `strings.xml`, damit die dort von Hand gepflegte
+`app_name`-Ressource unangetastet bleibt. Nicht direkt editieren, Änderungen
+gehen beim nächsten Export verloren – stattdessen `strings/<lang>.json` in
+`merlin-translations` anpassen und neu exportieren. Wie iOS werden
+`webext.*`/`nextcloudWeb.*`/`merlinServer.*`-Keys nicht mit exportiert.
+Mehrfache Platzhalter in einem String werden positionell (`%1$s`, `%2$d`)
+statt wie bei iOS einfach (`%@`/`%lld`) ausgegeben – Android verlangt das bei
+mehr als einem Platzhalter zwingend.
+
+**Migrationsstand:** `OnboardingScreen.kt` und `SettingsScreen.kt` (Server-
+URL-Eingabe, Login-Flow, Konto-/Präferenzen-/Cache-/Über-/Entwickler-
+Sektionen) sind vollständig auf `stringResource()`/`pluralStringResource()`
+umgestellt. Backend-Namen (`"Nextcloud"`/`"Standalone-Server"`) und die
+`ProgressEdge`-Kantenlabel (`"Links"`/`"Oben"`/…) bleiben bewusst
+hartcodiert – analog zu `SettingsView.swift`, das dieselben Strings ebenso
+wenig lokalisiert. Alle übrigen Screens (Artikelliste/-reader, Onboarding-
+Tour, Erinnerungen, Teilen, Sheets) haben noch keine `stringResource()`-Aufrufe
+und müssen schrittweise nachgezogen werden – die dafür nötigen Keys liegen
+bereits vollständig in `strings_i18n.xml` (819 Keys insgesamt, siehe
+`merlin-translations/localization/strings/en.json`).
+
 ## App-Icon (`res/mipmap-*`)
 
 Aus dem iOS-Quellbild generiert: `merlin-ios/Sources/Merlin/Assets.xcassets/AppIcon.appiconset/AppIcon.png`

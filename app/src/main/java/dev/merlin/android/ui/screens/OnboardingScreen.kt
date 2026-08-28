@@ -24,9 +24,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import androidx.hilt.navigation.compose.hiltViewModel
+import dev.merlin.android.R
 import dev.merlin.android.network.CredentialsStore
 import dev.merlin.android.viewmodel.OnboardingViewModel
 
@@ -70,10 +72,12 @@ fun OnboardingScreen(
         verticalArrangement = Arrangement.Center,
     ) {
         Text(
-            text = "Mit Merlin verbinden",
+            text = stringResource(R.string.settings_account_connectHeadline),
             style = MaterialTheme.typography.headlineSmall,
         )
 
+        // Backend-Namen ("Nextcloud"/"Standalone-Server") bewusst nicht lokalisiert -
+        // Eigennamen, analog zu SettingsView.swift's `Picker("Backend", ...)`.
         SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
             SegmentedButton(
                 selected = backendKind == CredentialsStore.BackendKind.NEXTCLOUD,
@@ -90,7 +94,8 @@ fun OnboardingScreen(
         OutlinedTextField(
             value = serverUrl,
             onValueChange = { serverUrl = it },
-            label = { Text("Server-URL (z. B. https://cloud.example.com)") },
+            label = { Text(stringResource(R.string.settings_account_urlLabel)) },
+            placeholder = { Text(stringResource(R.string.settings_account_urlPlaceholder)) },
             singleLine = true,
             enabled = !isLoading,
             modifier = Modifier
@@ -105,13 +110,21 @@ fun OnboardingScreen(
                 .fillMaxWidth()
                 .padding(top = 16.dp),
         ) {
-            Text("Anmelden")
+            Text(
+                stringResource(
+                    if (backendKind == CredentialsStore.BackendKind.STANDALONE) {
+                        R.string.settings_account_loginButtonStandalone
+                    } else {
+                        R.string.settings_account_loginButton
+                    },
+                ),
+            )
         }
 
         if (isLoading) {
             CircularProgressIndicator(modifier = Modifier.padding(top = 16.dp))
             Text(
-                text = "Warte auf Login im Browser …",
+                text = stringResource(R.string.settings_account_waitingForBrowser),
                 modifier = Modifier.padding(top = 8.dp),
             )
         }
