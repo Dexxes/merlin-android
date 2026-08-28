@@ -30,6 +30,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Localization pipeline: string resources (`res/values(-de)/strings_i18n.xml`)
   generated from the shared `merlin-translations` source of truth; onboarding
   and settings screens migrated to `stringResource()`/`pluralStringResource()`
+- Settings sync with offline retry (`SettingsSyncQueue`, `SettingsSyncWorker`):
+  a failed settings push is marked dirty and retried via WorkManager once
+  connectivity returns, instead of being silently dropped
 
 ### Known limitations
 
@@ -37,8 +40,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Onboarding tour is not yet implemented
 - Real-time article updates use polling instead of an SSE stream
 - Reading-position sync is fire-and-forget with no offline retry
-- Settings sync has no offline retry queue (unlike the article/highlight
-  mutation queues)
 - Most screens (article list/reader, onboarding tour, reminders, share,
   sheets) still have hardcoded strings and are not yet migrated to string
   resources
