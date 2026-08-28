@@ -40,7 +40,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
@@ -293,7 +292,7 @@ fun SettingsScreen(
                 if (cacheRetentionDays == 0) {
                     stringResource(R.string.settings_cache_retentionOff)
                 } else {
-                    pluralStringResource(R.plurals.settings_cache_retentionDaysFormat, cacheRetentionDays, cacheRetentionDays)
+                    stringResource(R.string.settings_cache_retentionDaysFormat, cacheRetentionDays)
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,

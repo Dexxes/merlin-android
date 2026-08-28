@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Automatisch generiert von tools/i18n/export.py --platform android. -->
+<!-- Automatisch generiert von tools/i18n/export.py -platform android. -->
 <!-- Nicht direkt editieren - Änderungen gehen beim nächsten Export verloren. -->
 <resources>
     <string name="addArticle_tagsPlaceholder">"Search or create tag…"</string>
