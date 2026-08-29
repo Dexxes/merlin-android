@@ -14,7 +14,6 @@ import dev.merlin.android.data.ReminderService
 import dev.merlin.android.data.ReportService
 import dev.merlin.android.di.ApplicationScope
 import dev.merlin.android.models.Article
-import dev.merlin.android.models.ArticleFilter
 import dev.merlin.android.models.Highlight
 import dev.merlin.android.models.HighlightCreate
 import dev.merlin.android.models.ProgressEdge
@@ -190,10 +189,7 @@ class ArticleReaderViewModel @Inject constructor(
                 articleCacheService.upsert(fetched)
                 reconcileInitialScroll(fetched)
             } catch (e: Exception) {
-                val cached = articleCacheService.loadFiltered(ArticleFilter.ALL, tagId = null)
-                    .firstOrNull { it.id == articleId }
-                    ?: articleCacheService.loadFiltered(ArticleFilter.ARCHIVE, tagId = null)
-                        .firstOrNull { it.id == articleId }
+                val cached = articleCacheService.loadAllCached().firstOrNull { it.id == articleId }
                 if (cached != null) {
                     _article.value = cached
                     reconcileInitialScroll(cached)

@@ -1,5 +1,6 @@
 package dev.merlin.android.ui.screens
 
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.runtime.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CloudOff
@@ -271,15 +273,29 @@ fun ArticleListScreen(
                 )
             }
 
+            // Zwei Zeilen (Seiten/Videos) statt einer, da ArticleFilter seit der
+            // Pages/Videos-Aufteilung sechs statt vier Werte hat.
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, top = 6.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                ArticleFilter.entries.forEach { filter ->
+                ArticleFilter.entries.filterNot { it.isVideo }.forEach { filter ->
                     FilterChip(
                         // Kein Filter-Chip aktiv, solange eine Einzel-Tag-Ansicht läuft
                         // (Äquivalent zu iOS' `selectedFilter == filter && selectedTagId == nil`
                         // in `ListFlyoutModifier.swift`).
+                        selected = filter == selectedFilter && selectedTagId == null,
+                        onClick = { viewModel.selectFilter(filter) },
+                        label = { Text(filter.label) },
+                    )
+                }
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, bottom = 6.dp, top = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                ArticleFilter.entries.filter { it.isVideo }.forEach { filter ->
+                    FilterChip(
                         selected = filter == selectedFilter && selectedTagId == null,
                         onClick = { viewModel.selectFilter(filter) },
                         label = { Text(filter.label) },
@@ -361,8 +377,8 @@ fun ArticleListScreen(
                                             onDelete = { viewModel.delete(article) },
                                             onEditTags = { tagsArticleId = article.id },
                                             activeSwipeKey = activeSwipeKey,
-                                            showFavoriteAction = selectedFilter != ArticleFilter.FAVORITES,
-                                            showArchiveAction = selectedFilter != ArticleFilter.ARCHIVE,
+                                            showFavoriteAction = selectedFilter != ArticleFilter.PAGES_FAVORITES && selectedFilter != ArticleFilter.VIDEOS_FAVORITES,
+                                            showArchiveAction = selectedFilter != ArticleFilter.PAGES_ARCHIVE && selectedFilter != ArticleFilter.VIDEOS_ARCHIVE,
                                             accentColorHex = accentColorHex,
                                         )
                                     } else {
@@ -377,8 +393,8 @@ fun ArticleListScreen(
                                             activeSwipeKey = activeSwipeKey,
                                             // Äquivalent zu ArticleListView.swift: Aktion ausblenden, wenn
                                             // der entsprechende Filter selbst schon aktiv ist.
-                                            showFavoriteAction = selectedFilter != ArticleFilter.FAVORITES,
-                                            showArchiveAction = selectedFilter != ArticleFilter.ARCHIVE,
+                                            showFavoriteAction = selectedFilter != ArticleFilter.PAGES_FAVORITES && selectedFilter != ArticleFilter.VIDEOS_FAVORITES,
+                                            showArchiveAction = selectedFilter != ArticleFilter.PAGES_ARCHIVE && selectedFilter != ArticleFilter.VIDEOS_ARCHIVE,
                                             accentColorHex = accentColorHex,
                                         )
                                     }

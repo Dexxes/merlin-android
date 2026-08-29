@@ -48,11 +48,21 @@ class ArticleCacheService @Inject constructor(
         val matching = articleDao.getAll()
             .mapNotNull { decode(it.json) }
             .filter { matches(it, filter, tagId, showArchivedForTag) }
-        if (filter == ArticleFilter.FAVORITES) {
+        if (filter == ArticleFilter.PAGES_FAVORITES || filter == ArticleFilter.VIDEOS_FAVORITES) {
             matching.sortedByDescending { it.favoritedAt ?: "" }
         } else {
             matching.sortedByDescending { it.createdAt }
         }
+    }
+
+    /**
+     * Alle gecachten Artikel ohne jeden Filter (unabhängig von Archiv-/Favoriten-
+     * Status oder Seiten/Videos-Kategorie) - für Fallback-Lookups, die über die
+     * sechs [ArticleFilter]-Ansichten hinausgehen (Bilder-Prefetch beim App-
+     * Start, Offline-Fallback im Reader per Artikel-ID).
+     */
+    suspend fun loadAllCached(): List<Article> = mutex.withLock {
+        articleDao.getAll().mapNotNull { decode(it.json) }
     }
 
     /**
@@ -108,12 +118,15 @@ class ArticleCacheService @Inject constructor(
             // `showArchivedForTag`, ob archivierte Artikel mitgezählt werden.
             return showArchivedForTag || !article.isArchived
         }
+        val isVideo = article.category == "Video"
         return when (filter) {
-            ArticleFilter.ALL -> !article.isArchived
+            ArticleFilter.PAGES_UNREAD -> !article.isArchived && !isVideo
             // Bewusst OHNE isArchived-Bedingung: Favoriten unabhängig vom Archiv-Status.
-            ArticleFilter.FAVORITES -> article.isFavorite
-            ArticleFilter.ARCHIVE -> article.isArchived
-            ArticleFilter.VIDEOS -> article.category == "Video" && !article.isArchived
+            ArticleFilter.PAGES_FAVORITES -> article.isFavorite && !isVideo
+            ArticleFilter.PAGES_ARCHIVE -> article.isArchived && !isVideo
+            ArticleFilter.VIDEOS_UNREAD -> !article.isArchived && isVideo
+            ArticleFilter.VIDEOS_FAVORITES -> article.isFavorite && isVideo
+            ArticleFilter.VIDEOS_ARCHIVE -> article.isArchived && isVideo
         }
     }
 
