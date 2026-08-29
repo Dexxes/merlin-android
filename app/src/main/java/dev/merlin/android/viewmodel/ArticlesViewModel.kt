@@ -13,6 +13,7 @@ import dev.merlin.android.models.Article
 import dev.merlin.android.models.ArticleFilter
 import dev.merlin.android.models.Tag
 import dev.merlin.android.network.ArticleCounts
+import dev.merlin.android.network.CategoryCounts
 import dev.merlin.android.network.CreateArticleRequest
 import dev.merlin.android.network.CreateTagRequest
 import dev.merlin.android.network.MerlinApi
@@ -75,7 +76,7 @@ class ArticlesViewModel @Inject constructor(
     private val _articles = MutableStateFlow<List<Article>>(emptyList())
     val articles: StateFlow<List<Article>> = _articles.asStateFlow()
 
-    private val _selectedFilter = MutableStateFlow(ArticleFilter.ALL)
+    private val _selectedFilter = MutableStateFlow(ArticleFilter.PAGES_UNREAD)
     val selectedFilter: StateFlow<ArticleFilter> = _selectedFilter.asStateFlow()
 
     private val _searchQuery = MutableStateFlow("")
@@ -90,7 +91,12 @@ class ArticlesViewModel @Inject constructor(
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
 
-    private val _counts = MutableStateFlow(ArticleCounts(total = 0, unread = 0, favorites = 0, archived = 0))
+    private val _counts = MutableStateFlow(
+        ArticleCounts(
+            pages = CategoryCounts(total = 0, unread = 0, favorites = 0, archived = 0),
+            videos = CategoryCounts(total = 0, unread = 0, favorites = 0, archived = 0),
+        ),
+    )
     val counts: StateFlow<ArticleCounts> = _counts.asStateFlow()
 
     /** Tag-IDs, deren Artikel ausgeblendet werden; automatisch in [PreferencesStore] persistiert. */
@@ -230,7 +236,7 @@ class ArticlesViewModel @Inject constructor(
         // Bilder aller bereits gecachten Artikel nachträglich vorwärmen, damit
         // Offline-Lesen sofort funktioniert, auch für Artikel aus früheren Sessions.
         viewModelScope.launch {
-            val cached = articleCacheService.loadFiltered(ArticleFilter.ALL, tagId = null)
+            val cached = articleCacheService.loadAllCached()
             imageCacheService.prefetch(cached)
         }
         offlineMutationQueue.onDrained = { load() }
@@ -281,12 +287,14 @@ class ArticlesViewModel @Inject constructor(
             return api.listArticles(tagId = tagId, isArchived = archivedFilter)
         }
         return when (filter) {
-            ArticleFilter.ALL -> api.listArticles(isArchived = 0)
+            ArticleFilter.PAGES_UNREAD -> api.listArticles(isArchived = 0, contentType = "page")
             // Bewusst OHNE isArchived-Filter: Favoriten unabhängig vom Archiv-
             // Status anzeigen, chronologisch nach Favorisierungszeitpunkt.
-            ArticleFilter.FAVORITES -> api.listArticles(isFavorite = 1).sortedByDescending { it.favoritedAt ?: "" }
-            ArticleFilter.ARCHIVE -> api.listArticles(isArchived = 1).sortedByDescending { it.archivedAt ?: "" }
-            ArticleFilter.VIDEOS -> api.listArticles(isArchived = 0, category = "Video")
+            ArticleFilter.PAGES_FAVORITES -> api.listArticles(isFavorite = 1, contentType = "page").sortedByDescending { it.favoritedAt ?: "" }
+            ArticleFilter.PAGES_ARCHIVE -> api.listArticles(isArchived = 1, contentType = "page").sortedByDescending { it.archivedAt ?: "" }
+            ArticleFilter.VIDEOS_UNREAD -> api.listArticles(isArchived = 0, contentType = "video")
+            ArticleFilter.VIDEOS_FAVORITES -> api.listArticles(isFavorite = 1, contentType = "video").sortedByDescending { it.favoritedAt ?: "" }
+            ArticleFilter.VIDEOS_ARCHIVE -> api.listArticles(isArchived = 1, contentType = "video").sortedByDescending { it.archivedAt ?: "" }
         }
     }
 
@@ -339,7 +347,9 @@ class ArticlesViewModel @Inject constructor(
         val resolvedIds = resolveTagIds(pendingTagNames)
         val article = api.createArticle(CreateArticleRequest(url = url, tagIds = (tagIds + resolvedIds).toList()))
         _articles.value = listOf(article) + _articles.value
-        _counts.value = _counts.value.copy(total = _counts.value.total + 1)
+        // Kategorie steht erst nach der (async) Extraktion fest - optimistisch als
+        // Seite zählen, refreshCounts() korrigiert bei Bedarf auf den Server-Stand.
+        _counts.value = _counts.value.copy(pages = _counts.value.pages.copy(total = _counts.value.pages.total + 1))
         articleCacheService.upsert(article)
         prefetchImages(listOf(article))
         startProcessingListenerIfNeeded()
@@ -585,11 +595,16 @@ class ArticlesViewModel @Inject constructor(
         }
     }
 
-    private fun shouldHide(article: Article, filter: ArticleFilter): Boolean = when (filter) {
-        ArticleFilter.ALL -> article.isArchived
-        ArticleFilter.FAVORITES -> !article.isFavorite
-        ArticleFilter.ARCHIVE -> !article.isArchived
-        ArticleFilter.VIDEOS -> article.isArchived || article.category != "Video"
+    private fun shouldHide(article: Article, filter: ArticleFilter): Boolean {
+        val isVideo = article.category == "Video"
+        return when (filter) {
+            ArticleFilter.PAGES_UNREAD -> article.isArchived || isVideo
+            ArticleFilter.PAGES_FAVORITES -> !article.isFavorite || isVideo
+            ArticleFilter.PAGES_ARCHIVE -> !article.isArchived || isVideo
+            ArticleFilter.VIDEOS_UNREAD -> article.isArchived || !isVideo
+            ArticleFilter.VIDEOS_FAVORITES -> !article.isFavorite || !isVideo
+            ArticleFilter.VIDEOS_ARCHIVE -> !article.isArchived || !isVideo
+        }
     }
 
     /** Fügt [article] wieder ein, falls der aktive Filter es zeigen würde und es fehlt (Rollback nach echtem Fehler). */
@@ -600,7 +615,7 @@ class ArticlesViewModel @Inject constructor(
             applyUpdate(article)
             return
         }
-        val idx = if (_selectedFilter.value == ArticleFilter.ARCHIVE) {
+        val idx = if (_selectedFilter.value == ArticleFilter.PAGES_ARCHIVE || _selectedFilter.value == ArticleFilter.VIDEOS_ARCHIVE) {
             current.indexOfFirst { (it.archivedAt ?: "") < (article.archivedAt ?: "") }
         } else {
             current.indexOfFirst { it.createdAt < article.createdAt }

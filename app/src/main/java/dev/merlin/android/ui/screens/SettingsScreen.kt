@@ -83,7 +83,7 @@ fun SettingsScreen(
     val testResult by viewModel.testResult.collectAsState()
     val cacheCleared by viewModel.cacheCleared.collectAsState()
 
-    val defaultFilter by viewModel.preferencesStore.defaultFilter.collectAsState(initial = ArticleFilter.ALL)
+    val defaultFilter by viewModel.preferencesStore.defaultFilter.collectAsState(initial = ArticleFilter.PAGES_UNREAD)
     val progressEdge by viewModel.preferencesStore.progressEdge.collectAsState(initial = ProgressEdge.LEFT)
     val saveProgress by viewModel.preferencesStore.saveProgress.collectAsState(initial = true)
     val resumeOnOpen by viewModel.preferencesStore.resumeOnOpen.collectAsState(initial = true)
@@ -251,8 +251,19 @@ fun SettingsScreen(
             // MARK: – Präferenzen
             SectionHeader(stringResource(R.string.settings_preferences_sectionHeader))
             Text(stringResource(R.string.settings_preferences_defaultViewLabel), style = MaterialTheme.typography.labelLarge)
+            // Zwei Zeilen (Seiten/Videos) statt einer, da ArticleFilter seit der
+            // Pages/Videos-Aufteilung sechs statt vier Werte hat.
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                ArticleFilter.entries.forEach { filter ->
+                ArticleFilter.entries.filterNot { it.isVideo }.forEach { filter ->
+                    FilterChip(
+                        selected = filter == defaultFilter,
+                        onClick = { viewModel.setDefaultFilter(filter) },
+                        label = { Text(filter.label) },
+                    )
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 4.dp)) {
+                ArticleFilter.entries.filter { it.isVideo }.forEach { filter ->
                     FilterChip(
                         selected = filter == defaultFilter,
                         onClick = { viewModel.setDefaultFilter(filter) },

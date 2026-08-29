@@ -65,7 +65,7 @@ class PreferencesStore @Inject constructor(
     // MARK: – App-Einstellungen (reaktiv für Compose via collectAsState)
 
     val defaultFilter: Flow<ArticleFilter> = dataStore.data.map { prefs ->
-        prefs[Keys.DEFAULT_FILTER]?.let { runCatching { ArticleFilter.valueOf(it) }.getOrNull() } ?: ArticleFilter.ALL
+        prefs[Keys.DEFAULT_FILTER]?.let { runCatching { ArticleFilter.valueOf(it) }.getOrNull() } ?: ArticleFilter.PAGES_UNREAD
     }
     suspend fun setDefaultFilter(value: ArticleFilter) = dataStore.edit { it[Keys.DEFAULT_FILTER] = value.name }
 
@@ -189,7 +189,7 @@ class PreferencesStore @Inject constructor(
         val theme = prefs[Keys.READER_THEME]?.let { runCatching { ReaderTheme.valueOf(it) }.getOrNull() } ?: ReaderTheme.AUTO
         val font = prefs[Keys.READER_FONT]?.let { runCatching { ReaderFont.valueOf(it) }.getOrNull() } ?: ReaderFont.SYSTEM
         val edge = prefs[Keys.PROGRESS_EDGE]?.let { runCatching { ProgressEdge.valueOf(it) }.getOrNull() } ?: ProgressEdge.LEFT
-        val filter = prefs[Keys.DEFAULT_FILTER]?.let { runCatching { ArticleFilter.valueOf(it) }.getOrNull() } ?: ArticleFilter.ALL
+        val filter = prefs[Keys.DEFAULT_FILTER]?.let { runCatching { ArticleFilter.valueOf(it) }.getOrNull() } ?: ArticleFilter.PAGES_UNREAD
         return Settings(
             theme = theme.serverValue,
             fontSize = (prefs[Keys.READER_FONT_SIZE] ?: 17).toString(),

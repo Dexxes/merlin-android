@@ -40,6 +40,7 @@ interface MerlinApi {
         @Query("isArchived") isArchived: Int? = null,
         @Query("tagId") tagId: Int? = null,
         @Query("category") category: String? = null,
+        @Query("contentType") contentType: String? = null,
         @Query("limit") limit: Int = 50,
         @Query("offset") offset: Int = 0,
     ): List<Article>
@@ -169,8 +170,14 @@ interface MerlinApi {
     suspend fun deleteSiteCredential(@Path("domain") domain: String): Response<Unit>
 }
 
+// Seiten/Videos sind die obersten Kategorien, Unread/Favorites/Archived
+// darunter je Kategorie gezählt - siehe getCounts() in
+// merlin-standalone-server/src/Db/ArticleRepository.php.
 @Serializable
-data class ArticleCounts(val total: Int, val unread: Int, val favorites: Int, val archived: Int)
+data class ArticleCounts(val pages: CategoryCounts, val videos: CategoryCounts)
+
+@Serializable
+data class CategoryCounts(val total: Int, val unread: Int, val favorites: Int, val archived: Int)
 
 @Serializable
 data class CreateArticleRequest(val url: String, val tagIds: List<Int> = emptyList())

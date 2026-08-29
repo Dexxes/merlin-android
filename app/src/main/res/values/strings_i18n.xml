@@ -31,9 +31,12 @@
     <string name="articleList_emptyState_taggedMessage">"No articles tagged \"%1$s\"."</string>
     <string name="articleList_emptyState_title">"Nothing here yet"</string>
     <string name="articleList_emptyState_videosMessage">"No videos saved yet. Add a YouTube or video link to see it here."</string>
+    <string name="articleList_emptyState_unseenMessage">"No unwatched videos yet. Add a YouTube or video link to see it here."</string>
     <string name="articleList_filter_archive">"Archive"</string>
     <string name="articleList_filter_favorites">"Favorites"</string>
+    <string name="articleList_filter_pages">"Pages"</string>
     <string name="articleList_filter_unread">"Unread"</string>
+    <string name="articleList_filter_unseen">"Unwatched"</string>
     <string name="articleList_filter_videos">"Videos"</string>
     <string name="articleList_miniPlayer_fallbackTitle">"Reading aloud"</string>
     <string name="articleList_searchPlaceholder">"Search articles"</string>
