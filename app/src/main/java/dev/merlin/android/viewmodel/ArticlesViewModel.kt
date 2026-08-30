@@ -138,6 +138,16 @@ class ArticlesViewModel @Inject constructor(
     private val _settingsLoaded = MutableStateFlow(false)
     val settingsLoaded: StateFlow<Boolean> = _settingsLoaded.asStateFlow()
 
+    /**
+     * Ob der Server aktuell eine funktionierende Vorlesefunktion (TTS) anbietet
+     * (siehe `GET /api/capabilities`, im `init`-Block abgefragt). Default `true`,
+     * damit eine künftige TTS-UI nicht schon vor dem ersten Netzwerk-Response
+     * verschwindet – ein negativer Server-Wert blendet sie dann umgehend aus.
+     * Äquivalent zu `PreferencesStore.ttsAvailable` auf iOS.
+     */
+    private val _ttsAvailable = MutableStateFlow(true)
+    val ttsAvailable: StateFlow<Boolean> = _ttsAvailable.asStateFlow()
+
     val selectedTagName: String?
         get() = _selectedTagId.value?.let { id -> _allTags.value.firstOrNull { it.id == id }?.name }
 
@@ -221,6 +231,9 @@ class ArticlesViewModel @Inject constructor(
                 // der bei Fehlschlag einfach mit den lokalen Defaults weitermacht.
                 _settingsLoaded.value = true
             }
+        }
+        viewModelScope.launch {
+            runCatching { api.getCapabilities() }.getOrNull()?.let { _ttsAvailable.value = it.tts.available }
         }
         viewModelScope.launch { _excludedTagIds.value = preferencesStore.excludedTagIds.first() }
         viewModelScope.launch { _selectedFilter.value = preferencesStore.defaultFilter.first() }

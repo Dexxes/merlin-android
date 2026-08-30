@@ -108,6 +108,10 @@ interface MerlinApi {
     @PUT("api/settings")
     suspend fun updateSettings(@Body body: Settings): SuccessResponse
 
+    /** Server-Capabilities (z.B. ob TTS eingerichtet & erreichbar ist) – nach dem Login abgefragt. */
+    @GET("api/capabilities")
+    suspend fun getCapabilities(): Capabilities
+
     // ── Public Share ─────────────────────────────────────────────────────
     // Ein Artikel hat höchstens einen Share-Link (siehe ShareController im
     // Backend: "Regenerieren" tauscht nur den Token aus statt einen zweiten
@@ -265,6 +269,15 @@ data class Settings(
     @Serializable(with = CoercingStringSerializer::class)
     val reportBackendUrl: String = "",
 )
+
+/** Antwort von `GET /api/capabilities` (identisch auf Nextcloud und merlin-server). */
+@Serializable
+data class Capabilities(
+    val tts: TtsCapability = TtsCapability(available = false),
+) {
+    @Serializable
+    data class TtsCapability(val available: Boolean)
+}
 
 @Serializable
 data class CreateShareRequest(val password: String? = null, val expiresAt: String? = null)
