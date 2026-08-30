@@ -7,15 +7,27 @@ package dev.merlin.android.models
  * die eigentliche ViewModel-Schicht (Abschnitt 8) existiert.
  */
 enum class ArticleFilter {
+    CONTINUE_READING,
+    CONTINUE_WATCHING,
     ALL,
     FAVORITES,
     ARCHIVE,
     VIDEOS,
     ;
 
+    /**
+     * Ob dieser Filter angefangene, aber nicht fertig gelesene/geschaute
+     * Inhalte listet (Weiterlesen/Weiterschauen) – rein client-seitig aus
+     * `Article.scrollProgress` gefiltert, siehe `ArticlesViewModel.fetchForFilter`.
+     */
+    val isContinue: Boolean
+        get() = this == CONTINUE_READING || this == CONTINUE_WATCHING
+
     /** UI-Label, Äquivalent zu `ArticleFilter.label` (Swift). Icon-Zuordnung liegt in der UI-Schicht (Compose-Dependency). */
     val label: String
         get() = when (this) {
+            CONTINUE_READING -> "Weiterlesen"
+            CONTINUE_WATCHING -> "Weiterschauen"
             ALL -> "Ungelesen"
             FAVORITES -> "Favoriten"
             ARCHIVE -> "Archiv"
@@ -24,16 +36,15 @@ enum class ArticleFilter {
 
     /**
      * Wert, den der Server für `defaultView` erwartet (Settings-Sync). Der
-     * Server kennt nur "all"/"favorites" – `archive`/`videos` sind App-lokale
-     * Filter ohne Server-Äquivalent und fallen beim Sync auf "all" zurück
-     * (1:1 wie `ArticleFilter.serverValue` in `ArticlesViewModel.swift`).
+     * Server kennt nur "all"/"favorites" – `archive`/`videos`/Weiterlesen-
+     * Filter sind App-lokal ohne Server-Äquivalent und fallen beim Sync auf
+     * "all" zurück (1:1 wie `ArticleFilter.serverValue` in `ArticlesViewModel.swift`).
      */
     val serverValue: String
         get() = when (this) {
             ALL -> "all"
             FAVORITES -> "favorites"
-            ARCHIVE -> "all"
-            VIDEOS -> "all"
+            ARCHIVE, VIDEOS, CONTINUE_READING, CONTINUE_WATCHING -> "all"
         }
 
     companion object {

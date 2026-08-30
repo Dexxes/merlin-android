@@ -252,7 +252,9 @@ fun SettingsScreen(
             SectionHeader(stringResource(R.string.settings_preferences_sectionHeader))
             Text(stringResource(R.string.settings_preferences_defaultViewLabel), style = MaterialTheme.typography.labelLarge)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                ArticleFilter.entries.forEach { filter ->
+                // Weiterlesen/Weiterschauen sind dynamische, oft leere Listen –
+                // als Standard-Startansicht ausgeschlossen.
+                ArticleFilter.entries.filterNot { it.isContinue }.forEach { filter ->
                     FilterChip(
                         selected = filter == defaultFilter,
                         onClick = { viewModel.setDefaultFilter(filter) },

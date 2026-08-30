@@ -287,6 +287,15 @@ class ArticlesViewModel @Inject constructor(
             ArticleFilter.FAVORITES -> api.listArticles(isFavorite = 1).sortedByDescending { it.favoritedAt ?: "" }
             ArticleFilter.ARCHIVE -> api.listArticles(isArchived = 1).sortedByDescending { it.archivedAt ?: "" }
             ArticleFilter.VIDEOS -> api.listArticles(isArchived = 0, category = "Video")
+            // Angefangene, aber weder fertig gelesene/geschaute noch archivierte
+            // Inhalte – nutzt den bereits geräteübergreifend synchronisierten
+            // `scrollProgress` (siehe ArticleReaderViewModel), keine eigene Server-Anfrage.
+            ArticleFilter.CONTINUE_READING -> api.listArticles(isArchived = 0)
+                .filter { it.category != "Video" && it.scrollProgress > 0f && it.scrollProgress < 1f }
+                .sortedByDescending { it.scrollUpdatedAt }
+            ArticleFilter.CONTINUE_WATCHING -> api.listArticles(isArchived = 0, category = "Video")
+                .filter { it.scrollProgress > 0f && it.scrollProgress < 1f }
+                .sortedByDescending { it.scrollUpdatedAt }
         }
     }
 
@@ -585,11 +594,16 @@ class ArticlesViewModel @Inject constructor(
         }
     }
 
-    private fun shouldHide(article: Article, filter: ArticleFilter): Boolean = when (filter) {
-        ArticleFilter.ALL -> article.isArchived
-        ArticleFilter.FAVORITES -> !article.isFavorite
-        ArticleFilter.ARCHIVE -> !article.isArchived
-        ArticleFilter.VIDEOS -> article.isArchived || article.category != "Video"
+    private fun shouldHide(article: Article, filter: ArticleFilter): Boolean {
+        val isInProgress = article.scrollProgress > 0f && article.scrollProgress < 1f
+        return when (filter) {
+            ArticleFilter.ALL -> article.isArchived
+            ArticleFilter.FAVORITES -> !article.isFavorite
+            ArticleFilter.ARCHIVE -> !article.isArchived
+            ArticleFilter.VIDEOS -> article.isArchived || article.category != "Video"
+            ArticleFilter.CONTINUE_READING -> article.isArchived || article.category == "Video" || !isInProgress
+            ArticleFilter.CONTINUE_WATCHING -> article.isArchived || article.category != "Video" || !isInProgress
+        }
     }
 
     /** Fügt [article] wieder ein, falls der aktive Filter es zeigen würde und es fehlt (Rollback nach echtem Fehler). */
@@ -602,6 +616,8 @@ class ArticlesViewModel @Inject constructor(
         }
         val idx = if (_selectedFilter.value == ArticleFilter.ARCHIVE) {
             current.indexOfFirst { (it.archivedAt ?: "") < (article.archivedAt ?: "") }
+        } else if (_selectedFilter.value.isContinue) {
+            current.indexOfFirst { it.scrollUpdatedAt < article.scrollUpdatedAt }
         } else {
             current.indexOfFirst { it.createdAt < article.createdAt }
         }.let { if (it == -1) current.size else it }

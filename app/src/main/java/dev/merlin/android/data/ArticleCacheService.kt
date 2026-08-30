@@ -50,6 +50,8 @@ class ArticleCacheService @Inject constructor(
             .filter { matches(it, filter, tagId, showArchivedForTag) }
         if (filter == ArticleFilter.FAVORITES) {
             matching.sortedByDescending { it.favoritedAt ?: "" }
+        } else if (filter.isContinue) {
+            matching.sortedByDescending { it.scrollUpdatedAt }
         } else {
             matching.sortedByDescending { it.createdAt }
         }
@@ -108,12 +110,15 @@ class ArticleCacheService @Inject constructor(
             // `showArchivedForTag`, ob archivierte Artikel mitgezählt werden.
             return showArchivedForTag || !article.isArchived
         }
+        val isInProgress = article.scrollProgress > 0f && article.scrollProgress < 1f
         return when (filter) {
             ArticleFilter.ALL -> !article.isArchived
             // Bewusst OHNE isArchived-Bedingung: Favoriten unabhängig vom Archiv-Status.
             ArticleFilter.FAVORITES -> article.isFavorite
             ArticleFilter.ARCHIVE -> article.isArchived
             ArticleFilter.VIDEOS -> article.category == "Video" && !article.isArchived
+            ArticleFilter.CONTINUE_READING -> article.category != "Video" && !article.isArchived && isInProgress
+            ArticleFilter.CONTINUE_WATCHING -> article.category == "Video" && !article.isArchived && isInProgress
         }
     }
 
