@@ -279,6 +279,19 @@ object ReaderHtmlBuilder {
               border-left: 3px solid ${appearance.accentColorHex};
               opacity: 0.85;
             }
+            .merlin-infobox {
+              background: ${hexToRgba(appearance.accentColorHex, 0.1)};
+              border-left: 4px solid ${appearance.accentColorHex};
+              border-radius: 0 8px 8px 0;
+              padding: 14px 16px;
+              margin: 1.5em 0;
+              font-size: 0.93em;
+              line-height: 1.6;
+              color: $fg;
+            }
+            .merlin-infobox > *:first-child { margin-top: 0; }
+            .merlin-infobox > *:last-child { margin-bottom: 0; }
+            .merlin-infobox a { color: ${appearance.accentColorHex} !important; }
             pre, code { font-family: ${dev.merlin.android.models.ReaderFont.MONO.cssValue}; }
             .merlin-highlight { border-radius: 2px; padding: 0 1px; cursor: pointer; }
             .merlin-img-error {
