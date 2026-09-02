@@ -275,10 +275,35 @@ object ReaderHtmlBuilder {
               }
             }
             blockquote {
-              margin: 1em 0; padding-left: 1em;
-              border-left: 3px solid ${appearance.accentColorHex};
-              opacity: 0.85;
+              margin: 1.5em 0; padding: 0;
+              text-align: center;
+              font-family: ${dev.merlin.android.models.ReaderFont.SERIF.cssValue};
+              font-size: 1.3em;
+              font-style: italic;
+              line-height: 1.45;
+              color: ${appearance.accentColorHex};
             }
+            blockquote p { margin: 0 0 0.4em; }
+            blockquote cite, blockquote footer {
+              display: block;
+              font-family: ${dev.merlin.android.models.ReaderFont.SYSTEM.cssValue};
+              font-size: 0.6em;
+              font-style: normal;
+              text-align: center !important;
+              margin-top: 0.3em;
+              color: ${appearance.accentColorHex};
+            }
+            /* Some sources place the attribution in a paragraph right after the
+               blockquote (e.g. <blockquote>…</blockquote><p><cite>Name</cite></p>)
+               instead of nesting it inside the blockquote itself. */
+            blockquote + p {
+              display: block;
+              text-align: center !important;
+              font-family: ${dev.merlin.android.models.ReaderFont.SYSTEM.cssValue};
+              font-size: 0.85em;
+              color: ${appearance.accentColorHex};
+            }
+            blockquote + p cite, blockquote + p cite * { font-style: normal; }
             pre, code { font-family: ${dev.merlin.android.models.ReaderFont.MONO.cssValue}; }
             .merlin-highlight { border-radius: 2px; padding: 0 1px; cursor: pointer; }
             .merlin-img-error {
