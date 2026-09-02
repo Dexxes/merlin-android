@@ -275,9 +275,22 @@ object ReaderHtmlBuilder {
               }
             }
             blockquote {
-              margin: 1em 0; padding-left: 1em;
-              border-left: 3px solid ${appearance.accentColorHex};
-              opacity: 0.85;
+              margin: 1.5em 0; padding: 0;
+              text-align: center;
+              font-family: ${dev.merlin.android.models.ReaderFont.SERIF.cssValue};
+              font-size: 1.3em;
+              line-height: 1.45;
+              color: $fg;
+            }
+            blockquote p { margin: 0 0 0.4em; }
+            blockquote cite, blockquote footer {
+              display: block;
+              font-family: ${dev.merlin.android.models.ReaderFont.SYSTEM.cssValue};
+              font-size: 0.6em;
+              font-style: normal;
+              text-align: center;
+              margin-top: 0.3em;
+              color: $mutedFg;
             }
             pre, code { font-family: ${dev.merlin.android.models.ReaderFont.MONO.cssValue}; }
             .merlin-highlight { border-radius: 2px; padding: 0 1px; cursor: pointer; }
