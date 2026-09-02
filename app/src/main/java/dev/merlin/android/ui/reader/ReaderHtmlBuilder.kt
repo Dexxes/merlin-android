@@ -279,8 +279,9 @@ object ReaderHtmlBuilder {
               text-align: center;
               font-family: ${dev.merlin.android.models.ReaderFont.SERIF.cssValue};
               font-size: 1.3em;
+              font-style: italic;
               line-height: 1.45;
-              color: $fg;
+              color: ${appearance.accentColorHex};
             }
             blockquote p { margin: 0 0 0.4em; }
             blockquote cite, blockquote footer {
@@ -288,9 +289,9 @@ object ReaderHtmlBuilder {
               font-family: ${dev.merlin.android.models.ReaderFont.SYSTEM.cssValue};
               font-size: 0.6em;
               font-style: normal;
-              text-align: center;
+              text-align: center !important;
               margin-top: 0.3em;
-              color: $mutedFg;
+              color: ${appearance.accentColorHex};
             }
             pre, code { font-family: ${dev.merlin.android.models.ReaderFont.MONO.cssValue}; }
             .merlin-highlight { border-radius: 2px; padding: 0 1px; cursor: pointer; }
