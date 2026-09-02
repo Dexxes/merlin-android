@@ -293,6 +293,17 @@ object ReaderHtmlBuilder {
               margin-top: 0.3em;
               color: ${appearance.accentColorHex};
             }
+            /* Some sources place the attribution in a paragraph right after the
+               blockquote (e.g. <blockquote>…</blockquote><p><cite>Name</cite></p>)
+               instead of nesting it inside the blockquote itself. */
+            blockquote + p {
+              display: block;
+              text-align: center !important;
+              font-family: ${dev.merlin.android.models.ReaderFont.SYSTEM.cssValue};
+              font-size: 0.85em;
+              color: ${appearance.accentColorHex};
+            }
+            blockquote + p cite, blockquote + p cite * { font-style: normal; }
             pre, code { font-family: ${dev.merlin.android.models.ReaderFont.MONO.cssValue}; }
             .merlin-highlight { border-radius: 2px; padding: 0 1px; cursor: pointer; }
             .merlin-img-error {
