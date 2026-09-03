@@ -291,6 +291,52 @@ object ReaderHtmlBuilder {
               border-top: 1px solid rgba(127,127,127,0.25);
               font-size: 0.9em; font-style: italic; color: $mutedFg;
             }
+            /* Instagram-/X-/Bluesky-Embeds (siehe ContentExtractorService.php,
+               isAllowedWidgetScriptSrc()) rendern sich nach dem Laden ihres
+               Widget-Skripts selbst neu - der generische blockquote-Style oben
+               (Akzent-Randlinie, gedimmt) würde nur bis zum Laden sichtbar sein
+               und dann falsch wirken, deshalb hier zurückgesetzt. */
+            blockquote.instagram-media, blockquote.twitter-tweet, blockquote.bluesky-embed {
+              margin: 1em 0; padding-left: 0; border-left: none; opacity: 1; color: $fg;
+            }
+            /* Mastodon-Post-Karte (siehe MastodonPostResolverService/
+               buildMastodonThreadHtml()): kein Drittanbieter-Widget wie
+               Instagram/X/Bluesky (föderiert, kein zentraler Embed-Host),
+               sondern eigenes, statisches Markup - braucht deshalb echtes
+               Styling statt nur eines Platzhalter-Resets. */
+            .merlin-mastodon-post {
+              display: block; border: 1px solid rgba(127,127,127,0.25);
+              border-radius: 8px; padding: 12px 16px; margin: 1em 0; color: $fg;
+            }
+            .merlin-mastodon-post + .merlin-mastodon-post { margin-top: 8px; }
+            .merlin-mastodon-post__header {
+              display: flex; align-items: center; gap: 10px;
+              text-decoration: none; color: $fg; margin-bottom: 10px;
+            }
+            .merlin-mastodon-post__avatar {
+              width: 40px; height: 40px; border-radius: 50%;
+              object-fit: cover; flex-shrink: 0; margin: 0;
+            }
+            .merlin-mastodon-post__author {
+              display: flex; flex-direction: column; line-height: 1.3; min-width: 0;
+            }
+            .merlin-mastodon-post__name {
+              font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+            }
+            .merlin-mastodon-post__handle {
+              color: $mutedFg; font-size: 0.9em; overflow: hidden;
+              text-overflow: ellipsis; white-space: nowrap;
+            }
+            .merlin-mastodon-post__content p { margin: 0.5em 0; }
+            .merlin-mastodon-post__content p:first-child { margin-top: 0; }
+            .merlin-mastodon-post__content p:last-child { margin-bottom: 0; }
+            .merlin-mastodon-post__media {
+              display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+              gap: 6px; margin-top: 10px;
+            }
+            .merlin-mastodon-post__media-item {
+              width: 100%; height: 140px; object-fit: cover; border-radius: 6px; margin: 0;
+            }
         """.trimIndent()
     }
 
