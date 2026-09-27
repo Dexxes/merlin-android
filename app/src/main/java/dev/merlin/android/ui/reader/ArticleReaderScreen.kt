@@ -232,6 +232,8 @@ fun ArticleReaderScreen(
     // Nicht-persistenter Dismiss-State für PaywallWarningBanner (siehe dortiger Kommentar) –
     // pro Artikel zurückgesetzt, damit ein Wechsel zu `nextArticleId` den Banner wieder zeigt.
     var paywallBannerDismissed by remember(viewModel.articleId) { mutableStateOf(false) }
+    // Analog für UnsupportedSiteBanner.
+    var unsupportedSiteBannerDismissed by remember(viewModel.articleId) { mutableStateOf(false) }
 
     // Bottom-Bar-Sichtbarkeit – Äquivalent zu iOS' `onScrollGeometryChange`-Paar in
     // ArticleReaderView.swift: beim Scrollen nach unten wird die Leiste ausgeblendet, außer man
@@ -467,6 +469,13 @@ fun ArticleReaderScreen(
                                 onConnect = { onNavigateToSiteCredentials(domain) },
                                 onRetry = { viewModel.retryPaywall() },
                                 onDismiss = { paywallBannerDismissed = true },
+                                modifier = Modifier.align(Alignment.TopCenter),
+                            )
+                        }
+                        currentArticle.unsupportedSiteDomain?.takeIf { !unsupportedSiteBannerDismissed }?.let { domain ->
+                            UnsupportedSiteBanner(
+                                domain = domain,
+                                onDismiss = { unsupportedSiteBannerDismissed = true },
                                 modifier = Modifier.align(Alignment.TopCenter),
                             )
                         }

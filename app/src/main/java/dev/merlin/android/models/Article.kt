@@ -83,6 +83,12 @@ data class Article(
     // `requiresLoginDomain` gesetzt ist (Login-Seiten-URL für diese Domain).
     val requiresLoginDomain: String? = null,
     val requiresLoginPage: String? = null,
+    // Domain aus content-filters/$unsupported.xml (siehe UnsupportedSiteException,
+    // merlin-nextcloud), oder null im Normalfall: die Domain liefert grundsätzlich
+    // keinen scrapbaren Artikeltext (reine JS-SPA/Bild-Viewer, z. B. PressReader) -
+    // anders als bei requiresLoginDomain gibt es hier keinen Login, der das beheben
+    // könnte (siehe UnsupportedSiteBanner).
+    val unsupportedSiteDomain: String? = null,
 ) {
     /** true, sobald [favoritedAt] gesetzt ist – Bool-Convenience für bestehenden UI-Code. */
     val isFavorite: Boolean
