@@ -22,6 +22,6 @@ fun SourceCodeLink(modifier: Modifier = Modifier) {
         onClick = { uriHandler.openUri(SOURCE_CODE_URL) },
         modifier = modifier.fillMaxWidth(),
     ) {
-        Text(stringResource(R.string.settings_about_sourceCodeLink))
+        Text(stringResource(R.string.settings_about_sourceCodeLabel))
     }
 }
