@@ -88,6 +88,7 @@ Adaptive-Vordergrund 108/162/216/324/432px (jeweils mdpi→xxxhdpi).
 |---|---|
 | `Article.kt` | Wie iOS-Original inkl. `displayTitle`/`displaySiteName`/`faviconUrl`; eigene `equals`/`hashCode` (id + isProcessing + updatedAt + sortierte Tag-IDs) statt Default-Datenklassen-Vergleich, aus demselben Grund wie im iOS-Original (Recomposition bei Server-Updates) |
 | `Tag.kt` | 1:1 |
+| `SupportBox.kt` | Daten der Support-Infobox (`siteName`, `subscribeUrl`, `donationsUrl`, `accentColor`, `iconUrl`) aus `GET /api/articles/{id}`; `Article.supportBox` (nur Einzelabruf, wird von `ArticleCacheService.upsert` bewusst nie in Room geschrieben – der Login-Status kann sich ändern, Äquivalent zu `Article.encode` in iOS) |
 | `Highlight.kt` | `Highlight` + `HighlightCreate` (Request-Payload ohne Server-Felder) |
 | `Reminder.kt` | `triggerAt`/`createdAt` als Epoch-Millis statt `Date` (passt direkt zu `AlarmManager`/`WorkManager`); `id` als String-UUID statt `UUID`-Typ wegen Room-Kompatibilität |
 
@@ -237,7 +238,7 @@ eigener Task).
 |---|---|
 | `viewmodel/ArticleReaderViewModel.kt` | `@HiltViewModel`, liest `articleId` aus `SavedStateHandle["articleId"]` (vom `NavHost`-Argument befüllt); lädt Artikel + Highlights + Reminder-Status, optimistisches Create/Delete von Highlights mit Offline-Queue-Fallback, Scroll-Position-Persistenz über `PreferencesStore`, `Appearance`-State (Theme/Font/Größe/Zeilenhöhe/Akzentfarbe/Fortschrittsbalken-Kante), `currentReminder`/`reminderError`/`scheduleReminder()`/`cancelReminder()` für `ReminderSheet`, geteilter Coil-`imageLoader` (mit `RefererInterceptor`) für `ImageLightboxScreen`. Eigenes, von `ArticlesViewModel` unabhängiges `allTags`/`loadTags()`/`saveTags()`/`resolveTagIds()` (Dedup gegen vorhandene Tag-Namen, gleiche Logik wie `ArticlesViewModel`) für den im Drawer geöffneten `EditTagsDialog` |
 | `ui/reader/ReaderHtmlBuilder.kt` | Baut das Artikel-HTML inkl. eingebettetem `READER_JS` (Highlight-Erstellung per Selection-XPath, Tap-Erkennung auf Highlights/Bildern, Scroll-Postmessages) und themenabhängigem CSS aus `Appearance` |
-| `ui/reader/ReaderJsBridge.kt` | `@JavascriptInterface`-Brücke (`MerlinHighlightBridge`): JS → Kotlin-Callbacks für Highlight-Erstellung/-Tap, Bild-Tap (öffnet `ImageLightboxScreen`), Text-Selection-Rect |
+| `ui/reader/ReaderJsBridge.kt` | `@JavascriptInterface`-Brücke (`MerlinHighlightBridge`): JS → Kotlin-Callbacks für Highlight-Erstellung/-Tap, Bild-Tap (öffnet `ImageLightboxScreen`), Text-Selection-Rect, `onOpenExternalLink` (Links der Support-Infobox; nur http(s), Öffnen per `ACTION_VIEW` in `ReaderWebView`) |
 | `ui/reader/ReaderWebView.kt` | `AndroidView`-Wrapper um `android.webkit.WebView` (bewusst natives Scrollen statt iOS' `ScrollView`+ResizeObserver-Pattern – siehe Datei-Kommentar); Scroll-Restore mit Retry-Polling (Layout/Reflow nicht sofort final nach `onPageFinished`), live `onScrollProgress`-Callback für den Fortschrittsbalken, zusätzlicher `onScrollMetrics(offsetPx, scrollableRangePx)`-Callback mit rohen Pixelwerten für die Bottom-Bar-Sichtbarkeitslogik (siehe `ArticleReaderScreen.kt`), einmaliges Save-on-Dispose für die Persistenz. **Gesten-Konflikt-Fix**: `systemGestureExclusionRects` auf einem 32dp-Streifen am linken Rand (API 29+, via `addOnLayoutChangeListener` da `height` erst nach dem ersten Layout bekannt ist) reduziert die Kollision mit dem System-Edge-Swipe-Zurück (v.a. Samsung One UI) beim Scrollen nah am Rand – nur ein Hinweis ans System, kein hartes Override, siehe Datei-Kommentar |
 | `ui/reader/AppearanceSheet.kt` | `ModalBottomSheet`: Theme/Schriftart/-größe/Zeilenhöhe/Akzentfarbe/Fortschrittsbalken-Kante, schreibt direkt über `viewModel.preferencesStore` |
 | `ui/reader/ReminderSheet.kt` | Äquivalent zu `ReminderSheet.swift`. `ModalBottomSheet` mit Material3 `DatePickerDialog` + eigenem `TimePicker`-`AlertDialog` (sequenziell statt iOS' kombiniertem grafischem `DatePicker`, den es in Compose nicht gibt); Pre-Fill mit vorhandenem Reminder-Zeitpunkt, „Erinnerung entfernen“-Button bei bestehendem Reminder, Fehleranzeige aus `viewModel.reminderError`, lokaler `isSaving`-State sperrt die Buttons und schließt das Sheet nach erfolgreichem Speichern |
@@ -245,6 +246,25 @@ eigener Task).
 | `ui/reader/ArticleReaderScreen.kt` | `Scaffold` mit `TopAppBar` (Zurück/Favorit/Hamburger) + `ModalNavigationDrawer` als „Side-Drawer mit voller Aktionsliste“ (Favorit/Erscheinungsbild/Teilen/Browser/archive.ph/Link kopieren/Archivieren/Tags/Erinnern/Artikel melden/Löschen); „Tags bearbeiten…“ öffnet `EditTagsDialog` (lädt vorher per `viewModel.loadTags()` die volle Tag-Liste, da der Reader sie sonst nicht braucht); Highlight-Farb-Toolbar bei aktiver Text-Selection, Highlight-Löschen per `AlertDialog` nach Tap auf bestehendes Highlight, `ProgressBarOverlay` für die vier Kanten, öffnet `ReminderSheet`/`ImageLightboxScreen`/`ReportArticleSheet`. **`ReaderBottomBar`** (Äquivalent zu iOS' `bottomBar` in `ArticleReaderView.swift`): 3 Icon-Buttons (Zurück / Archivieren+Zurück / Archivieren+Weiter) als Overlay am unteren Rand, per `AnimatedVisibility` (slide+fade, 200ms) ein-/ausgeblendet; Sichtbarkeitslogik 1:1 aus iOS übernommen (160dp-Bodennähe, 4dp-Delta-Debounce, 40dp-Mindest-Scroll-Offset vor Richtungs-Tracking) auf Basis von `ReaderWebView`s `onScrollMetrics`. Buttons 2/3 archivieren einseitig (`if (!isArchived) toggleArchive()`, nie un-archivieren) wie im iOS-Original; Button 3 nutzt den optionalen `onNavigateNext`-Parameter (`null` → abgedunkelt/deaktiviert) |
 | `data/ReportService.kt` | Äquivalent zu `ReportService.swift`. `@Singleton`, Mutex-isoliert (Kotlin-Pendant zu Swifts `actor`). Cacht die per `MerlinApi.getSettings().reportBackendUrl` geladene Backend-URL; `report(url, comment)` postet JSON an `{backendUrl}?action=report` über einen eigenen, schlanken `OkHttpClient` **ohne** `BaseUrlInterceptor`/`AuthInterceptor` – der Hilt-weite Client ist fest auf den Nextcloud-Host verdrahtet und für das externe, unauthentifizierte merlin-reports-Backend ungeeignet. `ReportError`-Sealed-Class mit denselben deutschen Meldungen wie im iOS-Original |
 | `ui/reader/ReportArticleSheet.kt` | Äquivalent zu `ReportArticleSheet.swift`. `ModalBottomSheet` (statt iOS' `.sheet`/`NavigationStack`+Toolbar) mit URL-Vorschau, optionalem Mehrzeilen-Kommentarfeld, Feedback-Text (Erfolg/Fehler aus `viewModel.reportFeedback`), Abbrechen/Melden/Schließen-Button-States passend zu `viewModel.reportSending`/`reportFeedback`; `sendReport()`/`clearReportFeedback()` in `ArticleReaderViewModel.kt` |
+
+**Support-Infobox (`ReaderHtmlBuilder.buildSupportBoxScript`, `SupportBoxTexts`):** Port von
+`supportBoxScript(for:seed:)` aus `ArticleReaderView.swift` – Abo-/Spendenhinweis ("Dir gefällt der
+Artikel von …?") nach einem pseudo-zufälligen Top-Level-`<p>` (Seed = Artikel-ID, ab 4 Absätzen), in
+der Akzentfarbe des Nutzers und mit dem Icon der konkreten Artikelseite (`iconUrl`, vom Server aus
+dem Seiten-HTML gelesen). Der Server liefert `supportBox` nur im Einzelabruf und lässt sie im Reader
+weg, wenn der Nutzer dort einen aktiven Abo-Login hat; offline (Artikel aus dem Room-Cache) gibt es
+keine Box. Eingefügt wird ein eigenes Element `<merlin-support-box>` nach dem Wiederherstellen der
+Highlights – `getXPath`/`resolveXPath` zählen Geschwister je Tag-Name, ein unbekannter Tag
+verschiebt daher keinen Index des Artikeltextes. Der Builder ist ein `object` ohne Context: die
+Texte löst `ReaderWebView` über Android-Ressourcen auf (`articleReader_supportBox_*`, Platzhalter
+`{subscribe}`/`{donate}` bleiben stehen, das Skript setzt daran die Links ein). Sicherheit: nur
+http(s)-URLs (Kotlin **und** JS), Konfiguration als JSON mit maskiertem `<`/`>`/`&` (ein Seitenname
+wie `</script>` bricht nicht aus dem inline-Script aus), alles per `textContent`/DOM. Link-Klicks
+gehen über `MerlinHighlightBridge.onOpenExternalLink` in den externen Browser, weil ein normaler
+Klick die WebView selbst wegnavigieren und den Artikel ersetzen würde. Das Icon ist in `READER_JS`
+vom Lightbox-Tap und vom "Bild nicht verfügbar"-Platzhalter ausgenommen (ein kaputtes Icon wird
+einfach entfernt). Die Strings in `strings_i18n.xml` stammen aus den `articleReader.supportBox.*`-
+Keys von `merlin-translations`.
 
 **Polish-Punkt (zurückgestellt):** anders als iOS (Bild-Vorab-Cache +
 `loadFileURL`) lädt die `WebView` Artikelbilder direkt über ihren eigenen
