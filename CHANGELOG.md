@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- PDF articles: a saved link to a PDF (server category `PDF`, or a URL ending
+  in `.pdf`) opens in the reader as the document itself. The server stores only
+  the URL; the app downloads the PDF from the source when the article is
+  opened (own OkHttp client without the Merlin login), renders it page by page
+  with the framework `PdfRenderer` and keeps a local copy for offline reading
+  (`PdfCacheService`, pruned by the cache retention, on delete and by "Clear
+  cache"). Reading progress and position restore work as for text articles.
+  Limitations: no pinch zoom, text selection, highlights or appearance
+  settings for PDFs; password-protected PDFs show a notice with "Im Browser
+  öffnen". Not compiled or run on a device yet.
 - Support for connecting to a standalone `merlin-server` backend in addition
   to Nextcloud, selectable in onboarding and Settings
   (`CredentialsStore.BackendKind`)

@@ -91,6 +91,15 @@ data class Article(
     val displayTitle: String
         get() = title.ifEmpty { url }
 
+    /**
+     * true für PDF-Artikel: der Server speichert nur die Quell-URL (`category == "PDF"`), die PDF
+     * wird beim Öffnen von dort geladen (siehe `PdfReaderView`/`PdfCacheService`). Fallback auf die
+     * Endung `.pdf` für Artikel, die ein älterer Server ohne Kategorie angelegt hat.
+     */
+    val isPdf: Boolean
+        get() = category == "PDF" ||
+            runCatching { java.net.URI(url).path }.getOrNull()?.lowercase()?.endsWith(".pdf") == true
+
     val displaySiteName: String
         get() = siteName ?: runCatching { java.net.URI(url).host }.getOrNull() ?: url
 

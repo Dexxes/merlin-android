@@ -9,6 +9,7 @@ import dev.merlin.android.data.ArticleCacheService
 import dev.merlin.android.data.HighlightCacheService
 import dev.merlin.android.data.OfflineHighlightQueue
 import dev.merlin.android.data.OfflineMutationQueue
+import dev.merlin.android.data.PdfCacheService
 import dev.merlin.android.data.PreferencesStore
 import dev.merlin.android.data.ReminderService
 import dev.merlin.android.data.ReportService
@@ -57,6 +58,7 @@ class ArticleReaderViewModel @Inject constructor(
     private val api: MerlinApi,
     private val articleCacheService: ArticleCacheService,
     private val highlightCacheService: HighlightCacheService,
+    private val pdfCacheService: PdfCacheService,
     private val offlineMutationQueue: OfflineMutationQueue,
     private val offlineHighlightQueue: OfflineHighlightQueue,
     private val reminderService: ReminderService,
@@ -429,12 +431,19 @@ class ArticleReaderViewModel @Inject constructor(
         }
     }
 
+    /** Lädt die PDF eines PDF-Artikels von der Quell-URL (oder liefert die gecachte Datei), siehe [PdfCacheService]. */
+    suspend fun loadPdf(url: String): java.io.File = pdfCacheService.fetch(url)
+
+    /** Verwirft die gecachte PDF, z. B. wenn sie sich nicht öffnen lässt und beim nächsten Versuch neu geladen werden soll. */
+    suspend fun discardPdf(url: String) = pdfCacheService.remove(url)
+
     fun delete() {
         val current = _article.value ?: return
         viewModelScope.launch {
             try {
                 api.deleteArticle(current.id)
                 articleCacheService.remove(current.id)
+                if (current.isPdf) pdfCacheService.remove(current.url)
                 _deleted.value = true
             } catch (e: Exception) {
                 if (e is IOException) {

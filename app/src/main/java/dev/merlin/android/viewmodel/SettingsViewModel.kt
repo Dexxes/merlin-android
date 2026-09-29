@@ -7,6 +7,7 @@ import dev.merlin.android.auth.LoginFlowService
 import dev.merlin.android.data.ArticleCacheService
 import dev.merlin.android.data.HighlightCacheService
 import dev.merlin.android.data.ImageCacheService
+import dev.merlin.android.data.PdfCacheService
 import dev.merlin.android.data.PreferencesStore
 import dev.merlin.android.models.ArticleFilter
 import dev.merlin.android.models.ProgressEdge
@@ -42,6 +43,7 @@ class SettingsViewModel @Inject constructor(
     private val loginFlowService: LoginFlowService,
     private val articleCacheService: ArticleCacheService,
     private val imageCacheService: ImageCacheService,
+    private val pdfCacheService: PdfCacheService,
     private val highlightCacheService: HighlightCacheService,
 ) : ViewModel() {
 
@@ -217,6 +219,7 @@ class SettingsViewModel @Inject constructor(
             preferencesStore.clearReadingPositions()
             articleCacheService.clear()
             imageCacheService.clear()
+            pdfCacheService.clear()
             highlightCacheService.clear()
             credentialsStore.clearCredentials()
             refreshAccountInfo()

@@ -300,13 +300,15 @@ fun ArticleReaderScreen(
                         onClick = { scope.launch { drawerState.close() }; viewModel.toggleFavorite() },
                         modifier = Modifier.padding(horizontal = 12.dp),
                     )
-                    NavigationDrawerItem(
-                        label = { Text("Erscheinungsbild") },
-                        icon = { Icon(Icons.Filled.Palette, contentDescription = null) },
-                        selected = false,
-                        onClick = { scope.launch { drawerState.close() }; showAppearanceSheet = true },
-                        modifier = Modifier.padding(horizontal = 12.dp),
-                    )
+                    if (article?.isPdf != true) {
+                        NavigationDrawerItem(
+                            label = { Text("Erscheinungsbild") },
+                            icon = { Icon(Icons.Filled.Palette, contentDescription = null) },
+                            selected = false,
+                            onClick = { scope.launch { drawerState.close() }; showAppearanceSheet = true },
+                            modifier = Modifier.padding(horizontal = 12.dp),
+                        )
+                    }
                     NavigationDrawerItem(
                         label = { Text("Teilen") },
                         icon = { Icon(Icons.Filled.Share, contentDescription = null) },
@@ -333,18 +335,20 @@ fun ArticleReaderScreen(
                         },
                         modifier = Modifier.padding(horizontal = 12.dp),
                     )
-                    NavigationDrawerItem(
-                        label = { Text("archive.ph öffnen") },
-                        icon = { Icon(Icons.Filled.History, contentDescription = null) },
-                        selected = false,
-                        onClick = {
-                            scope.launch { drawerState.close() }
-                            val url = article?.url ?: return@NavigationDrawerItem
-                            val archiveUrl = "https://archive.ph/newest/$url"
-                            context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(archiveUrl)))
-                        },
-                        modifier = Modifier.padding(horizontal = 12.dp),
-                    )
+                    if (article?.isPdf != true) {
+                        NavigationDrawerItem(
+                            label = { Text("archive.ph öffnen") },
+                            icon = { Icon(Icons.Filled.History, contentDescription = null) },
+                            selected = false,
+                            onClick = {
+                                scope.launch { drawerState.close() }
+                                val url = article?.url ?: return@NavigationDrawerItem
+                                val archiveUrl = "https://archive.ph/newest/$url"
+                                context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(archiveUrl)))
+                            },
+                            modifier = Modifier.padding(horizontal = 12.dp),
+                        )
+                    }
                     NavigationDrawerItem(
                         label = { Text("Link kopieren") },
                         icon = { Icon(Icons.Filled.Link, contentDescription = null) },
@@ -476,36 +480,61 @@ fun ArticleReaderScreen(
                         // WebView-HTML-Inhalt gerendert (siehe `buildHeaderHtml` dort) und scrollen
                         // dadurch ganz normal mit dem Artikeltext mit, statt fixiert zu bleiben.
                         Box(modifier = Modifier.fillMaxSize()) {
-                                ReaderWebView(
-                                    article = currentArticle,
-                                    highlights = highlights,
-                                    appearance = appearance,
-                                    initialScrollProgress = initialScrollProgress ?: 0f,
-                                    onCreateHighlight = { payload: HighlightCreate -> viewModel.createHighlight(payload) },
-                                    onHighlightTap = { id -> pendingHighlightDeleteId = id },
-                                    onImageTap = { index, srcs -> lightboxState = LightboxState(initialIndex = index, imageURLs = srcs) },
-                                    onSelectionChanged = { rect -> selectionRect = rect },
-                                    onInfoPopover = { popover -> infoPopover = popover },
-                                    onScrollPositionChanged = { progress -> viewModel.saveScrollProgress(progress) },
-                                    onWebViewReady = { webViewRef = it },
-                                    onScrollProgress = { scrollProgress = it },
-                                    onScrollMetrics = { newOffset, scrollableRange ->
-                                        val delta = newOffset - lastScrollOffsetPx
-                                        val isNearBottom = if (scrollableRange > 0f) {
-                                            (scrollableRange - newOffset) < nearBottomThresholdPx
-                                        } else {
-                                            true
-                                        }
-                                        // Debounce wie im iOS-Original: nur "echte" Scroll-Schübe (>4dp)
-                                        // werten Richtung/Sichtbarkeit neu, kleines Zittern wird ignoriert.
-                                        if (abs(delta) > deltaThresholdPx) {
-                                            scrollingDown = delta > 0f && newOffset > downThresholdPx
-                                            showBottomBar = !scrollingDown || isNearBottom
-                                        }
-                                        lastScrollOffsetPx = newOffset
-                                    },
-                                    modifier = Modifier.fillMaxSize(),
-                                )
+                                // Bottom-Bar-Autohide/Scroll-Metriken: gemeinsam für WebView- und PDF-Reader.
+                                val onReaderScrollMetrics: (Float, Float) -> Unit = { newOffset, scrollableRange ->
+                                    val delta = newOffset - lastScrollOffsetPx
+                                    val isNearBottom = if (scrollableRange > 0f) {
+                                        (scrollableRange - newOffset) < nearBottomThresholdPx
+                                    } else {
+                                        true
+                                    }
+                                    // Debounce wie im iOS-Original: nur "echte" Scroll-Schübe (>4dp)
+                                    // werten Richtung/Sichtbarkeit neu, kleines Zittern wird ignoriert.
+                                    if (abs(delta) > deltaThresholdPx) {
+                                        scrollingDown = delta > 0f && newOffset > downThresholdPx
+                                        showBottomBar = !scrollingDown || isNearBottom
+                                    }
+                                    lastScrollOffsetPx = newOffset
+                                }
+                                if (currentArticle.isPdf) {
+                                    // PDF-Artikel: der Server speichert nur die URL, die PDF wird hier von der Quelle
+                                    // geladen und seitenweise gerendert (kein WebView, keine Highlights/Textauswahl).
+                                    PdfReaderView(
+                                        sourceUrl = currentArticle.url,
+                                        loadPdf = { url -> viewModel.loadPdf(url) },
+                                        discardPdf = { url -> viewModel.discardPdf(url) },
+                                        initialScrollProgress = initialScrollProgress ?: 0f,
+                                        foregroundColor = chromeColors.foreground,
+                                        onOpenInBrowser = {
+                                            runCatching {
+                                                context.startActivity(
+                                                    Intent(Intent.ACTION_VIEW, android.net.Uri.parse(currentArticle.url)),
+                                                )
+                                            }
+                                        },
+                                        onScrollPositionChanged = { progress -> viewModel.saveScrollProgress(progress) },
+                                        onScrollProgress = { scrollProgress = it },
+                                        onScrollMetrics = onReaderScrollMetrics,
+                                        modifier = Modifier.fillMaxSize(),
+                                    )
+                                } else {
+                                    ReaderWebView(
+                                        article = currentArticle,
+                                        highlights = highlights,
+                                        appearance = appearance,
+                                        initialScrollProgress = initialScrollProgress ?: 0f,
+                                        onCreateHighlight = { payload: HighlightCreate -> viewModel.createHighlight(payload) },
+                                        onHighlightTap = { id -> pendingHighlightDeleteId = id },
+                                        onImageTap = { index, srcs -> lightboxState = LightboxState(initialIndex = index, imageURLs = srcs) },
+                                        onSelectionChanged = { rect -> selectionRect = rect },
+                                        onInfoPopover = { popover -> infoPopover = popover },
+                                        onScrollPositionChanged = { progress -> viewModel.saveScrollProgress(progress) },
+                                        onWebViewReady = { webViewRef = it },
+                                        onScrollProgress = { scrollProgress = it },
+                                        onScrollMetrics = onReaderScrollMetrics,
+                                        modifier = Modifier.fillMaxSize(),
+                                    )
+                                }
 
                                 selectionRect?.let {
                                     HighlightColorToolbar(
