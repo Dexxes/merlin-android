@@ -83,6 +83,10 @@ data class Article(
     // `requiresLoginDomain` gesetzt ist (Login-Seiten-URL für diese Domain).
     val requiresLoginDomain: String? = null,
     val requiresLoginPage: String? = null,
+    // Nur in der Einzelabruf-Antwort (`getArticle`) gesetzt, nicht in Listen; wird bewusst nicht in
+    // den Offline-Cache geschrieben (der Login-Status des Nutzers kann sich ändern), siehe
+    // `ArticleCacheService.upsert` – gleiche Begründung wie im iOS-Original (`Article.encode`).
+    val supportBox: SupportBox? = null,
 ) {
     /** true, sobald [favoritedAt] gesetzt ist – Bool-Convenience für bestehenden UI-Code. */
     val isFavorite: Boolean

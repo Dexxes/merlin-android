@@ -89,6 +89,12 @@
     <string name="articleReader_sideMenu_share">"Share…"</string>
     <string name="articleReader_sideMenu_startReadAloud">"Read Aloud"</string>
     <string name="articleReader_sideMenu_stopReadAloud">"Stop Reading Aloud"</string>
+    <string name="articleReader_supportBox_both">"Consider taking out a %1$s or making a %2$s."</string>
+    <string name="articleReader_supportBox_donateLabel">"donation"</string>
+    <string name="articleReader_supportBox_donateOnly">"Consider making a %1$s."</string>
+    <string name="articleReader_supportBox_subscribeLabel">"subscription"</string>
+    <string name="articleReader_supportBox_subscribeOnly">"Consider taking out a %1$s."</string>
+    <string name="articleReader_supportBox_title">"Enjoying this article from %1$s?"</string>
     <string name="articleReader_tagSheet_newTagPlaceholder">"Create new tag…"</string>
     <string name="articleReader_tagSheet_title">"Edit Tags"</string>
     <string name="articleReader_ttsPanel_preparing">"Preparing audio…"</string>
