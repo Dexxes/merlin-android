@@ -251,7 +251,7 @@ eigener Task).
 `supportBoxScript(for:seed:)` aus `ArticleReaderView.swift` – Abo-/Spendenhinweis ("Dir gefällt der
 Artikel von …?") nach einem pseudo-zufälligen Top-Level-`<p>` (Seed = Artikel-ID, ab 4 Absätzen), in
 der Akzentfarbe des Nutzers und mit dem Icon der konkreten Artikelseite (`iconUrl`, vom Server aus
-dem Seiten-HTML gelesen) als eigene Spalte links (6,5 em, ohne Kachel-Hintergrund) über die volle Boxhöhe
+dem Seiten-HTML gelesen) als eigene Spalte links (4,5 em, ohne Kachel-Hintergrund) über die volle Boxhöhe
 (`align-self: stretch`; Titel und Satz stehen in der Spalte daneben, vertikal zentriert). Der Server liefert `supportBox` nur im Einzelabruf und lässt sie im Reader
 weg, wenn der Nutzer dort einen aktiven Abo-Login hat; offline (Artikel aus dem Room-Cache) gibt es
 keine Box. Eingefügt wird ein eigenes Element `<merlin-support-box>` nach dem Wiederherstellen der

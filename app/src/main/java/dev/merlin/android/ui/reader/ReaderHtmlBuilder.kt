@@ -437,7 +437,7 @@ if (cfg.iconUrl) {
   img.referrerPolicy = 'no-referrer';
   // Inline-Stil schlägt die globalen img-Regeln (auch die Querformat-Regel mit negativen Rändern und
   // calc-Breite); align-self:stretch + height:auto macht die Spalte so hoch wie die Box.
-  img.style.cssText = 'display:block;flex:none;align-self:stretch;width:6.5em;height:auto;max-width:6.5em;min-height:0;margin:0;padding:0.3em;box-sizing:border-box;object-fit:contain;border-radius:6px;';
+  img.style.cssText = 'display:block;flex:none;align-self:stretch;width:4.5em;height:auto;max-width:4.5em;min-height:0;margin:0;padding:0.3em;box-sizing:border-box;object-fit:contain;border-radius:6px;';
   img.addEventListener('error', function() { img.remove(); });
   img.src = cfg.iconUrl;
   box.appendChild(img);
