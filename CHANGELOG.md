@@ -12,8 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Support box in the reader: a note between two paragraphs ("Enjoying this
   article from …? Consider a subscription or a donation") linking to the
   source's subscription/donation page, in the user's accent color and with the
-  icon of the article page as its own column on the left, spanning the full
-  height of the box. Hidden when a paywall subscription login is
+  icon of the article page as its own column on the left (6.5 em wide), spanning
+  the full height of the box, with the text beside it vertically centred. Hidden when a paywall subscription login is
   active; not shown offline
 - Support for connecting to a standalone `merlin-server` backend in addition
   to Nextcloud, selectable in onboarding and Settings

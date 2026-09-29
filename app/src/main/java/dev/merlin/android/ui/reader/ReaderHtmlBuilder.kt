@@ -437,18 +437,20 @@ if (cfg.iconUrl) {
   img.referrerPolicy = 'no-referrer';
   // Inline-Stil schlägt die globalen img-Regeln (auch die Querformat-Regel mit negativen Rändern und
   // calc-Breite); align-self:stretch + height:auto macht die Spalte so hoch wie die Box.
-  img.style.cssText = 'display:block;flex:none;align-self:stretch;width:3.5em;height:auto;max-width:3.5em;min-height:0;margin:0;padding:0.3em;box-sizing:border-box;object-fit:contain;border-radius:6px;background:#fff;';
+  img.style.cssText = 'display:block;flex:none;align-self:stretch;width:6.5em;height:auto;max-width:6.5em;min-height:0;margin:0;padding:0.3em;box-sizing:border-box;object-fit:contain;border-radius:6px;';
   img.addEventListener('error', function() { img.remove(); });
   img.src = cfg.iconUrl;
   box.appendChild(img);
 }
 var body = document.createElement('div');
-body.style.cssText = 'flex:1;min-width:0;';
+// Text vertikal zentriert (Flex-Spalte), ohne Absatzabstände - wie merlin-nextcloud/iOS.
+body.style.cssText = 'flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;';
 var title = document.createElement('div');
-title.style.cssText = 'font-weight:600;margin:0 0 0.25em;';
+title.style.cssText = 'font-weight:600;margin:0;';
 title.textContent = cfg.title;
 body.appendChild(title);
 var text = document.createElement('div');
+text.style.cssText = 'margin:0;';
 cfg.template.split(/(\{subscribe\}|\{donate\})/).forEach(function(part) {
   var m = /^\{(subscribe|donate)\}/.exec(part);
   var l = m && cfg.links[m[1]];
