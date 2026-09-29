@@ -428,24 +428,26 @@ for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01
 var idx = 1 + ((h >>> 0) % (ps.length - 2));
 var box = document.createElement('merlin-support-box');
 box.setAttribute('role', 'note');
-box.style.cssText = 'display:block;margin:1.5em 0;padding:0.85em 1em;border-left:4px solid ' + cfg.accent + ';border-radius:0 8px 8px 0;background:rgba(128,128,128,0.1);background:color-mix(in srgb,' + cfg.accent + ' 12%,transparent);font-size:0.93em;line-height:1.6;-webkit-user-select:none;user-select:none;';
-var head = document.createElement('div');
-head.style.cssText = 'display:flex;align-items:center;gap:0.6em;margin:0 0 0.25em;';
+box.style.cssText = 'display:flex;align-items:stretch;gap:0.9em;margin:1.5em 0;padding:0.85em 1em;border-left:4px solid ' + cfg.accent + ';border-radius:0 8px 8px 0;background:rgba(128,128,128,0.1);background:color-mix(in srgb,' + cfg.accent + ' 12%,transparent);font-size:0.93em;line-height:1.6;-webkit-user-select:none;user-select:none;';
+// Zwei Spalten: links das Icon der Seite über die volle Höhe der Box (fehlt es, entfällt die Spalte),
+// rechts Titel und Satz.
 if (cfg.iconUrl) {
   var img = document.createElement('img');
   img.alt = '';
   img.referrerPolicy = 'no-referrer';
-  // Inline-Stil schlägt die globalen img-Regeln (auch die Querformat-Regel mit negativen Rändern).
-  img.style.cssText = 'display:block;flex:none;width:28px;height:28px;max-width:28px;margin:0;padding:2px;box-sizing:border-box;object-fit:contain;border-radius:6px;background:#fff;';
+  // Inline-Stil schlägt die globalen img-Regeln (auch die Querformat-Regel mit negativen Rändern und
+  // calc-Breite); align-self:stretch + height:auto macht die Spalte so hoch wie die Box.
+  img.style.cssText = 'display:block;flex:none;align-self:stretch;width:3.5em;height:auto;max-width:3.5em;min-height:0;margin:0;padding:0.3em;box-sizing:border-box;object-fit:contain;border-radius:6px;background:#fff;';
   img.addEventListener('error', function() { img.remove(); });
   img.src = cfg.iconUrl;
-  head.appendChild(img);
+  box.appendChild(img);
 }
+var body = document.createElement('div');
+body.style.cssText = 'flex:1;min-width:0;';
 var title = document.createElement('div');
-title.style.cssText = 'font-weight:600;';
+title.style.cssText = 'font-weight:600;margin:0 0 0.25em;';
 title.textContent = cfg.title;
-head.appendChild(title);
-box.appendChild(head);
+body.appendChild(title);
 var text = document.createElement('div');
 cfg.template.split(/(\{subscribe\}|\{donate\})/).forEach(function(part) {
   var m = /^\{(subscribe|donate)\}/.exec(part);
@@ -462,7 +464,8 @@ cfg.template.split(/(\{subscribe\}|\{donate\})/).forEach(function(part) {
     text.appendChild(document.createTextNode(part));
   }
 });
-box.appendChild(text);
+body.appendChild(text);
+box.appendChild(body);
 ps[idx].after(box);
 """
 
