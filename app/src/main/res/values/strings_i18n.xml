@@ -170,6 +170,7 @@
     <string name="report_title">"Report Article"</string>
     <string name="settings_about_commitLabel">"Commit"</string>
     <string name="settings_about_sectionHeader">"About"</string>
+    <string name="settings_about_sourceCodeLabel">"Source code"</string>
     <string name="settings_about_versionLabel">"Version"</string>
     <string name="settings_account_connectHeadline">"Connect to Merlin"</string>
     <string name="settings_account_footer">"Tap \"Login with Nextcloud\" to authenticate via your browser."</string>
