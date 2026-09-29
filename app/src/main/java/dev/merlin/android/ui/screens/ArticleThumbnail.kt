@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -17,6 +18,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil.ImageLoader
 import coil.compose.AsyncImage
@@ -42,6 +44,8 @@ fun ArticleThumbnail(
     modifier: Modifier = Modifier,
     contentDescription: String? = null,
     accentColorHex: String = "#FF3B30",
+    /** PDF-Artikel haben nie ein Titelbild: der Platzhalter zeigt dann "PDF" statt des Logos. */
+    isPdf: Boolean = false,
 ) {
     var loadFailed by remember(imageUrl) { mutableStateOf(false) }
 
@@ -71,12 +75,21 @@ fun ArticleThumbnail(
                     .background(accentColor),
                 contentAlignment = Alignment.Center,
             ) {
-                androidx.compose.foundation.Image(
-                    painter = painterResource(id = R.drawable.no_img),
-                    contentDescription = contentDescription ?: "Kein Vorschaubild",
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier.fillMaxSize(),
-                )
+                if (isPdf) {
+                    Text(
+                        text = "PDF",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                } else {
+                    androidx.compose.foundation.Image(
+                        painter = painterResource(id = R.drawable.no_img),
+                        contentDescription = contentDescription ?: "Kein Vorschaubild",
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
             }
         }
     }

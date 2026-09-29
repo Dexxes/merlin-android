@@ -109,6 +109,7 @@ fun ArticleCard(
                 contentDescription = article.displayTitle,
                 modifier = Modifier.size(width = 72.dp, height = 54.dp),
                 accentColorHex = accentColorHex,
+                isPdf = article.isPdf,
             )
 
             Spacer(modifier = Modifier.width(10.dp))
@@ -317,6 +318,7 @@ fun ArticleGridCard(
                     .aspectRatio(16f / 9f)
                     .clip(RoundedCornerShape(0.dp)),
                 accentColorHex = accentColorHex,
+                isPdf = article.isPdf,
             )
 
             Column(modifier = Modifier.padding(10.dp)) {
