@@ -8,6 +8,7 @@ import dev.merlin.android.data.ArticleCacheService
 import dev.merlin.android.data.HapticUtil
 import dev.merlin.android.data.ImageCacheService
 import dev.merlin.android.data.OfflineMutationQueue
+import dev.merlin.android.data.PdfCacheService
 import dev.merlin.android.data.PreferencesStore
 import dev.merlin.android.models.Article
 import dev.merlin.android.models.ArticleFilter
@@ -62,6 +63,7 @@ class ArticlesViewModel @Inject constructor(
     private val api: MerlinApi,
     private val articleCacheService: ArticleCacheService,
     private val imageCacheService: ImageCacheService,
+    private val pdfCacheService: PdfCacheService,
     private val offlineMutationQueue: OfflineMutationQueue,
     private val preferencesStore: PreferencesStore,
     /** Geteilter Coil-Loader mit [dev.merlin.android.data.RefererInterceptor] (siehe `ArticleReaderViewModel`) – für die Artikelbilder in [dev.merlin.android.ui.screens.ArticleCard]. */
@@ -226,7 +228,11 @@ class ArticlesViewModel @Inject constructor(
         viewModelScope.launch { _selectedFilter.value = preferencesStore.defaultFilter.first() }
         viewModelScope.launch { _isCardView.value = preferencesStore.isCardView.first() }
         // Veraltete Cache-Einträge (archiviert > 24h) einmal pro App-Start entfernen.
-        viewModelScope.launch { articleCacheService.evict() }
+        viewModelScope.launch {
+            articleCacheService.evict()
+            // PDFs von PDF-Artikeln (client-seitiger Cache) nach derselben Aufbewahrungsfrist aufräumen.
+            pdfCacheService.prune(preferencesStore.getCacheRetentionDays())
+        }
         // Bilder aller bereits gecachten Artikel nachträglich vorwärmen, damit
         // Offline-Lesen sofort funktioniert, auch für Artikel aus früheren Sessions.
         viewModelScope.launch {
@@ -481,6 +487,7 @@ class ArticlesViewModel @Inject constructor(
                 api.deleteArticle(article.id)
                 articleCacheService.remove(article.id)
                 imageCacheService.evict(article.id)
+                if (article.isPdf) pdfCacheService.remove(article.url)
                 refreshCounts()
             } catch (e: Exception) {
                 if (isNetworkError(e)) {
