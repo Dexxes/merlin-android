@@ -156,6 +156,7 @@ fun ArticleReaderScreen(
     val error by viewModel.error.collectAsState()
     val deleted by viewModel.deleted.collectAsState()
     val highlights by viewModel.highlights.collectAsState()
+    val hasPaywallCredential by viewModel.hasPaywallCredential.collectAsState()
     val appearance by viewModel.appearance.collectAsState()
     val progressEdge by viewModel.progressEdge.collectAsState()
     val accentColorHex by viewModel.accentColorHex.collectAsState()
@@ -355,16 +356,18 @@ fun ArticleReaderScreen(
                         },
                         modifier = Modifier.padding(horizontal = 12.dp),
                     )
-                    NavigationDrawerItem(
-                        label = { Text("Öffentlicher Link…") },
-                        icon = { Icon(Icons.Filled.Public, contentDescription = null) },
-                        selected = false,
-                        onClick = {
-                            scope.launch { drawerState.close() }
-                            showShareLinkSheet = true
-                        },
-                        modifier = Modifier.padding(horizontal = 12.dp),
-                    )
+                    if (hasPaywallCredential) {
+                        NavigationDrawerItem(
+                            label = { Text("Öffentlicher Link…") },
+                            icon = { Icon(Icons.Filled.Public, contentDescription = null) },
+                            selected = false,
+                            onClick = {
+                                scope.launch { drawerState.close() }
+                                showShareLinkSheet = true
+                            },
+                            modifier = Modifier.padding(horizontal = 12.dp),
+                        )
+                    }
                     NavigationDrawerItem(
                         label = { Text(if (article?.isArchived == true) "Aus Archiv entfernen" else "Archivieren") },
                         icon = { Icon(if (article?.isArchived == true) Icons.Filled.Inventory2 else Icons.Filled.Archive, contentDescription = null) },

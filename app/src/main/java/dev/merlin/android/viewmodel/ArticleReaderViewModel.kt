@@ -31,7 +31,9 @@ import dev.merlin.android.network.UpdateProgressRequest
 import java.io.IOException
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
+import dev.merlin.android.models.SiteCredentialInfo
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -160,8 +162,28 @@ class ArticleReaderViewModel @Inject constructor(
         val accentColorHex: String,
     )
 
+    /**
+     * true, wenn der Artikel auf einer Paywall-Domain liegt, für die der Nutzer funktionierende
+     * Zugangsdaten hinterlegt hat – nur dann wird "Öffentlicher Link…" angeboten.
+     */
+    private val _hasPaywallCredential = MutableStateFlow(false)
+    val hasPaywallCredential: StateFlow<Boolean> = _hasPaywallCredential.asStateFlow()
+
     init {
         load()
+        loadPaywallCredentialState()
+    }
+
+    private fun loadPaywallCredentialState() {
+        viewModelScope.launch {
+            val url = _article.filterNotNull().first().url
+            val host = runCatching { java.net.URI(url).host }.getOrNull()?.lowercase() ?: return@launch
+            val response = runCatching { api.getSiteCredentials() }.getOrNull() ?: return@launch
+            _hasPaywallCredential.value = response.credentials.any { cred ->
+                val domain = cred.domain.lowercase()
+                cred.statusEnum == SiteCredentialInfo.Status.OK && (host == domain || host.endsWith(".$domain"))
+            }
+        }
     }
 
     // MARK: – Appearance: Server-Sync
