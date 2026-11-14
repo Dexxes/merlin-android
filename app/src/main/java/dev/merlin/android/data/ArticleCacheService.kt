@@ -65,7 +65,9 @@ class ArticleCacheService @Inject constructor(
         mutex.withLock {
             val now = System.currentTimeMillis()
             articleDao.upsertAll(
-                articles.map { ArticleEntity(id = it.id, json = json.encodeToString(it), cachedAt = now) },
+                // supportBox nie persistieren: Login-Status/Akzentfarbe können sich ändern, die Box wird bei
+                // jedem Einzelabruf frisch vom Server geliefert (siehe Article.supportBox).
+                articles.map { ArticleEntity(id = it.id, json = json.encodeToString(it.copy(supportBox = null)), cachedAt = now) },
             )
         }
     }
