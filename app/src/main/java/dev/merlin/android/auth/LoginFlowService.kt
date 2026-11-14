@@ -5,12 +5,14 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -20,8 +22,9 @@ import okhttp3.RequestBody.Companion.toRequestBody
  * Portierung von `LoginFlowService.swift`: Nextcloud Login Flow v2.
  *
  * Ablauf:
- * 1. [start] → POST `/index.php/login/v2`, liefert eine Login-URL, die der Aufrufer
- *    (ViewModel/UI) in Custom Tabs öffnen muss (`androidx.browser`).
+ * 1. [start] → POST `/index.php/login/v2`, liefert eine Login-URL, die die UI – wie
+ *    iOS' `SafariLoginView` – in einer App-eigenen WebView öffnet
+ *    ([dev.merlin.android.ui.components.LoginWebViewDialog]).
  * 2. [pollForCredentials] → pollt den Endpoint, bis der Nutzer den Login im Browser
  *    abgeschlossen hat; schreibt das Ergebnis in [CredentialsStore].
  *
@@ -37,6 +40,10 @@ class LoginFlowService @Inject constructor(
         data object InvalidServerUrl : LoginFlowException("Invalid server URL")
         data class ServerError(val msg: String) : LoginFlowException(msg)
         data object Timeout : LoginFlowException("Login timed out. Please try again.")
+    }
+
+    private companion object {
+        const val USER_AGENT = "Merlin (Android)"
     }
 
     private val httpClient = OkHttpClient()
@@ -64,8 +71,7 @@ class LoginFlowService @Inject constructor(
     suspend fun start(serverUrl: String): String = withContext(Dispatchers.IO) {
         _isLoading.value = true
         try {
-            val base = serverUrl.trim().trimEnd('/')
-            if (base.isEmpty()) throw LoginFlowException.InvalidServerUrl
+            val base = normalizeBaseUrl(serverUrl)
 
             // merlin-server bildet Nextclouds Login-Flow-v2-JSON identisch nach
             // (siehe merlin-server/src/Controller/LoginFlowController.php) - nur
@@ -78,6 +84,9 @@ class LoginFlowService @Inject constructor(
             val request = Request.Builder()
                 .url("$base$path")
                 .header("Accept", "application/json")
+                // Nextcloud benennt das erzeugte App-Passwort und die Anzeige auf der
+                // Login-Seite nach dem User-Agent – sonst stünde dort "okhttp/…".
+                .header("User-Agent", USER_AGENT)
                 .post(ByteArray(0).toRequestBody(null))
                 .build()
 
@@ -88,6 +97,9 @@ class LoginFlowService @Inject constructor(
                 }
                 val body = it.body?.string().orEmpty()
                 val decoded = json.decodeFromString<InitResponse>(body)
+                // Wurde während des Requests abgebrochen, keine Login-URL mehr setzen –
+                // sonst ginge die Login-Seite nach "Abbrechen" erneut auf.
+                coroutineContext.ensureActive()
 
                 pollToken = decoded.poll.token
                 pollEndpoint = decoded.poll.endpoint
@@ -107,19 +119,24 @@ class LoginFlowService @Inject constructor(
         val deadline = System.currentTimeMillis() + 5 * 60 * 1000L
         val intervalMillis = 5_000L
 
-        while (System.currentTimeMillis() < deadline) {
-            val result = attemptPoll(endpoint, token)
-            if (result != null) {
-                credentialsStore.nextcloudUrl = result.server
-                credentialsStore.username = result.loginName
-                credentialsStore.appPassword = result.appPassword
-                _loginUrl.value = null
-                return@withContext
+        // Login-Seite in jedem Fall schließen (Erfolg, Timeout, Fehler, Abbruch) –
+        // sonst bliebe das Vollbild über einer Fehlermeldung stehen.
+        try {
+            while (System.currentTimeMillis() < deadline) {
+                val result = attemptPoll(endpoint, token)
+                if (result != null) {
+                    credentialsStore.nextcloudUrl = result.server
+                    credentialsStore.username = result.loginName
+                    credentialsStore.appPassword = result.appPassword
+                    return@withContext
+                }
+                delay(intervalMillis)
             }
-            delay(intervalMillis)
-        }
 
-        throw LoginFlowException.Timeout
+            throw LoginFlowException.Timeout
+        } finally {
+            _loginUrl.value = null
+        }
     }
 
     /** Gibt das Ergebnis zurück, `null` solange der Nutzer noch nicht fertig ist. */
@@ -139,6 +156,21 @@ class LoginFlowService @Inject constructor(
             val body = it.body?.string().orEmpty()
             return json.decodeFromString<PollResult>(body)
         }
+    }
+
+    /**
+     * Entfernt Leerzeichen/abschließende Slashes und ergänzt `https://`, falls kein Schema
+     * angegeben wurde (im Onboarding gibt es – anders als iOS – kein vorbelegtes "https://";
+     * ohne Schema würde OkHttp die URL ablehnen).
+     */
+    private fun normalizeBaseUrl(serverUrl: String): String {
+        var base = serverUrl.trim().trimEnd('/')
+        if (base.isEmpty() || base == "https:" || base == "http:") throw LoginFlowException.InvalidServerUrl
+        if (!base.startsWith("http://", ignoreCase = true) && !base.startsWith("https://", ignoreCase = true)) {
+            base = "https://$base"
+        }
+        if (base.toHttpUrlOrNull() == null) throw LoginFlowException.InvalidServerUrl
+        return base
     }
 
     fun cancel() {

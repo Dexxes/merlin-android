@@ -12,7 +12,10 @@ import dev.merlin.android.models.ArticleFilter
 import dev.merlin.android.models.ProgressEdge
 import dev.merlin.android.network.CredentialsStore
 import dev.merlin.android.network.MerlinApi
+import dev.merlin.android.ui.components.clearLoginWebSession
 import javax.inject.Inject
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -76,6 +79,9 @@ class SettingsViewModel @Inject constructor(
     private val _loginSuccess = MutableStateFlow(false)
     val loginSuccess: StateFlow<Boolean> = _loginSuccess.asStateFlow()
 
+    /** Laufender Start+Polling-Vorgang, damit "Abbrechen" ihn wirklich beenden kann. */
+    private var loginJob: Job? = null
+
     private val _isTestingConnection = MutableStateFlow(false)
     val isTestingConnection: StateFlow<Boolean> = _isTestingConnection.asStateFlow()
 
@@ -113,33 +119,41 @@ class SettingsViewModel @Inject constructor(
         _loginError.value = null
         _loginSuccess.value = false
         _isLoginLoading.value = true
-        viewModelScope.launch {
+        loginJob?.cancel()
+        loginJob = viewModelScope.launch {
             try {
                 loginFlowService.start(serverUrl)
                 loginFlowService.pollForCredentials()
                 refreshAccountInfo()
                 _loginSuccess.value = true
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _loginError.value = e.message ?: "Login fehlgeschlagen"
             } finally {
-                _isLoginLoading.value = false
+                // Ein abgelöster Vorgang darf den Ladezustand des neuen nicht zurücksetzen.
+                if (loginJob == null || loginJob === coroutineContext[Job]) _isLoginLoading.value = false
             }
         }
     }
 
     fun cancelLogin() {
+        // Polling-Coroutine wirklich beenden (iOS: `pollTask?.cancel()`), sonst
+        // pollt sie mit ihren lokalen Token-Kopien bis zum Timeout weiter.
+        loginJob?.cancel()
+        loginJob = null
         loginFlowService.cancel()
         _isLoginLoading.value = false
     }
 
     /**
-     * Äquivalent zu `SettingsView.logout()`. Das iOS-Original löscht zusätzlich
-     * `WKWebsiteDataStore`-Cookies, da dort der Login in einer eingebetteten `WKWebView`
-     * läuft – auf Android läuft der Login per Custom Tabs im System-Browser
-     * (`OnboardingScreen`/`SettingsScreen`), es gibt also keine App-eigene
-     * Browser-Session, die bereinigt werden müsste.
+     * Äquivalent zu `SettingsView.logout()`: wie auf iOS (`WKWebsiteDataStore`) wird
+     * auch die Browser-Session der Login-WebView gelöscht, damit beim nächsten Login
+     * ein anderer Nextcloud-Nutzer gewählt werden kann.
      */
     fun logout() {
+        cancelLogin()
+        clearLoginWebSession()
         credentialsStore.clearCredentials()
         refreshAccountInfo()
         _testResult.value = null

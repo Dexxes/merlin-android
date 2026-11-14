@@ -1,6 +1,5 @@
 package dev.merlin.android.ui.screens
 
-import androidx.browser.customtabs.CustomTabsIntent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -39,13 +38,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.core.net.toUri
 import androidx.hilt.navigation.compose.hiltViewModel
 import dev.merlin.android.BuildConfig
 import dev.merlin.android.R
+import dev.merlin.android.ui.components.LoginWebViewDialog
 import dev.merlin.android.models.ArticleFilter
 import dev.merlin.android.models.ProgressEdge
 import dev.merlin.android.network.CredentialsStore
@@ -69,7 +67,6 @@ fun SettingsScreen(
     onSiteCredentialsClick: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
-    val context = LocalContext.current
 
     val nextcloudUrl by viewModel.nextcloudUrl.collectAsState()
     val backendKind by viewModel.backendKind.collectAsState()
@@ -95,9 +92,9 @@ fun SettingsScreen(
     var showLogoutConfirm by remember { mutableStateOf(false) }
     var showClearCacheConfirm by remember { mutableStateOf(false) }
 
-    // Sobald der Server eine Login-URL liefert, im System-Browser öffnen (siehe `OnboardingScreen`).
-    LaunchedEffect(loginUrl) {
-        loginUrl?.let { url -> CustomTabsIntent.Builder().build().launchUrl(context, url.toUri()) }
+    // Sobald der Server eine Login-URL liefert, die Login-Seite im Vollbild öffnen (siehe `OnboardingScreen`).
+    loginUrl?.let { url ->
+        LoginWebViewDialog(url = url, onCancel = { viewModel.cancelLogin() })
     }
 
     // War der Nutzer angemeldet und ist es jetzt nicht mehr (Logout/Cache leeren) →
