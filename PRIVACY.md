@@ -44,9 +44,8 @@ Die Verbindung ist mit HTTPS verschlüsselt. Wie lange dein Server Daten speiche
 Einige Funktionen laden Inhalte direkt von anderen Anbietern. Diese sehen dabei deine IP-Adresse und die übliche technische Anfrage.
 
 - **Bilder in Artikeln:** Sie werden von den Websites geladen, aus denen die Artikel stammen.
-- **Website-Symbole:** Sie kommen von DuckDuckGo (`icons.duckduckgo.com`). Dabei wird der Domainname des gespeicherten Artikels übermittelt, zum Beispiel `example.com`, aber nicht die vollständige Adresse.
 - **Melden von Artikeln:** Wenn du einen Artikel meldest, gehen Adresse und Kommentar an das Melde-Backend, das dein Server-Administrator eingerichtet hat.
-- **Anmeldung und Links:** Die Anmeldeseite deines Servers, Links und „Via archive.ph öffnen“ öffnen sich im Browser bzw. auf der jeweiligen Website.
+- **Anmeldung und Links:** Die Anmeldeseite deines Servers und angeklickte Links öffnet sich im Browser bzw. auf der jeweiligen Website.
 
 ## Was die App nicht tut
 
