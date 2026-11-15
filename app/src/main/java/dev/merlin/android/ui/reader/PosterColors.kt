@@ -32,6 +32,34 @@ object PosterColors {
         return if (l > 0.35) "#1c1c1e" else "#ffffff"
     }
 
+    /**
+     * Akzent als lesbare Textfarbe (Äquivalent zu `HexContrast.readable` unter iOS): [fgHex]
+     * unverändert, wenn es auf [bgHex] mindestens [minRatio] (WCAG AA = 4.5) erreicht, sonst
+     * schrittweise Richtung Weiß (dunkler Hintergrund) bzw. Schwarz (heller) gemischt.
+     * Damit bleibt z. B. dunkles Lila als Caption-Farbe auf Schwarz lesbar, der Farbton erkennbar.
+     */
+    fun readableTextHex(fgHex: String, bgHex: String, minRatio: Double = 4.5): String {
+        val f = parse(fgHex) ?: return fgHex
+        val b = parse(bgHex) ?: return fgHex
+        if (contrast(f, b) >= minRatio) return fgHex
+        val target = if (luminance(b) < 0.18) 255.0 else 0.0
+        var mixed = f
+        for (step in 1..20) {
+            val t = step / 20.0
+            mixed = IntArray(3) { i -> (f[i] + (target - f[i]) * t).roundToInt().coerceIn(0, 255) }
+            if (contrast(mixed, b) >= minRatio) break
+        }
+        return toHex(mixed)
+    }
+
+    private fun luminance(rgb: IntArray): Double =
+        0.2126 * toLinear(rgb[0]) + 0.7152 * toLinear(rgb[1]) + 0.0722 * toLinear(rgb[2])
+
+    private fun contrast(a: IntArray, b: IntArray): Double {
+        val la = luminance(a); val lb = luminance(b)
+        return (maxOf(la, lb) + 0.05) / (minOf(la, lb) + 0.05)
+    }
+
     /** Die vier Stufenfarben (Hex) zwischen [accentHex] und [bgHex], in Reihenfolge von oben. */
     fun stepColors(accentHex: String, bgHex: String): List<String> =
         steps.map { (_, amount) -> mix(accentHex, bgHex, amount) }
