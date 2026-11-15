@@ -344,6 +344,12 @@ object ReaderHtmlBuilder {
         val hairline = if (isDark) "#2c2c2e" else "#e5e5ea"
         val tableBorder = if (isDark) "#3a3a3c" else "#d1d1d6"
         val infoboxBg = when { isSepia -> "#e8d9be"; isDark -> "#1e2d3d"; else -> "#f0f7ff" }
+        // Akzent als Textfarbe (Captions, Zitate, Infokasten-Links) im Dark Mode auf WCAG AA
+        // aufhellen: ein dunkler Akzent (z. B. Lila) ist auf Schwarz bzw. dem dunkelblauen
+        // Infokasten sonst kaum lesbar. Hell/Sepia bleiben unverändert (wie iOS).
+        val accentText = if (isDark) PosterColors.readableTextHex(accent, bg) else accent
+        val accentTextInfobox = if (isDark) PosterColors.readableTextHex(accent, infoboxBg) else accent
+        val citeOpacity = if (isDark) "0.75" else "0.5"
         return """
             html, body {
               margin: 0; padding: 0;
@@ -405,11 +411,11 @@ object ReaderHtmlBuilder {
             figure { margin: 1em 0 0; }
             figure img { margin-bottom: 0; }
             figcaption {
-              font-size: 0.75em; line-height: 1.4; color: $accent; text-align: left;
+              font-size: 0.75em; line-height: 1.4; color: $accentText; text-align: left;
               margin-top: 2px; margin-bottom: 1em;
             }
             /* Bildquelle (vom Server als <cite> markiert): nicht fett, kursiv, halbtransparent */
-            figcaption cite { font-weight: 400; font-style: italic; opacity: 0.5; }
+            figcaption cite { font-weight: 400; font-style: italic; opacity: $citeOpacity; }
             figcaption cite * { font-weight: inherit; font-style: inherit; }
             /* Links in Bildunterschriften wie der übrige Caption-Text */
             figcaption a { color: inherit !important; text-decoration: none; }
@@ -442,7 +448,8 @@ object ReaderHtmlBuilder {
             }
             .merlin-infobox > *:first-child { margin-top: 0; }
             .merlin-infobox > *:last-child { margin-bottom: 0; }
-            .merlin-infobox a { color: $accent !important; }
+            .merlin-infobox a { color: $accentTextInfobox !important; }
+            .merlin-infobox figcaption { color: $accentTextInfobox; }
             /* Querformat: Bilder (insb. das Hero-Bild aus ContentExtractorService.php,
                <figure class="merlin-hero-image">) sollen fast die gesamte Bildschirmbreite
                einnehmen statt vom 20px-Innenabstand von #merlin-content eingeengt zu werden.
@@ -493,7 +500,7 @@ object ReaderHtmlBuilder {
               font-size: 1.3em;
               font-style: italic;
               line-height: 1.45;
-              color: ${appearance.accentColorHex};
+              color: $accentText;
             }
             blockquote p { margin: 0 0 0.4em; }
             blockquote cite, blockquote footer {
@@ -503,7 +510,7 @@ object ReaderHtmlBuilder {
               font-style: normal;
               text-align: center !important;
               margin-top: 0.3em;
-              color: ${appearance.accentColorHex};
+              color: $accentText;
             }
             /* Some sources place the attribution in a paragraph right after the
                blockquote (e.g. <blockquote>…</blockquote><p><cite>Name</cite></p>)
@@ -513,7 +520,7 @@ object ReaderHtmlBuilder {
               text-align: center !important;
               font-family: ${dev.merlin.android.models.ReaderFont.SYSTEM.cssValue};
               font-size: 0.85em;
-              color: ${appearance.accentColorHex};
+              color: $accentText;
             }
             blockquote + p:has(> cite:only-child) cite, blockquote + p:has(> cite:only-child) cite * { font-style: normal; }
             pre, code { font-family: ${dev.merlin.android.models.ReaderFont.MONO.cssValue}; }
