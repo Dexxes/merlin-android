@@ -75,7 +75,8 @@ fun InstalledFontPickerDialog(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
                 )
                 val list = families
-                Box(modifier = Modifier.weight(1f)) {
+                // Volle Breite, sonst ist die Box nur so breit wie ihr Inhalt und der Ladeindikator klebt links.
+                Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                     if (list == null) {
                         CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
                     } else {
