@@ -35,17 +35,23 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.DirectionsRun
+import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Archive
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Inventory2
+import androidx.compose.material.icons.filled.KeyboardDoubleArrowDown
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.NotificationAdd
 import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Edit
@@ -62,6 +68,8 @@ import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -92,6 +100,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.ClipEntry
@@ -100,6 +109,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
@@ -108,6 +120,9 @@ import androidx.core.graphics.toColorInt
 import androidx.core.net.toUri
 import androidx.core.view.WindowCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.currentStateAsState
 import dev.merlin.android.models.Article
 import dev.merlin.android.models.HighlightCreate
 import dev.merlin.android.models.ProgressEdge
@@ -246,6 +261,27 @@ fun ArticleReaderScreen(
     val deltaThresholdPx = with(density) { 4.dp.toPx() }
     val downThresholdPx = with(density) { 40.dp.toPx() }
     val nearBottomThresholdPx = with(density) { 160.dp.toPx() }
+
+    // Freihand-Lesemodus (Äquivalent zu `autoScroll`/`handsFreeButton` in ArticleReaderView.swift).
+    val handsFreeButton by viewModel.handsFreeButton.collectAsState()
+    val autoScroll = remember(viewModel.articleId) { AutoScrollController() }
+    LaunchedEffect(autoScroll) { autoScroll.slider = viewModel.handsFreeSpeed() }
+    LaunchedEffect(webViewRef, autoScroll) {
+        webViewRef?.let { autoScroll.target = WebViewAutoScrollTarget(it) }
+    }
+    val handsFreeRunning = autoScroll.isRunning
+    LaunchedEffect(handsFreeRunning, autoScroll) {
+        if (handsFreeRunning) autoScroll.run(density.density)
+    }
+    // Bildschirm bleibt an, solange der Motor läuft (iOS: `isIdleTimerDisabled`).
+    DisposableEffect(handsFreeRunning) {
+        view.keepScreenOn = handsFreeRunning
+        onDispose { view.keepScreenOn = false }
+    }
+    // Im Erscheinungsbild ausgeschaltet → Modus beenden.
+    LaunchedEffect(handsFreeButton) {
+        if (!handsFreeButton) autoScroll.stop()
+    }
 
     // Meldet jede Artikeländerung (Favorit/Archiv/Tags) an die geteilte `ArticlesViewModel`-
     // Instanz der Liste zurück, damit z.B. ein archivierter Artikel beim Zurücknavigieren
@@ -475,7 +511,8 @@ fun ArticleReaderScreen(
                                     }
                                     // Debounce wie im iOS-Original: nur "echte" Scroll-Schübe (>4dp)
                                     // werten Richtung/Sichtbarkeit neu, kleines Zittern wird ignoriert.
-                                    if (abs(delta) > deltaThresholdPx) {
+                                    // Im Freihand-Lesemodus bleibt die Lesemodus-Leiste stehen.
+                                    if (abs(delta) > deltaThresholdPx && !autoScroll.isActive) {
                                         scrollingDown = delta > 0f && newOffset > downThresholdPx
                                         showBottomBar = !scrollingDown || isNearBottom
                                     }
@@ -485,7 +522,21 @@ fun ArticleReaderScreen(
                                 // restlichen Geschwister unten (Highlight-Toolbar, Info-Popover, Bottom-Bar)
                                 // bleiben direkte Kinder der äußeren `Box`, da sie `Modifier.align(...)`
                                 // benötigen (nur in `BoxScope` verfügbar).
-                                Column(modifier = Modifier.fillMaxSize()) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        // Freihand-Lesemodus: Finger auf dem Inhalt → Motor hält kurz an
+                                        // (siehe AutoScrollController). Nur beobachten, nichts verbrauchen;
+                                        // `Initial` sieht die Events vor der WebView/LazyColumn.
+                                        .pointerInput(autoScroll) {
+                                            awaitPointerEventScope {
+                                                while (true) {
+                                                    val event = awaitPointerEvent(PointerEventPass.Initial)
+                                                    autoScroll.userTouching = event.changes.any { it.pressed }
+                                                }
+                                            }
+                                        },
+                                ) {
                                     if (NativeVideoHost.matches(currentArticle.url)) {
                                         NativeVideoPlayerCard(
                                             articleId = currentArticle.id,
@@ -513,6 +564,7 @@ fun ArticleReaderScreen(
                                             onScrollPositionChanged = { progress -> viewModel.saveScrollProgress(progress) },
                                             onScrollProgress = { scrollProgress = it },
                                             onScrollMetrics = onReaderScrollMetrics,
+                                            onAutoScrollTarget = { autoScroll.target = it },
                                             modifier = Modifier.fillMaxWidth().weight(1f),
                                         )
                                     } else {
@@ -568,19 +620,43 @@ fun ArticleReaderScreen(
                                 // `ColumnScope`/`RowScope`), daher greift ohne Paketqualifizierung
                                 // direkt die Top-Level-Überladung von `AnimatedVisibility`.
                                 AnimatedVisibility(
-                                    visible = showBottomBar,
+                                    // Im Freihand-Lesemodus steht statt der Bottom-Bar die Lesemodus-Leiste.
+                                    visible = showBottomBar || autoScroll.isActive,
                                     enter = slideInVertically(animationSpec = tween(200)) { it } + fadeIn(tween(200)),
                                     exit = slideOutVertically(animationSpec = tween(200)) { it } + fadeOut(tween(200)),
                                     modifier = Modifier.align(Alignment.BottomCenter),
                                 ) {
-                                    ReaderBottomBar(
-                                        onArchiveAndBack = {
-                                            if (!currentArticle.isArchived) viewModel.toggleArchive()
-                                            onBack()
-                                        },
-                                        onOpenMenu = { scope.launch { drawerState.open() } },
-                                        chromeColors = chromeColors,
-                                    )
+                                    if (autoScroll.isActive) {
+                                        HandsFreeBar(
+                                            controller = autoScroll,
+                                            onSpeedChangeFinished = { viewModel.saveHandsFreeSpeed(autoScroll.slider) },
+                                            onStop = {
+                                                autoScroll.stop()
+                                                showBottomBar = true
+                                            },
+                                            chromeColors = chromeColors,
+                                            accentColorHex = accentColorHex,
+                                        )
+                                    } else {
+                                        ReaderBottomBar(
+                                            onArchiveAndBack = {
+                                                if (!currentArticle.isArchived) viewModel.toggleArchive()
+                                                onBack()
+                                            },
+                                            onStartHandsFree = if (handsFreeButton) {
+                                                {
+                                                    selectionRect = null
+                                                    infoPopover = null
+                                                    showBottomBar = true
+                                                    autoScroll.start()
+                                                }
+                                            } else {
+                                                null
+                                            },
+                                            onOpenMenu = { scope.launch { drawerState.open() } },
+                                            chromeColors = chromeColors,
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -589,6 +665,19 @@ fun ArticleReaderScreen(
             }
         }
     }
+    }
+
+    // Freihand-Lesemodus: alles, was den Motor anhalten soll, bis man selbst ▶ tippt – Auswahl bzw.
+    // Farbleiste, Popover, Menü, Sheets, Dialoge, Lightbox und App im Hintergrund (Äquivalent zu
+    // `handsFreeShouldPause` in ArticleReaderView.swift).
+    val lifecycleState by LocalLifecycleOwner.current.lifecycle.currentStateAsState()
+    val handsFreeShouldPause = selectionRect != null || infoPopover != null ||
+        drawerState.targetValue == DrawerValue.Open || showAppearanceSheet || showReminderSheet ||
+        showReportSheet || showTagsSheet || showRenameDialog || showShareLinkSheet ||
+        lightboxState != null || pendingHighlightDeleteId != null ||
+        !lifecycleState.isAtLeast(Lifecycle.State.RESUMED)
+    LaunchedEffect(handsFreeShouldPause) {
+        if (handsFreeShouldPause) autoScroll.pause()
     }
 
     // Fortschrittsbalken als Geschwister-Overlay der Drawer/Scaffold-Hülle (siehe Kommentar an der
@@ -696,16 +785,18 @@ private fun ProgressBarOverlay(edge: ProgressEdge, progress: () -> Float, colorH
 }
 
 /**
- * Reader-Bottom-Bar (abgeleitet von der iOS-`bottomBar` in ArticleReaderView.swift): 2 gleich
- * breite Icon-Buttons ("Archivieren und zurück" links, Menü rechts), getrennt durch eine
- * Haarlinie, 54dp hoch, Hintergrund leicht transparent mit oberer Haarlinie. Der frühere
- * Zurück-Button und "Archivieren und weiter" wurden entfernt; das Menü kam aus der früheren
- * TopAppBar hierher und öffnet den (rechtsseitigen) Drawer. Archiviert nur einseitig (nie
- * un-archivieren), wie im iOS-Original.
+ * Reader-Bottom-Bar (abgeleitet von der iOS-`bottomBar` in ArticleReaderView.swift): gleich
+ * breite Icon-Buttons ("Archivieren und zurück" links, optional Freihand-Lesen in der Mitte,
+ * Menü rechts), getrennt durch Haarlinien, 54dp hoch, Hintergrund leicht transparent mit oberer
+ * Haarlinie. Der frühere Zurück-Button und "Archivieren und weiter" wurden entfernt; das Menü kam
+ * aus der früheren TopAppBar hierher und öffnet den (rechtsseitigen) Drawer. Archiviert nur
+ * einseitig (nie un-archivieren), wie im iOS-Original. [onStartHandsFree] == null blendet den
+ * Freihand-Button aus (Schalter im Erscheinungsbild-Sheet).
  */
 @Composable
 private fun ReaderBottomBar(
     onArchiveAndBack: () -> Unit,
+    onStartHandsFree: (() -> Unit)?,
     onOpenMenu: () -> Unit,
     chromeColors: ReaderChromeColors,
     modifier: Modifier = Modifier,
@@ -729,12 +820,115 @@ private fun ReaderBottomBar(
                 modifier = Modifier.weight(1f),
             )
             VerticalDivider(thickness = 0.5.dp, color = chromeColors.separator)
+            if (onStartHandsFree != null) {
+                BottomBarButton(
+                    icon = Icons.Filled.KeyboardDoubleArrowDown,
+                    contentDescription = "Freihand-Lesen",
+                    onClick = onStartHandsFree,
+                    chromeColors = chromeColors,
+                    modifier = Modifier.weight(1f),
+                )
+                VerticalDivider(thickness = 0.5.dp, color = chromeColors.separator)
+            }
             BottomBarButton(
                 icon = Icons.Filled.Menu,
                 contentDescription = "Menü",
                 onClick = onOpenMenu,
                 chromeColors = chromeColors,
                 modifier = Modifier.weight(1f),
+            )
+        }
+    }
+}
+
+/**
+ * Freihand-Lesemodus: ersetzt die [ReaderBottomBar], solange der Modus an ist, in derselben Form
+ * (Äquivalent zur iOS-`handsFreeBar`):
+ *
+ *   ⏸ | 🚶 ━━━━━●━━━━━ 🏃 | ✕
+ *
+ * Der Slider wirkt sofort und wird beim Loslassen gespeichert; ✕ beendet den Modus. Nur diese
+ * Leiste liest [AutoScrollController.slider]/[AutoScrollController.isPaused], ein Ziehen am Slider
+ * komponiert also nicht den ganzen Reader neu.
+ */
+@Composable
+private fun HandsFreeBar(
+    controller: AutoScrollController,
+    onSpeedChangeFinished: () -> Unit,
+    onStop: () -> Unit,
+    chromeColors: ReaderChromeColors,
+    accentColorHex: String,
+    modifier: Modifier = Modifier,
+) {
+    val accent = remember(accentColorHex) {
+        runCatching { Color(accentColorHex.toColorInt()) }.getOrDefault(Color.Red)
+    }
+    val paused = controller.isPaused
+    val speedDescription = when {
+        controller.slider < 0.34f -> "langsam"
+        controller.slider < 0.67f -> "mittel"
+        else -> "schnell"
+    }
+    Column(modifier = modifier.fillMaxWidth()) {
+        HorizontalDivider(thickness = 0.5.dp, color = chromeColors.separator)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(54.dp)
+                .background(chromeColors.elevatedBackground.copy(alpha = 0.97f)),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            BottomBarButton(
+                icon = if (paused) Icons.Filled.PlayArrow else Icons.Filled.Pause,
+                contentDescription = if (paused) "Weiter" else "Pause",
+                onClick = { controller.togglePause() },
+                chromeColors = chromeColors,
+                modifier = Modifier.width(60.dp),
+            )
+            VerticalDivider(thickness = 0.5.dp, color = chromeColors.separator)
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Icon(
+                    Icons.AutoMirrored.Filled.DirectionsWalk,
+                    contentDescription = null,
+                    tint = chromeColors.mutedForeground,
+                    modifier = Modifier.size(16.dp),
+                )
+                Slider(
+                    value = controller.slider,
+                    onValueChange = { controller.slider = it },
+                    onValueChangeFinished = onSpeedChangeFinished,
+                    colors = SliderDefaults.colors(
+                        thumbColor = accent,
+                        activeTrackColor = accent,
+                        inactiveTrackColor = chromeColors.mutedForeground.copy(alpha = 0.3f),
+                    ),
+                    modifier = Modifier
+                        .weight(1f)
+                        .semantics {
+                            contentDescription = "Scrollgeschwindigkeit"
+                            stateDescription = speedDescription
+                        },
+                )
+                Icon(
+                    Icons.AutoMirrored.Filled.DirectionsRun,
+                    contentDescription = null,
+                    tint = chromeColors.mutedForeground,
+                    modifier = Modifier.size(16.dp),
+                )
+            }
+            VerticalDivider(thickness = 0.5.dp, color = chromeColors.separator)
+            BottomBarButton(
+                icon = Icons.Filled.Close,
+                contentDescription = "Freihand-Lesen beenden",
+                onClick = onStop,
+                chromeColors = chromeColors,
+                modifier = Modifier.width(60.dp),
             )
         }
     }

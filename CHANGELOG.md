@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Hands-free reading (auto-scroll) like on iOS: a new button in the middle of
+  the reader's bottom bar starts it. While it runs, the bottom bar becomes a
+  bar with pause/resume, a speed slider (10–150 dp/s, quadratic like on iOS,
+  last setting is remembered) and a button to stop; it stays visible while
+  scrolling. Touching the article pauses briefly and continues 1.5 s after
+  letting go (and after a fling has stopped). Text selection, the menu, sheets,
+  dialogs, the image viewer and leaving the app pause it until resumed; it
+  stops at the end of the article and keeps the screen on while running.
+  Works for PDFs too. The button can be hidden with "Freihand-Lesemodus" in
+  the appearance sheet (on by default; local only, not synced). Not compiled
+  or run on a device yet.
 - Nested tags (merlin-nextcloud): the side menu shows tags as a tree whose
   parents expand and collapse (remembered across launches). Long-press a tag
   for "Umbenennen…", "Verschieben nach…" (pick a new parent or the top
