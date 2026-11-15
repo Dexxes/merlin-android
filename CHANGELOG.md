@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- Free font choice in the reader's Appearance sheet: besides the four presets,
+  "Installed font" opens a searchable list of every font family installed on
+  the device (each shown in its own typeface). The chosen font applies to the
+  article text and is stored on the device only; the server keeps receiving
+  the preset, which also serves as fallback. Lists the system fonts
+  (Android 10+: SystemFonts API, older: /system/fonts). Only fonts with Latin
+  letters are listed; from font collections (.ttc) only the first face.
 
 - Comments like on iOS (merlin-nextcloud only): "Kommentare (n)" in the reader
   menu opens a sheet with all threads (replies, edit own, delete, sort by text
