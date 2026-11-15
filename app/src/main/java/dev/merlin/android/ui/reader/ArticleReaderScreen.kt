@@ -116,6 +116,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -1388,9 +1389,14 @@ private fun HighlightColorToolbar(
     onDelete: (() -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
+    // Abgesetzt vom Text wie auf iOS (`HighlightToolbarBackground`: Schatten unter der Leiste),
+    // dazu ein feiner Rand, damit sie auch auf hellem Papier nicht verschwimmt.
+    val shape = RoundedCornerShape(24.dp)
     Row(
         modifier = modifier
-            .background(MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(24.dp))
+            .shadow(elevation = 10.dp, shape = shape, ambientColor = Color.Black, spotColor = Color.Black)
+            .background(MaterialTheme.colorScheme.surfaceVariant, shape = shape)
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, shape)
             .padding(horizontal = 12.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically,
