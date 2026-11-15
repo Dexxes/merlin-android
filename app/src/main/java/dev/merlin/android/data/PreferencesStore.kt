@@ -53,6 +53,7 @@ class PreferencesStore @Inject constructor(
         val DEVELOPER_MODE = booleanPreferencesKey("developer_mode")
         val IS_CARD_VIEW = booleanPreferencesKey("is_card_view")
         val EXCLUDED_TAG_IDS = stringPreferencesKey("excluded_tag_ids")
+        val EXPANDED_TAG_IDS = stringPreferencesKey("expanded_tag_ids")
         val REPORT_BACKEND_URL = stringPreferencesKey("report_backend_url")
         val CACHE_RETENTION_DAYS = intPreferencesKey("cache_retention_days")
         val NEEDS_SETTINGS_SYNC = booleanPreferencesKey("needs_settings_sync")
@@ -136,6 +137,15 @@ class PreferencesStore @Inject constructor(
         prefs[Keys.EXCLUDED_TAG_IDS]?.let { runCatching { json.decodeFromString<Set<Int>>(it) }.getOrNull() } ?: emptySet()
     }
     suspend fun setExcludedTagIds(value: Set<Int>) = dataStore.edit { it[Keys.EXCLUDED_TAG_IDS] = json.encodeToString(value) }
+
+    /**
+     * Im Seitenmenü aufgeklappte Eltern-Tags (verschachtelte Tags), Äquivalent zu
+     * `@AppStorage("merlinExpandedTagIds")` in `ListFlyoutModifier.swift`. Nur lokal.
+     */
+    val expandedTagIds: Flow<Set<Int>> = dataStore.data.map { prefs ->
+        prefs[Keys.EXPANDED_TAG_IDS]?.let { runCatching { json.decodeFromString<Set<Int>>(it) }.getOrNull() } ?: emptySet()
+    }
+    suspend fun setExpandedTagIds(value: Set<Int>) = dataStore.edit { it[Keys.EXPANDED_TAG_IDS] = json.encodeToString(value) }
 
     // MARK: – Lesepositionen
     //

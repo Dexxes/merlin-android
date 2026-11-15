@@ -35,20 +35,22 @@ class ArticleCacheService @Inject constructor(
 ) {
     private val mutex = Mutex()
 
-    /** Liefert gecachte Artikel passend zu [filter]/[tagId], nach vorheriger Eviction.
-     * [showArchivedForTag] entscheidet nur bei gesetztem [tagId], ob archivierte
+    /** Liefert gecachte Artikel passend zu [filter]/[tagScope], nach vorheriger Eviction.
+     * [tagScope] ist in der Einzel-Tag-Ansicht der gewählte Tag plus seine Unter-Tags
+     * (siehe [dev.merlin.android.models.TagTree.scope]), sonst `null`.
+     * [showArchivedForTag] entscheidet nur bei gesetztem [tagScope], ob archivierte
      * Artikel mitgezählt werden (Äquivalent zu iOS' `showArchivedForTag`, siehe
      * `ArticleCacheService.swift`). Sortierung wie `ArticlesViewModel.sortedForFilter`. */
     suspend fun loadFiltered(
         filter: ArticleFilter,
-        tagId: Int?,
+        tagScope: Set<Int>?,
         showArchivedForTag: Boolean = false,
     ): List<Article> = mutex.withLock {
         evictExpiredInternal()
         val matching = articleDao.getAll()
             .mapNotNull { decode(it.json) }
-            .filter { filter.matches(it, tagId, showArchivedForTag) }
-        if (tagId != null) return@withLock matching.sortedByDescending { it.createdAt }
+            .filter { filter.matches(it, tagScope, showArchivedForTag) }
+        if (tagScope != null) return@withLock matching.sortedByDescending { it.createdAt }
         when (filter.kind) {
             ArticleFilter.Kind.CONTINUE -> matching.sortedByDescending { it.scrollUpdatedAt }
             ArticleFilter.Kind.FAVORITES -> matching.sortedByDescending { it.favoritedAt ?: "" }

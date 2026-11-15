@@ -36,12 +36,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import dev.merlin.android.models.Article
 import dev.merlin.android.models.Tag
+import dev.merlin.android.models.TagTree
 import kotlinx.coroutines.launch
 
 /**
  * Äquivalent zu iOS' `ArticleTagSheet` (`ArticleReaderView.swift`, MARK „Tag editing
  * sheet"): `ModalBottomSheet` (statt iOS' eigenständigem `.sheet`/`NavigationStack`)
- * mit Chip-Auswahl aller bekannten Tags plus inline-Erstellung neuer Tags – 1:1 dasselbe
+ * mit Baum-Auswahl aller bekannten Tags ([TagTreeSelectionList], verschachtelte Tags) plus
+ * inline-Erstellung neuer Tags, mit [canNestTags] auch als Unter-Tag ([TagParentPicker]) – 1:1 dasselbe
  * `pendingTags`-Konzept wie [AddArticleSheet] (Chips für ausgewählte/neue Tags, Speichern
  * legt neue Namen erst dann serverseitig an). Ersetzt die v1-Checkbox-`AlertDialog`-Variante.
  *
@@ -56,14 +58,18 @@ fun EditTagsDialog(
     article: Article,
     allTags: List<Tag>,
     onDismiss: () -> Unit,
-    onSave: suspend (selectedTagIds: Set<Int>, pendingTagNames: List<String>) -> Unit,
+    onSave: suspend (selectedTagIds: Set<Int>, pendingTagNames: List<String>, newTagParentId: Int?) -> Unit,
+    /** Auswahl „Unter“ für neue Tags anbieten (nur merlin-nextcloud kennt verschachtelte Tags). */
+    canNestTags: Boolean = false,
 ) {
+    val tree = remember(allTags) { TagTree(allTags) }
     val sheetState = rememberModalBottomSheetState()
     val scope = rememberCoroutineScope()
 
     var selectedTagIds by remember(article.id) { mutableStateOf(article.tags.map { it.id }.toSet()) }
     var pendingTagNames by remember(article.id) { mutableStateOf(emptyList<String>()) }
     var newTagText by remember { mutableStateOf("") }
+    var newTagParentId by remember(article.id) { mutableStateOf<Int?>(null) }
     var isSaving by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
@@ -72,7 +78,7 @@ fun EditTagsDialog(
         if (name.isEmpty()) return
         val alreadyExisting = allTags.firstOrNull { it.name.equals(name, ignoreCase = true) }
         if (alreadyExisting != null) {
-            selectedTagIds = selectedTagIds + alreadyExisting.id
+            selectedTagIds = tree.selecting(alreadyExisting.id, selectedTagIds)
         } else if (name !in pendingTagNames) {
             pendingTagNames = pendingTagNames + name
         }
@@ -85,7 +91,7 @@ fun EditTagsDialog(
         errorMessage = null
         scope.launch {
             try {
-                onSave(selectedTagIds, pendingTagNames)
+                onSave(selectedTagIds, pendingTagNames, newTagParentId.takeIf { canNestTags })
                 onDismiss()
             } catch (e: Exception) {
                 errorMessage = e.message ?: "Unbekannter Fehler"
@@ -100,20 +106,13 @@ fun EditTagsDialog(
             Text("Tags bearbeiten", style = MaterialTheme.typography.titleMedium)
 
             if (allTags.isNotEmpty()) {
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    modifier = Modifier.padding(top = 16.dp),
-                ) {
-                    items(allTags, key = { it.id }) { tag ->
-                        FilterChip(
-                            selected = tag.id in selectedTagIds,
-                            onClick = {
-                                selectedTagIds = if (tag.id in selectedTagIds) selectedTagIds - tag.id else selectedTagIds + tag.id
-                            },
-                            label = { Text(tag.name) },
-                        )
-                    }
-                }
+                TagTreeSelectionList(
+                    tree = tree,
+                    selection = selectedTagIds,
+                    onSelectionChange = { selectedTagIds = it },
+                    enabled = !isSaving,
+                    modifier = Modifier.padding(top = 12.dp),
+                )
             } else {
                 Text(
                     "Noch keine Tags vorhanden.",
@@ -156,6 +155,15 @@ fun EditTagsDialog(
                 IconButton(onClick = ::addPendingTag, enabled = newTagText.isNotBlank() && !isSaving) {
                     Icon(Icons.Filled.Add, contentDescription = "Tag hinzufügen")
                 }
+            }
+
+            if (canNestTags && allTags.isNotEmpty()) {
+                TagParentPicker(
+                    tree = tree,
+                    selection = newTagParentId,
+                    onSelect = { newTagParentId = it },
+                    enabled = !isSaving,
+                )
             }
 
             errorMessage?.let { message ->
