@@ -183,6 +183,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Reader: the end of the article (source or byline) is no longer half hidden
+  behind the bottom bar. The text keeps the bar's height plus some space free
+  at the bottom.
 - The list now loads with the saved default view on launch, and switches to
   the server's default view once the server settings arrive (as on iOS).
   Before, the first load always used the built-in default.
