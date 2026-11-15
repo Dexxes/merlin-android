@@ -18,13 +18,16 @@ import dev.merlin.android.di.ApplicationScope
 import dev.merlin.android.models.Article
 import dev.merlin.android.models.Highlight
 import dev.merlin.android.models.HighlightCreate
+import dev.merlin.android.models.HighlightUpdate
 import dev.merlin.android.models.ProgressEdge
 import dev.merlin.android.models.ReaderFont
 import dev.merlin.android.models.ReaderTheme
 import dev.merlin.android.models.Reminder
 import dev.merlin.android.models.Tag
 import dev.merlin.android.models.TagTree
+import dev.merlin.android.network.AllowCommentsRequest
 import dev.merlin.android.network.ArticleShareResponse
+import dev.merlin.android.network.CommentStreamClient
 import dev.merlin.android.network.CreateArticleRequest
 import dev.merlin.android.network.CreateShareRequest
 import dev.merlin.android.network.CreateTagRequest
@@ -32,6 +35,8 @@ import dev.merlin.android.network.CredentialsStore
 import dev.merlin.android.network.MerlinApi
 import dev.merlin.android.network.RenameFileRequest
 import dev.merlin.android.network.UpdateProgressRequest
+import dev.merlin.android.network.requireSuccess
+import kotlinx.serialization.json.Json
 import java.io.IOException
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
@@ -73,6 +78,8 @@ class ArticleReaderViewModel @Inject constructor(
     /** App-überlebender Scope für das Speichern/Pushen der Scroll-Position – siehe [ApplicationScope]. */
     @ApplicationScope private val appScope: CoroutineScope,
     private val credentialsStore: CredentialsStore,
+    commentStreamClient: CommentStreamClient,
+    json: Json,
 ) : ViewModel() {
 
     /** Unter-Tags anlegen (verschachtelte Tags) gibt es nur mit merlin-nextcloud. */
@@ -122,8 +129,71 @@ class ArticleReaderViewModel @Inject constructor(
 
     // MARK: – Highlights
 
+    /** Eigene Markierungen aus API bzw. Offline-Cache, dazu gerade angelegte (offline mit negativer ID). */
     private val _highlights = MutableStateFlow<List<Highlight>>(emptyList())
-    val highlights: StateFlow<List<Highlight>> = _highlights.asStateFlow()
+
+    // MARK: – Kommentare (nur merlin-nextcloud)
+
+    /** Kommentare und alle Markierungen des Artikels, live über den Push-Kanal (siehe [CommentStore]). */
+    val comments = CommentStore(api, commentStreamClient, viewModelScope, json)
+
+    /** Gerade gelöscht – ausblenden, bis der Kommentar-Kanal nachzieht. */
+    private val removedHighlightIds = MutableStateFlow<Set<Int>>(emptySet())
+
+    /** Gerade umgefärbt – gewinnt, bis Server bzw. Kommentar-Kanal denselben Stand liefern. */
+    private val highlightEdits = MutableStateFlow<Map<Int, Highlight>>(emptyMap())
+
+    /** In dieser Sitzung angelegt und noch in keinem Kommentar-Stand enthalten. */
+    private val createdHighlightIds = mutableSetOf<Int>()
+
+    /**
+     * Alle sichtbaren Markierungen (Text und PDF). Sobald der Kommentar-Kanal steht, ist er die
+     * Quelle (er trägt auch Gast-Markierungen, kommentierte Stellen und `authorColor`); dazu kommen
+     * eigene, die er noch nicht kennt (offline angelegt oder gerade erst gespeichert). Äquivalent
+     * zu `highlights` in `PDFArticleView.swift` bzw. `merlinSetCommentState` im iOS-Text-Reader.
+     */
+    val highlights: StateFlow<List<Highlight>> = combine(
+        _highlights,
+        comments.state,
+        removedHighlightIds,
+        highlightEdits,
+    ) { own, commentState, removed, edits ->
+        val byId = LinkedHashMap<Int, Highlight>()
+        if (commentState.isAvailable) {
+            val known = commentState.highlights.mapTo(HashSet()) { it.id }
+            createdHighlightIds.removeAll(known)
+            for (h in commentState.highlights) byId[h.id] = h
+            for (h in own) if (h.id !in known && (h.id < 0 || h.id in createdHighlightIds)) byId[h.id] = h
+        } else {
+            for (h in own) byId[h.id] = h
+        }
+        removed.forEach { byId.remove(it) }
+        edits.forEach { (id, edited) -> if (byId.containsKey(id)) byId[id] = edited }
+        byId.values.toList()
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    /** Kommentar-Kanal öffnen (nur merlin-nextcloud); der Reader ruft das beim Öffnen und Zurückkehren auf. */
+    fun startComments() {
+        if (!supportsNextcloudOnlyFeatures) return
+        comments.start(articleId)
+    }
+
+    /** Im Hintergrund keine offene Verbindung halten (jeder offene Reader belegt einen PHP-Worker). */
+    fun stopComments() = comments.stop()
+
+    init {
+        // Umgefärbte Markierungen vergessen, sobald der Kanal denselben Stand meldet.
+        viewModelScope.launch {
+            comments.state.collect { state ->
+                val edits = highlightEdits.value
+                if (edits.isEmpty()) return@collect
+                val confirmed = edits.filter { (id, edited) ->
+                    state.highlight(id)?.let { it.color == edited.color && it.pdfRects == edited.pdfRects } == true
+                }.keys
+                if (confirmed.isNotEmpty()) highlightEdits.value = edits - confirmed
+            }
+        }
+    }
 
     // MARK: – Reminder (Äquivalent zum `currentReminder`-Binding in ReminderSheet.swift)
 
@@ -355,15 +425,66 @@ class ArticleReaderViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val real = api.createHighlight(articleId, payload)
+                createdHighlightIds += real.id
                 _highlights.value = _highlights.value + real
                 highlightCacheService.upsert(real)
+                comments.refresh()
             } catch (e: Exception) {
                 if (e is IOException) {
                     val optimistic = offlineHighlightQueue.enqueueCreate(articleId, payload)
                     _highlights.value = _highlights.value + optimistic
                     offlineHighlightQueue.scheduleDrain()
                 } else {
-                    _error.value = e.message ?: "Highlight konnte nicht gespeichert werden"
+                    // z. B. ein älterer Server ohne PDF-Markierungen (400).
+                    _error.value = "Die Markierung konnte nicht gespeichert werden."
+                }
+            }
+        }
+    }
+
+    /**
+     * Neue Farbe für eine Markierung. Eigene Markierungen auf Servern mit `PUT api/highlights/{id}`
+     * behalten ihre id (und damit ihre Kommentare); sonst wird sie wie bisher gelöscht und in der
+     * neuen Farbe neu angelegt (merlin-server kennt weder Update noch Kommentare).
+     */
+    fun recolorHighlight(highlight: Highlight, color: String) {
+        if (highlight.color == color || highlight.isComment) return
+        val change = HighlightUpdate.recolor(highlight, color)
+        if (highlight.id < 0) {
+            _highlights.value = _highlights.value.map { if (it.id == highlight.id) it.updated(change) else it }
+            viewModelScope.launch { offlineHighlightQueue.enqueueUpdate(highlight, change) }
+            return
+        }
+        if (!comments.state.value.canUpdateHighlights || highlight.isGuest) {
+            deleteHighlight(highlight)
+            createHighlight(
+                HighlightCreate(
+                    highlightedText = highlight.highlightedText,
+                    startXpath = highlight.startXpath,
+                    startOffset = highlight.startOffset,
+                    endXpath = highlight.endXpath,
+                    endOffset = highlight.endOffset,
+                    color = color,
+                    pdfPage = highlight.pdfPage,
+                    pdfRects = highlight.pdfRects,
+                ),
+            )
+            return
+        }
+        highlightEdits.value = highlightEdits.value + (highlight.id to highlight.updated(change))
+        viewModelScope.launch {
+            try {
+                val saved = api.updateHighlight(highlight.id, change)
+                highlightCacheService.upsert(saved)
+                _highlights.value = _highlights.value.map { if (it.id == saved.id) saved else it }
+                comments.refresh()
+            } catch (e: Exception) {
+                if (e is IOException) {
+                    offlineHighlightQueue.enqueueUpdate(highlight, change)
+                    offlineHighlightQueue.scheduleDrain()
+                } else {
+                    highlightEdits.value = highlightEdits.value - highlight.id
+                    _error.value = "Die Markierung konnte nicht geändert werden."
                 }
             }
         }
@@ -372,20 +493,23 @@ class ArticleReaderViewModel @Inject constructor(
     fun deleteHighlight(highlight: Highlight) {
         viewModelScope.launch {
             _highlights.value = _highlights.value.filterNot { it.id == highlight.id }
+            removedHighlightIds.value = removedHighlightIds.value + highlight.id
             if (highlight.id < 0) {
                 // Noch nicht serverseitig angelegt – Cancel-Logik in der Queue übernimmt das Entfernen.
                 offlineHighlightQueue.enqueueDelete(highlight)
                 return@launch
             }
             try {
-                api.deleteHighlight(highlight.id)
+                api.deleteHighlight(highlight.id).requireSuccess()
                 highlightCacheService.remove(highlight.id, articleId)
+                comments.refresh()
             } catch (e: Exception) {
                 if (e is IOException) {
                     offlineHighlightQueue.enqueueDelete(highlight)
                     offlineHighlightQueue.scheduleDrain()
                 } else {
                     // Echter Serverfehler: Highlight wieder anzeigen.
+                    removedHighlightIds.value = removedHighlightIds.value - highlight.id
                     _highlights.value = _highlights.value + highlight
                     _error.value = e.message ?: "Highlight konnte nicht gelöscht werden"
                 }
@@ -647,12 +771,12 @@ class ArticleReaderViewModel @Inject constructor(
         }
     }
 
-    fun createShare(password: String?, expiresAt: String?) {
+    fun createShare(password: String?, expiresAt: String?, allowComments: Boolean? = null) {
         viewModelScope.launch {
             _shareBusy.value = true
             _shareError.value = null
             try {
-                _share.value = api.createShare(articleId, CreateShareRequest(password = password, expiresAt = expiresAt))
+                _share.value = api.createShare(articleId, CreateShareRequest(password = password, expiresAt = expiresAt, allowComments = allowComments))
             } catch (e: Exception) {
                 _shareError.value = e.message ?: "Link konnte nicht erstellt werden"
             }
@@ -684,6 +808,20 @@ class ArticleReaderViewModel @Inject constructor(
                 _share.value = api.updateShare(articleId, body)
             } catch (e: Exception) {
                 _shareError.value = e.message ?: errorMessage
+            }
+            _shareBusy.value = false
+        }
+    }
+
+    /** Schalter „Besucher dürfen markieren und kommentieren“ (nur merlin-nextcloud). */
+    fun setShareAllowComments(allow: Boolean) {
+        viewModelScope.launch {
+            _shareBusy.value = true
+            _shareError.value = null
+            try {
+                _share.value = api.updateShareAllowComments(articleId, AllowCommentsRequest(allow))
+            } catch (e: Exception) {
+                _shareError.value = e.message ?: "Einstellung konnte nicht gespeichert werden"
             }
             _shareBusy.value = false
         }
