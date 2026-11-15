@@ -39,6 +39,8 @@ import dev.merlin.android.data.PreferencesStore
 import dev.merlin.android.models.ReaderTheme
 import dev.merlin.android.nav.AppNavigator
 import dev.merlin.android.network.CredentialsStore
+import dev.merlin.android.share.FileShareService
+import dev.merlin.android.ui.components.FileShareHost
 import dev.merlin.android.ui.reader.ArticleReaderScreen
 import dev.merlin.android.ui.screens.ArticleListScreen
 import dev.merlin.android.ui.screens.OnboardingScreen
@@ -73,6 +75,9 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var preferencesStore: PreferencesStore
 
+    @Inject
+    lateinit var fileShareService: FileShareService
+
     override fun onCreate(savedInstanceState: Bundle?) {
         // Muss vor super.onCreate() laufen (siehe SplashScreen-API-Doku) – ersetzt das
         // Theme.Merlin.Starting-Fenster-Theme (AndroidManifest.xml) automatisch durch
@@ -89,6 +94,8 @@ class MainActivity : ComponentActivity() {
             // wirkte sich nur auf die Lese-Ansicht aus, nicht auf Menüs/Artikelübersicht/Settings.
             val appTheme by preferencesStore.readerTheme.collectAsState(initial = ReaderTheme.AUTO)
             MerlinTheme(theme = appTheme) {
+                // Lade-/Fehlerdialog beim Teilen von Datei-Einträgen (siehe FileShareService).
+                FileShareHost(fileShareService)
                 var isConfigured by remember { mutableStateOf(credentialsStore.isConfigured) }
                 // Splash nur einmal pro App-Start (nicht erneut nach Rotation o. Ä.).
                 var splashVisible by rememberSaveable { mutableStateOf(true) }

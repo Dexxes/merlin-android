@@ -73,6 +73,8 @@ data class Article(
     /** Nextcloud-Datei-ID bei Einträgen aus „Merlin Dateien“ (nur merlin-nextcloud), sonst null.
      * Solche Einträge gehören zur Gruppe Dateien, nicht zu Text/Video/Audio (siehe [ContentGroup]). */
     val fileId: Int? = null,
+    /** MIME-Typ der Datei bei Datei-Einträgen (wie `fileMime` in `Article.swift`); ergänzt beim Teilen die Endung. */
+    val fileMime: String? = null,
     // Geräteübergreifende Leseposition (siehe ArticleReaderViewModel). Fraktion
     // 0..1 statt Pixel (portabel), plus Epoch-Millis-Zeitstempel des letzten
     // Schreibens für Last-Write-Wins. Default 0 hält die Abwärtskompatibilität

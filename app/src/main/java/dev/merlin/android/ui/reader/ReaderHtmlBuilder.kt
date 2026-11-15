@@ -24,6 +24,24 @@ import dev.merlin.android.viewmodel.ArticleReaderViewModel
  */
 object ReaderHtmlBuilder {
 
+    /**
+     * Adresse der Papierstruktur-Kachel (`assets/paper-texture.png`, dieselbe 512×512-Graustufen-
+     * Kachel wie in merlin-ios, erzeugt von dessen `scripts/generate-paper-texture.py`). Die Seite
+     * wird mit der Artikel-URL als Origin geladen (`loadDataWithBaseURL`), `file:///android_asset`
+     * ist von dort aus gesperrt – [ReaderWebView] beantwortet diese Adresse deshalb selbst aus den
+     * Assets (`shouldInterceptRequest`), die Anfrage verlässt das Gerät nie.
+     */
+    const val PAPER_TEXTURE_URL = "https://merlin-app.invalid/paper-texture.png"
+    const val PAPER_TEXTURE_ASSET = "paper-texture.png"
+
+    /** Papierstruktur sichtbar: Schalter an und Theme hell bzw. Sepia (Dunkel bleibt reines Schwarz). */
+    fun showsPaperTexture(appearance: ArticleReaderViewModel.Appearance, isSystemDark: Boolean): Boolean =
+        appearance.paperTexture && when (appearance.theme) {
+            ReaderTheme.DARK -> false
+            ReaderTheme.AUTO -> !isSystemDark
+            ReaderTheme.LIGHT, ReaderTheme.SEPIA -> true
+        }
+
     /** Eine Zelle der Info-Card (`buildHeaderHtml`); `tapKind` != null macht sie per `READER_JS` antippbar. */
     private data class InfoCell(
         val label: String,
@@ -86,6 +104,7 @@ object ReaderHtmlBuilder {
             <head>
               <meta charset="utf-8">
               <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+              <script>document.documentElement.style.setProperty('--merlin-dpr', String(window.devicePixelRatio || 1));</script>
               <style>$css</style>
             </head>
             <body>
@@ -277,6 +296,23 @@ object ReaderHtmlBuilder {
 
     private fun buildCss(appearance: ArticleReaderViewModel.Appearance, isSystemDark: Boolean): String {
         val (bg, fg, mutedFg) = themeColors(appearance.theme, isSystemDark)
+        // Papierstruktur (wie `PaperBackground` in ArticleReaderView.swift): die Graustufen-Kachel
+        // liegt per Multiply über der Theme-Farbe, damit Sepia seinen Farbton behält. Am Wurzel-
+        // element gesetzt, wandert sie mit dem Text wie bei echtem Papier; ein Texel = ein
+        // Gerätepixel (`--merlin-dpr`, siehe `<head>`). `body` wird dafür durchsichtig.
+        val paperCss = if (showsPaperTexture(appearance, isSystemDark)) {
+            """
+            html {
+              background-image: url("$PAPER_TEXTURE_URL");
+              background-repeat: repeat;
+              background-size: calc(512px / var(--merlin-dpr, 1)) auto;
+              background-blend-mode: multiply;
+            }
+            body { background-color: transparent; }
+            """
+        } else {
+            ""
+        }
         return """
             html, body {
               margin: 0; padding: 0;
@@ -287,6 +323,7 @@ object ReaderHtmlBuilder {
               line-height: ${appearance.lineHeight};
               -webkit-text-size-adjust: 100%;
             }
+            $paperCss
             #merlin-header { padding: 16px 20px 8px; }
             .merlin-header-site { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
             .merlin-header-accent { width: 18px; height: 3px; border-radius: 2px; background: ${appearance.accentColorHex}; flex-shrink: 0; }
@@ -380,6 +417,24 @@ object ReaderHtmlBuilder {
               min-height: 80px; color: $fg; opacity: 0.6; font-size: 0.85em;
             }
             ${ReaderMediaRewriter.CSS}
+            /* Metadaten unter Dateien aus „Merlin Dateien“ (MerlinFileService::metadataHtml):
+               <section class="merlin-file-metadata"><h2>…</h2><details open><summary>…</summary>
+               <table><tr><th>…</th><td>…</td></tr>…</table></details>…</section>. Wie im
+               iOS-Reader-CSS (ArticleReaderView.swift); Gruppen per Tipp auf- und zuklappbar. */
+            .merlin-file-metadata { margin-top: 2.5em; font-size: 0.8em; }
+            .merlin-file-metadata h2 { font-size: 1.3em; margin: 0 0 0.5em; }
+            .merlin-file-metadata details { margin: 0.75em 0; }
+            .merlin-file-metadata summary { font-weight: 600; cursor: pointer; }
+            .merlin-file-metadata table {
+              width: 100%; border-collapse: collapse; table-layout: fixed; margin-top: 0.5em;
+            }
+            .merlin-file-metadata th {
+              width: 38%; font-weight: 500; text-align: left; color: $mutedFg;
+            }
+            .merlin-file-metadata th, .merlin-file-metadata td {
+              padding: 5px 8px; vertical-align: top; overflow-wrap: anywhere;
+              border: 1px solid rgba(127,127,127,0.25);
+            }
             .merlin-footer-byline {
               margin-top: 32px; padding-top: 16px;
               border-top: 1px solid rgba(127,127,127,0.25);

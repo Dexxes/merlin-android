@@ -357,6 +357,7 @@ fun SettingsScreen(
                 Text(stringResource(R.string.settings_about_versionLabel))
                 Text(BuildConfig.VERSION_NAME, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
+            PrivacyPolicyLink()
             SourceCodeLink()
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))

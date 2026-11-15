@@ -171,12 +171,22 @@ class ArticleReaderViewModel @Inject constructor(
         viewModelScope.launch { preferencesStore.setReaderHandsFreeButton(enabled) }
     }
 
+    /** Papierstruktur als Reader-Hintergrund (Schalter im Erscheinungsbild-Sheet, nur Hell/Sepia). */
+    val paperTexture: StateFlow<Boolean> = preferencesStore.readerPaperTexture
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
+
+    fun setPaperTexture(enabled: Boolean) {
+        viewModelScope.launch { preferencesStore.setReaderPaperTexture(enabled) }
+    }
+
     /** Fasst alle Appearance-Werte zusammen – ein Wechsel hier löst im Reader-Screen den vollen HTML-Rebuild aus. */
     val appearance: StateFlow<Appearance> = combine(
-        readerTheme, readerFont, readerFontSize, lineHeight, accentColorHex,
-    ) { theme, font, fontSize, lineHeightValue, accent ->
-        Appearance(theme, font, fontSize, lineHeightValue, accent)
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, Appearance(ReaderTheme.AUTO, ReaderFont.SYSTEM, 17, 1.6, "#FF3B30"))
+        combine(readerTheme, readerFont, readerFontSize, lineHeight, accentColorHex) { theme, font, fontSize, lineHeightValue, accent ->
+            Appearance(theme, font, fontSize, lineHeightValue, accent)
+        },
+        paperTexture,
+    ) { base, paper -> base.copy(paperTexture = paper) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, Appearance(ReaderTheme.AUTO, ReaderFont.SYSTEM, 17, 1.6, "#FF3B30"))
 
     data class Appearance(
         val theme: ReaderTheme,
@@ -184,6 +194,8 @@ class ArticleReaderViewModel @Inject constructor(
         val fontSize: Int,
         val lineHeight: Double,
         val accentColorHex: String,
+        /** Gewünschte Papierstruktur; ob sie sichtbar ist, entscheidet das Theme (siehe `ReaderHtmlBuilder`). */
+        val paperTexture: Boolean = true,
     )
 
     init {

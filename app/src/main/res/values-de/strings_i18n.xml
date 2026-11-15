@@ -175,6 +175,7 @@
     <string name="report_successMessage">"Danke – Artikel wurde gemeldet."</string>
     <string name="report_title">"Artikel melden"</string>
     <string name="settings_about_commitLabel">"Commit"</string>
+    <string name="settings_about_privacyLabel">"Datenschutzerklärung"</string>
     <string name="settings_about_sectionHeader">"Über"</string>
     <string name="settings_about_sourceCodeLabel">"Quellcode"</string>
     <string name="settings_about_versionLabel">"Version"</string>

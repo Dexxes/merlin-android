@@ -10,6 +10,8 @@ import android.os.Looper
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.WebChromeClient
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
@@ -161,6 +163,16 @@ fun ReaderWebView(
                     "MerlinHighlightBridge",
                 )
                 webViewClient = object : WebViewClient() {
+                    // Papierstruktur-Kachel aus den Assets (siehe `ReaderHtmlBuilder.PAPER_TEXTURE_URL`).
+                    override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
+                        if (request.url.toString() != ReaderHtmlBuilder.PAPER_TEXTURE_URL) return null
+                        return runCatching {
+                            WebResourceResponse("image/png", null, ctx.assets.open(ReaderHtmlBuilder.PAPER_TEXTURE_ASSET)).apply {
+                                responseHeaders = mapOf("Cache-Control" to "max-age=31536000")
+                            }
+                        }.getOrNull()
+                    }
+
                     override fun onPageFinished(view: WebView, url: String?) {
                         restoreScrollWithRetry(view as ScrollRangeWebView, initialScrollProgress, attemptsLeft = 8) {
                             restoreAppliedRef[0] = true
