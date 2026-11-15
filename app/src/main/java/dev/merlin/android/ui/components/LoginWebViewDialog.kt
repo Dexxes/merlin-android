@@ -66,7 +66,7 @@ fun LoginWebViewDialog(
                     clearLoginWebSession()
                     // In Debug-Builds (debuggable) per USB unter chrome://inspect sichtbar machen,
                     // um die Login-Seite am PC untersuchen zu können. Release-Builds bleiben zu.
-                    val debuggable = context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
+                    val debuggable = (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
                     if (BuildConfig.DEBUG || debuggable) WebView.setWebContentsDebuggingEnabled(true)
                     @SuppressLint("SetJavaScriptEnabled")
                     val webView = WebView(context).apply {
