@@ -9,9 +9,8 @@ import android.os.Handler
 import android.os.Looper
 import android.view.View
 import android.view.ViewGroup
+import android.util.Base64
 import android.webkit.WebChromeClient
-import android.webkit.WebResourceRequest
-import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
@@ -115,8 +114,9 @@ fun ReaderWebView(
             )
         }
     }
+    val paperTexture = remember { paperTextureDataUri(context) }
     val html = remember(article.id, highlights, appearance, isSystemDark, supportBox, supportBoxTexts) {
-        ReaderHtmlBuilder.build(article, highlights, appearance, isSystemDark, supportBoxTexts)
+        ReaderHtmlBuilder.build(article, highlights, appearance, isSystemDark, supportBoxTexts, paperTexture)
     }
     // Breite des linken Streifens, den wir vom System-Edge-Swipe-Zurück ausnehmen wollen –
     // siehe Kommentar bei `update` unten.
@@ -163,16 +163,6 @@ fun ReaderWebView(
                     "MerlinHighlightBridge",
                 )
                 webViewClient = object : WebViewClient() {
-                    // Papierstruktur-Kachel aus den Assets (siehe `ReaderHtmlBuilder.PAPER_TEXTURE_URL`).
-                    override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
-                        if (request.url.toString() != ReaderHtmlBuilder.PAPER_TEXTURE_URL) return null
-                        return runCatching {
-                            WebResourceResponse("image/png", null, ctx.assets.open(ReaderHtmlBuilder.PAPER_TEXTURE_ASSET)).apply {
-                                responseHeaders = mapOf("Cache-Control" to "max-age=31536000")
-                            }
-                        }.getOrNull()
-                    }
-
                     override fun onPageFinished(view: WebView, url: String?) {
                         restoreScrollWithRetry(view as ScrollRangeWebView, initialScrollProgress, attemptsLeft = 8) {
                             restoreAppliedRef[0] = true
@@ -301,3 +291,13 @@ private tailrec fun android.content.Context.findActivity(): android.app.Activity
     is android.content.ContextWrapper -> baseContext.findActivity()
     else -> null
 }
+
+/** Einmal gelesene Papierstruktur-Kachel als `data:`-URI (siehe `ReaderHtmlBuilder.PAPER_TEXTURE_ASSET`). */
+@Volatile
+private var cachedPaperTexture: String? = null
+
+private fun paperTextureDataUri(context: android.content.Context): String? =
+    cachedPaperTexture ?: runCatching {
+        val bytes = context.assets.open(ReaderHtmlBuilder.PAPER_TEXTURE_ASSET).use { it.readBytes() }
+        "data:image/png;base64," + Base64.encodeToString(bytes, Base64.NO_WRAP)
+    }.getOrNull()?.also { cachedPaperTexture = it }

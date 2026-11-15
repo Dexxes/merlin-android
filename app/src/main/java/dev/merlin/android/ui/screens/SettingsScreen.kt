@@ -358,6 +358,7 @@ fun SettingsScreen(
                 Text(BuildConfig.VERSION_NAME, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             PrivacyPolicyLink()
+            ContactDeveloperLink()
             SourceCodeLink()
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))

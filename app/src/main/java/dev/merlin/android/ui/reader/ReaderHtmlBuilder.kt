@@ -25,13 +25,13 @@ import dev.merlin.android.viewmodel.ArticleReaderViewModel
 object ReaderHtmlBuilder {
 
     /**
-     * Adresse der Papierstruktur-Kachel (`assets/paper-texture.png`, dieselbe 512×512-Graustufen-
-     * Kachel wie in merlin-ios, erzeugt von dessen `scripts/generate-paper-texture.py`). Die Seite
-     * wird mit der Artikel-URL als Origin geladen (`loadDataWithBaseURL`), `file:///android_asset`
-     * ist von dort aus gesperrt – [ReaderWebView] beantwortet diese Adresse deshalb selbst aus den
-     * Assets (`shouldInterceptRequest`), die Anfrage verlässt das Gerät nie.
+     * Papierstruktur-Kachel in den Assets: die 512×512-Kachel aus merlin-ios
+     * (`scripts/generate-paper-texture.py`), umgerechnet in schwarze Pixel mit Alpha = 1 − Grauwert.
+     * Normal über die Theme-Farbe gelegt ergibt das genau das Multiply von iOS
+     * (Farbe × Grauwert), ohne `background-blend-mode`, das auf dem Wurzelelement in der WebView
+     * nicht greift. [ReaderWebView] liest sie einmal und reicht sie als `data:`-URI herein
+     * (`file:///android_asset` ist von der Artikel-Origin aus gesperrt).
      */
-    const val PAPER_TEXTURE_URL = "https://merlin-app.invalid/paper-texture.png"
     const val PAPER_TEXTURE_ASSET = "paper-texture.png"
 
     /** Papierstruktur sichtbar: Schalter an und Theme hell bzw. Sepia (Dunkel bleibt reines Schwarz). */
@@ -75,6 +75,8 @@ object ReaderHtmlBuilder {
         isSystemDark: Boolean,
         // Texte der Support-Infobox; null (oder fehlendes `article.supportBox`) = keine Box.
         supportBoxTexts: SupportBoxTexts? = null,
+        // Papierstruktur-Kachel als `data:`-URI (siehe [PAPER_TEXTURE_ASSET]); null = keine.
+        paperTextureDataUri: String? = null,
     ): String {
         // Reihenfolge wie im iOS-Template (`buildReaderHTML` in ArticleReaderView.swift):
         // Titelbild-Entfernung bei ARD/ZDF/3sat/Arte → Aufmacher-Video → YouTube-Karten.
@@ -88,7 +90,7 @@ object ReaderHtmlBuilder {
             ),
         )
         val (_, fg, mutedFg) = themeColors(appearance.theme, isSystemDark)
-        val css = buildCss(appearance, isSystemDark)
+        val css = buildCss(appearance, isSystemDark, paperTextureDataUri)
         val headerHtml = buildHeaderHtml(article, fg, mutedFg, appearance.accentColorHex)
         val footerHtml = buildFooterHtml(article)
         val highlightsJson = encodeHighlightsForJs(highlights)
@@ -294,19 +296,22 @@ object ReaderHtmlBuilder {
         "rgba(${android.graphics.Color.red(color)},${android.graphics.Color.green(color)},${android.graphics.Color.blue(color)},$alpha)"
     }.getOrDefault("rgba(142,142,147,$alpha)")
 
-    private fun buildCss(appearance: ArticleReaderViewModel.Appearance, isSystemDark: Boolean): String {
+    private fun buildCss(
+        appearance: ArticleReaderViewModel.Appearance,
+        isSystemDark: Boolean,
+        paperTextureDataUri: String?,
+    ): String {
         val (bg, fg, mutedFg) = themeColors(appearance.theme, isSystemDark)
-        // Papierstruktur (wie `PaperBackground` in ArticleReaderView.swift): die Graustufen-Kachel
-        // liegt per Multiply über der Theme-Farbe, damit Sepia seinen Farbton behält. Am Wurzel-
-        // element gesetzt, wandert sie mit dem Text wie bei echtem Papier; ein Texel = ein
-        // Gerätepixel (`--merlin-dpr`, siehe `<head>`). `body` wird dafür durchsichtig.
-        val paperCss = if (showsPaperTexture(appearance, isSystemDark)) {
+        // Papierstruktur (wie `PaperBackground` in ArticleReaderView.swift): die Kachel dunkelt die
+        // Theme-Farbe um wenige Prozent ab, Sepia behält seinen Farbton. Am Wurzelelement gesetzt,
+        // wandert sie mit dem Text wie bei echtem Papier; ein Texel = ein Gerätepixel
+        // (`--merlin-dpr`, siehe `<head>`). `body` wird dafür durchsichtig.
+        val paperCss = if (paperTextureDataUri != null && showsPaperTexture(appearance, isSystemDark)) {
             """
             html {
-              background-image: url("$PAPER_TEXTURE_URL");
+              background-image: url("$paperTextureDataUri");
               background-repeat: repeat;
               background-size: calc(512px / var(--merlin-dpr, 1)) auto;
-              background-blend-mode: multiply;
             }
             body { background-color: transparent; }
             """

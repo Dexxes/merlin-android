@@ -11,6 +11,7 @@ import dev.merlin.android.R
 
 private const val SOURCE_CODE_URL = "https://github.com/dexxes/merlin-android"
 private const val PRIVACY_URL = "https://github.com/Dexxes/merlin-android/blob/main/PRIVACY.md"
+private const val CONTACT_URL = "mailto:jvb@live.de?subject=Merlin%2FAndroid%3A%20"
 
 /**
  * Link auf das Git-Repository der App, in allen Einstellungs-Screens eingebunden
@@ -39,5 +40,21 @@ fun PrivacyPolicyLink(modifier: Modifier = Modifier) {
         modifier = modifier.fillMaxWidth(),
     ) {
         Text(stringResource(R.string.settings_about_privacyLabel))
+    }
+}
+
+/**
+ * „Entwickler kontaktieren“ unter Einstellungen → Über: öffnet die Mail-App mit vorbelegtem
+ * Empfänger und Betreff „Merlin/Android: “, wie `settings.about.contactDeveloperLabel` in
+ * `SettingsView.swift`. Ohne Mail-App passiert nichts.
+ */
+@Composable
+fun ContactDeveloperLink(modifier: Modifier = Modifier) {
+    val uriHandler = LocalUriHandler.current
+    TextButton(
+        onClick = { runCatching { uriHandler.openUri(CONTACT_URL) } },
+        modifier = modifier.fillMaxWidth(),
+    ) {
+        Text(stringResource(R.string.settings_about_contactDeveloperLabel))
     }
 }

@@ -20,11 +20,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   (cancellable) and handed to the share sheet under its entry name, so
   Telegram, Signal, Gallery or Files get the real photo, video or PDF. Not
   compiled or run on a device yet.
-- Paper texture as reader background like on iOS: the same grayscale tile is
-  multiplied over the light or sepia background and scrolls with the text;
+- Paper texture as reader background like on iOS: the same tile (as black
+  with alpha, which equals multiplying) lies over the light or sepia background and scrolls with the text;
   dark stays pure black. Switch "Papierstruktur" in the appearance sheet, on
   by default, local only. Not compiled or run on a device yet.
-- Settings → About links the privacy policy (PRIVACY.md).
+- Settings → About links the privacy policy (PRIVACY.md) and offers "Entwickler
+  kontaktieren", which opens a mail to the developer like on iOS.
 - Share sheet like on iOS: a bottom sheet over the dimmed sharing app with the
   Merlin logo and a status line, tags as an indented tree (selecting a sub-tag
   selects its parents, deselecting a tag deselects its sub-tags), "Neuer Tag"
