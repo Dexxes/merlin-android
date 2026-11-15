@@ -1,6 +1,5 @@
 package dev.merlin.android.ui.screens
 
-import androidx.browser.customtabs.CustomTabsIntent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -23,20 +22,19 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.core.net.toUri
 import androidx.hilt.navigation.compose.hiltViewModel
 import dev.merlin.android.R
 import dev.merlin.android.network.CredentialsStore
+import dev.merlin.android.ui.components.LoginWebViewDialog
 import dev.merlin.android.viewmodel.OnboardingViewModel
 
 /**
  * Äquivalent zum Server-URL-Eingabeschritt in `SettingsView.swift`/`LoginFlowService.swift`:
- * Nutzer gibt die Nextcloud-URL ein, der Login selbst läuft im System-Browser (Custom
- * Tabs) über Nextclouds Login Flow v2 – Merlin bekommt App-Passwort/Username erst
- * über das Polling-Ergebnis zurück, sieht das Nextcloud-Passwort also nie direkt.
+ * Nutzer gibt die Nextcloud-URL ein, der Login selbst läuft – wie auf iOS – in einer
+ * App-eigenen WebView im Vollbild ([LoginWebViewDialog]) über Nextclouds Login Flow v2 –
+ * Merlin bekommt App-Passwort/Username erst über das Polling-Ergebnis zurück, sieht das Nextcloud-Passwort also nie direkt.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -44,7 +42,6 @@ fun OnboardingScreen(
     onLoginSuccess: () -> Unit,
     viewModel: OnboardingViewModel = hiltViewModel(),
 ) {
-    val context = LocalContext.current
     var serverUrl by remember { mutableStateOf("") }
     var backendKind by remember { mutableStateOf(viewModel.initialBackendKind) }
 
@@ -53,12 +50,11 @@ fun OnboardingScreen(
     val error by viewModel.error.collectAsState()
     val loginSuccess by viewModel.loginSuccess.collectAsState()
 
-    // Sobald der Server eine Login-URL liefert, im System-Browser öffnen –
+    // Sobald der Server eine Login-URL liefert, die Login-Seite im Vollbild öffnen –
     // das eigentliche Anmelden (Passworteingabe, 2FA) übernimmt Nextcloud selbst.
-    LaunchedEffect(loginUrl) {
-        loginUrl?.let { url ->
-            CustomTabsIntent.Builder().build().launchUrl(context, url.toUri())
-        }
+    // Verschwindet automatisch, wenn das Polling erfolgreich war oder abgebrochen wurde.
+    loginUrl?.let { url ->
+        LoginWebViewDialog(url = url, onCancel = { viewModel.cancelLogin() })
     }
 
     LaunchedEffect(loginSuccess) {

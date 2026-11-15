@@ -13,9 +13,9 @@ import dev.merlin.android.data.PdfCacheService
 import dev.merlin.android.data.PreferencesStore
 import dev.merlin.android.data.ReminderService
 import dev.merlin.android.data.ReportService
+import dev.merlin.android.data.SettingsSyncQueue
 import dev.merlin.android.di.ApplicationScope
 import dev.merlin.android.models.Article
-import dev.merlin.android.models.ArticleFilter
 import dev.merlin.android.models.Highlight
 import dev.merlin.android.models.HighlightCreate
 import dev.merlin.android.models.ProgressEdge
@@ -63,6 +63,7 @@ class ArticleReaderViewModel @Inject constructor(
     private val offlineHighlightQueue: OfflineHighlightQueue,
     private val reminderService: ReminderService,
     private val reportService: ReportService,
+    private val settingsSyncQueue: SettingsSyncQueue,
     val preferencesStore: PreferencesStore,
     /** Geteilter Coil-Loader mit [dev.merlin.android.data.RefererInterceptor] – auch von [ImageLightboxScreen] genutzt, damit Lightbox-Bilder denselben Hotlink-Schutz/Disk-Cache wie der Rest der App nutzen. */
     val imageLoader: ImageLoader,
@@ -174,10 +175,20 @@ class ArticleReaderViewModel @Inject constructor(
      * der Appearance-Bindings). Ohne diesen Aufruf blieb die Auswahl rein lokal: das nächste
      * "Server gewinnt"-`loadFromServer()` (ArticlesViewModel.init/SettingsViewModel.init, jeweils
      * bei App-Start) überschrieb sie beim nächsten Start wieder mit dem alten Serverstand – sichtbar
-     * z. B. als Reset von Dunkel zurück auf Hell nach Neustart der App.
+     * z. B. als Reset von Dunkel zurück auf Hell nach Neustart der App. Ein echter
+     * Verbindungsfehler (`IOException`) markiert [SettingsSyncQueue] für einen späteren Retry,
+     * statt den Push wie zuvor stillschweigend zu verlieren (Äquivalent zu iOS'
+     * `SettingsSyncQueue.shared.markDirty()` in `pushAppearanceToServer()`).
      */
     suspend fun syncAppearanceToServer() {
-        runCatching { api.updateSettings(preferencesStore.toServerSettings()) }
+        try {
+            api.updateSettings(preferencesStore.toServerSettings())
+        } catch (e: Exception) {
+            if (e is IOException) {
+                settingsSyncQueue.markDirty()
+                settingsSyncQueue.scheduleRetry()
+            }
+        }
     }
 
     // MARK: – Load
@@ -192,10 +203,7 @@ class ArticleReaderViewModel @Inject constructor(
                 articleCacheService.upsert(fetched)
                 reconcileInitialScroll(fetched)
             } catch (e: Exception) {
-                val cached = articleCacheService.loadFiltered(ArticleFilter.ALL, tagId = null)
-                    .firstOrNull { it.id == articleId }
-                    ?: articleCacheService.loadFiltered(ArticleFilter.ARCHIVE, tagId = null)
-                        .firstOrNull { it.id == articleId }
+                val cached = articleCacheService.article(articleId)
                 if (cached != null) {
                     _article.value = cached
                     reconcileInitialScroll(cached)

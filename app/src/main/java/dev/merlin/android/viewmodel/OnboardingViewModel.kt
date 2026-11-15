@@ -6,6 +6,8 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.merlin.android.auth.LoginFlowService
 import dev.merlin.android.network.CredentialsStore
 import javax.inject.Inject
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -38,6 +40,9 @@ class OnboardingViewModel @Inject constructor(
     private val _loginSuccess = MutableStateFlow(false)
     val loginSuccess: StateFlow<Boolean> = _loginSuccess.asStateFlow()
 
+    /** Laufender Start+Polling-Vorgang, damit "Abbrechen" ihn wirklich beenden kann. */
+    private var loginJob: Job? = null
+
     /** Vorbelegung für die Backend-Auswahl in der UI (zuletzt gewählte Art, Default NEXTCLOUD). */
     val initialBackendKind: CredentialsStore.BackendKind get() = credentialsStore.backendKind
 
@@ -51,20 +56,28 @@ class OnboardingViewModel @Inject constructor(
         credentialsStore.backendKind = backendKind
         _error.value = null
         _isLoading.value = true
-        viewModelScope.launch {
+        loginJob?.cancel()
+        loginJob = viewModelScope.launch {
             try {
                 loginFlowService.start(serverUrl)
                 loginFlowService.pollForCredentials()
                 _loginSuccess.value = true
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _error.value = e.message ?: "Login fehlgeschlagen"
             } finally {
-                _isLoading.value = false
+                // Ein abgelöster Vorgang darf den Ladezustand des neuen nicht zurücksetzen.
+                if (loginJob == null || loginJob === coroutineContext[Job]) _isLoading.value = false
             }
         }
     }
 
     fun cancelLogin() {
+        // Polling-Coroutine wirklich beenden (iOS: `pollTask?.cancel()`), sonst
+        // pollt sie mit ihren lokalen Token-Kopien bis zum Timeout weiter.
+        loginJob?.cancel()
+        loginJob = null
         loginFlowService.cancel()
         _isLoading.value = false
     }

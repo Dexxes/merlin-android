@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-### Added
+### Changed
 
 - PDF articles: a saved link to a PDF (server category `PDF`, or a URL ending
   in `.pdf`) opens in the reader as the document itself. The server stores only
@@ -19,6 +19,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   Limitations: no pinch zoom, text selection, highlights or appearance
   settings for PDFs; password-protected PDFs show a notice with "Im Browser
   öffnen". Not compiled or run on a device yet.
+
+- Article list matches the iOS app: a side menu with Text/Video/Audio tabs,
+  each with Continue, Unread, Favorites and Archive views and their counts,
+  plus tags, list/card view, reminders and settings; a search button next to
+  the menu button shows the search field; older articles load while scrolling; rows and cards show reading
+  progress, a lock for paywalled articles and an "Archived" marker in mixed
+  lists; actions are on long press (and swipe in the list view) instead of the
+  star and ⋮ buttons; the default view syncs with the same values as iOS and
+  the web app
+
+- Support box in the reader: a note between two paragraphs ("Enjoying this
+  article from …? Consider a subscription or a donation") linking to the
+  source's subscription/donation page, in the user's accent color and with the
+  icon of the article page as its own column on the left (2.5 em wide), spanning
+  the full height of the box, with the text beside it vertically centred. Hidden when a paywall subscription login is
+  active; not shown offline
 - Support for connecting to a standalone `merlin-server` backend in addition
   to Nextcloud, selectable in onboarding and Settings
   (`CredentialsStore.BackendKind`)
@@ -40,6 +56,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Localization pipeline: string resources (`res/values(-de)/strings_i18n.xml`)
   generated from the shared `merlin-translations` source of truth; onboarding
   and settings screens migrated to `stringResource()`/`pluralStringResource()`
+- Settings sync with offline retry (`SettingsSyncQueue`, `SettingsSyncWorker`):
+  a failed settings push is marked dirty and retried via WorkManager once
+  connectivity returns, instead of being silently dropped
 
 ### Known limitations
 
@@ -47,8 +66,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Onboarding tour is not yet implemented
 - Real-time article updates use polling instead of an SSE stream
 - Reading-position sync is fire-and-forget with no offline retry
-- Settings sync has no offline retry queue (unlike the article/highlight
-  mutation queues)
 - Most screens (article list/reader, onboarding tour, reminders, share,
   sheets) still have hardcoded strings and are not yet migrated to string
   resources

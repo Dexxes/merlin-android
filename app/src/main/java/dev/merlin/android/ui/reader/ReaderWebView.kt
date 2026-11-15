@@ -1,7 +1,9 @@
 package dev.merlin.android.ui.reader
 
 import android.annotation.SuppressLint
+import android.content.Intent
 import android.graphics.Rect
+import android.net.Uri
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -13,9 +15,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import dev.merlin.android.R
 import dev.merlin.android.models.Article
 import dev.merlin.android.models.Highlight
 import dev.merlin.android.models.HighlightCreate
@@ -84,8 +88,25 @@ fun ReaderWebView(
     // Bei Theme AUTO muss ein System-Dark-Mode-Wechsel (z.B. Tag/Nacht-Umschaltung während der
     // Lesesitzung) das HTML neu bauen – daher als Key in `remember` mit aufgenommen.
     val isSystemDark = isSystemInDarkTheme()
-    val html = remember(article.id, highlights, appearance, isSystemDark) {
-        ReaderHtmlBuilder.build(article, highlights, appearance, isSystemDark)
+    // Support-Infobox (Abo-/Spendenlink): `Article.equals` ignoriert `supportBox` bewusst (Recomposition
+    // nur bei relevanten Listenänderungen), das HTML muss sie aber als eigenen Key kennen.
+    val context = LocalContext.current
+    val supportBox = article.supportBox
+    val supportBoxTexts = remember(supportBox?.siteName) {
+        supportBox?.let {
+            ReaderHtmlBuilder.SupportBoxTexts(
+                title = context.getString(R.string.articleReader_supportBox_title, it.siteName),
+                // Platzhalter bleiben im Text stehen; das Skript setzt daran die Links ein.
+                both = context.getString(R.string.articleReader_supportBox_both, "{subscribe}", "{donate}"),
+                subscribeOnly = context.getString(R.string.articleReader_supportBox_subscribeOnly, "{subscribe}"),
+                donateOnly = context.getString(R.string.articleReader_supportBox_donateOnly, "{donate}"),
+                subscribeLabel = context.getString(R.string.articleReader_supportBox_subscribeLabel),
+                donateLabel = context.getString(R.string.articleReader_supportBox_donateLabel),
+            )
+        }
+    }
+    val html = remember(article.id, highlights, appearance, isSystemDark, supportBox, supportBoxTexts) {
+        ReaderHtmlBuilder.build(article, highlights, appearance, isSystemDark, supportBoxTexts)
     }
     // Breite des linken Streifens, den wir vom System-Edge-Swipe-Zurück ausnehmen wollen –
     // siehe Kommentar bei `update` unten.
@@ -106,6 +127,12 @@ fun ReaderWebView(
                         onImageTap = onImageTap,
                         onSelectionChanged = onSelectionChanged,
                         onInfoPopover = onInfoPopover,
+                        onOpenExternalLink = { url ->
+                            // Kein Browser installiert / Intent nicht auflösbar: still ignorieren.
+                            runCatching {
+                                ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                            }
+                        },
                     ),
                     "MerlinHighlightBridge",
                 )

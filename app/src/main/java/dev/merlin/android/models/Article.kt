@@ -70,6 +70,9 @@ data class Article(
     val tags: List<Tag> = emptyList(),
     val isProcessing: Boolean = false,
     val category: String? = null,
+    /** Nextcloud-Datei-ID bei Einträgen aus „Merlin Dateien“ (nur merlin-nextcloud), sonst null.
+     * Solche Einträge gehören zur Gruppe Dateien, nicht zu Text/Video/Audio (siehe [ContentGroup]). */
+    val fileId: Int? = null,
     // Geräteübergreifende Leseposition (siehe ArticleReaderViewModel). Fraktion
     // 0..1 statt Pixel (portabel), plus Epoch-Millis-Zeitstempel des letzten
     // Schreibens für Last-Write-Wins. Default 0 hält die Abwärtskompatibilität
@@ -83,6 +86,16 @@ data class Article(
     // `requiresLoginDomain` gesetzt ist (Login-Seiten-URL für diese Domain).
     val requiresLoginDomain: String? = null,
     val requiresLoginPage: String? = null,
+    // Paywall ohne automatischen Login (siehe merlin-api.yaml `isPaywalled`) bzw. vom Server als
+    // nicht unterstützt gemeldete Seite – in der Liste als Schloss- bzw. Verbotssymbol am Titel
+    // angezeigt, wie in ArticleRowView.swift/ArticleCardView.swift.
+    val isPaywalled: Boolean = false,
+    val paywallSubscribeUrl: String? = null,
+    val unsupportedSiteDomain: String? = null,
+    // Nur in der Einzelabruf-Antwort (`getArticle`) gesetzt, nicht in Listen; wird bewusst nicht in
+    // den Offline-Cache geschrieben (der Login-Status des Nutzers kann sich ändern), siehe
+    // `ArticleCacheService.upsert` – gleiche Begründung wie im iOS-Original (`Article.encode`).
+    val supportBox: SupportBox? = null,
 ) {
     /** true, sobald [favoritedAt] gesetzt ist – Bool-Convenience für bestehenden UI-Code. */
     val isFavorite: Boolean
@@ -117,6 +130,13 @@ data class Article(
         return id == other.id &&
             isProcessing == other.isProcessing &&
             updatedAt == other.updatedAt &&
+            // Optimistische Favorit-/Archiv-Updates ändern `updatedAt` nicht – ohne diese Felder
+            // würde der StateFlow die geänderte Liste als gleich ansehen und die Zeile nicht neu zeichnen.
+            isArchived == other.isArchived &&
+            favoritedAt == other.favoritedAt &&
+            requiresLoginDomain == other.requiresLoginDomain &&
+            isPaywalled == other.isPaywalled &&
+            unsupportedSiteDomain == other.unsupportedSiteDomain &&
             tags.map { it.id }.sorted() == other.tags.map { it.id }.sorted()
     }
 
@@ -124,6 +144,8 @@ data class Article(
         var result = id
         result = 31 * result + isProcessing.hashCode()
         result = 31 * result + updatedAt.hashCode()
+        result = 31 * result + isArchived.hashCode()
+        result = 31 * result + (favoritedAt?.hashCode() ?: 0)
         result = 31 * result + tags.map { it.id }.sorted().hashCode()
         return result
     }
