@@ -117,6 +117,8 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.draw.shadow
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -326,6 +328,9 @@ fun ArticleReaderScreen(
         }
     }
     var showBottomBar by remember(viewModel.articleId) { mutableStateOf(true) }
+    // Höhe der gerade sichtbaren Bottom- bzw. Lesemodus-Leiste (0, solange sie ausgeblendet ist):
+    // die Farbleiste sitzt darüber statt darunter.
+    var bottomBarHeightPx by remember { mutableIntStateOf(0) }
     val density = LocalDensity.current
     val deltaThresholdPx = with(density) { 4.dp.toPx() }
     val downThresholdPx = with(density) { 40.dp.toPx() }
@@ -798,6 +803,11 @@ fun ArticleReaderScreen(
                                     }
                                 }
 
+                                val toolbarBottomPadding by animateDpAsState(
+                                    targetValue = 16.dp + with(density) { bottomBarHeightPx.toDp() },
+                                    animationSpec = tween(200),
+                                    label = "toolbarBottomPadding",
+                                )
                                 selectionRect?.let {
                                     val tapped = tappedHighlightId?.let { id -> highlights.firstOrNull { it.id == id } }
                                     fun closeToolbar() {
@@ -834,7 +844,7 @@ fun ArticleReaderScreen(
                                                 closeToolbar()
                                             }
                                         },
-                                        modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 24.dp),
+                                        modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = toolbarBottomPadding),
                                     )
                                 }
 
@@ -878,7 +888,9 @@ fun ArticleReaderScreen(
                                     visible = showBottomBar || autoScroll.isActive,
                                     enter = slideInVertically(animationSpec = tween(200)) { it } + fadeIn(tween(200)),
                                     exit = slideOutVertically(animationSpec = tween(200)) { it } + fadeOut(tween(200)),
-                                    modifier = Modifier.align(Alignment.BottomCenter),
+                                    modifier = Modifier
+                                        .align(Alignment.BottomCenter)
+                                        .onSizeChanged { bottomBarHeightPx = it.height },
                                 ) {
                                     if (autoScroll.isActive) {
                                         HandsFreeBar(
