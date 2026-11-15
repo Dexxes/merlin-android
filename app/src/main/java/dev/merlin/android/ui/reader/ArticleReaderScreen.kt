@@ -100,7 +100,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalView
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
@@ -288,13 +287,6 @@ fun ArticleReaderScreen(
             CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
             ModalDrawerSheet {
                 Column(modifier = Modifier.padding(vertical = 12.dp)) {
-                    Text(
-                        article?.displayTitle.orEmpty(),
-                        style = MaterialTheme.typography.titleSmall,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
-                    )
                     NavigationDrawerItem(
                         label = { Text(if (article?.isFavorite == true) "Favorit entfernen" else "Zu Favoriten hinzufügen") },
                         icon = { Icon(if (article?.isFavorite == true) Icons.Filled.Star else Icons.Outlined.Star, contentDescription = null) },
