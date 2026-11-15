@@ -42,12 +42,14 @@ fun ArticleThumbnail(
     modifier: Modifier = Modifier,
     contentDescription: String? = null,
     accentColorHex: String = "#FF3B30",
+    /** Eckenradius; 0 für das Hero-Bild der Karte, die selbst schon abgerundet ist. */
+    cornerRadius: androidx.compose.ui.unit.Dp = 8.dp,
 ) {
     var loadFailed by remember(imageUrl) { mutableStateOf(false) }
 
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(8.dp))
+            .clip(RoundedCornerShape(cornerRadius))
             .background(MaterialTheme.colorScheme.surfaceVariant),
         contentAlignment = Alignment.Center,
     ) {

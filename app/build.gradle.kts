@@ -53,6 +53,9 @@ dependencies {
     implementation("androidx.navigation:navigation-compose:2.9.8")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.11.0")
     implementation("androidx.hilt:hilt-navigation-compose:1.3.0")
+    // `hiltViewModel()` liegt seit Hilt 1.3.0 in `androidx.hilt.lifecycle.viewmodel.compose`;
+    // explizit deklariert statt nur transitiv über hilt-navigation-compose bezogen.
+    implementation("androidx.hilt:hilt-lifecycle-viewmodel-compose:1.3.0")
 
     // Networking (Äquivalent zu MerlinAPI.swift)
     implementation("com.squareup.retrofit2:retrofit:3.0.0")

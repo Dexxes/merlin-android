@@ -19,6 +19,7 @@ import dev.merlin.android.network.MerlinApi
 import java.io.IOException
 import java.time.Instant
 import javax.inject.Inject
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -75,7 +76,7 @@ class ArticlesViewModel @Inject constructor(
     private val _articles = MutableStateFlow<List<Article>>(emptyList())
     val articles: StateFlow<List<Article>> = _articles.asStateFlow()
 
-    private val _selectedFilter = MutableStateFlow(ArticleFilter.ALL)
+    private val _selectedFilter = MutableStateFlow(ArticleFilter.DEFAULT)
     val selectedFilter: StateFlow<ArticleFilter> = _selectedFilter.asStateFlow()
 
     private val _searchQuery = MutableStateFlow("")
@@ -90,7 +91,7 @@ class ArticlesViewModel @Inject constructor(
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
 
-    private val _counts = MutableStateFlow(ArticleCounts(total = 0, unread = 0, favorites = 0, archived = 0))
+    private val _counts = MutableStateFlow(ArticleCounts())
     val counts: StateFlow<ArticleCounts> = _counts.asStateFlow()
 
     /** Tag-IDs, deren Artikel ausgeblendet werden; automatisch in [PreferencesStore] persistiert. */
@@ -113,10 +114,10 @@ class ArticlesViewModel @Inject constructor(
     val selectedTagId: StateFlow<Int?> = _selectedTagId.asStateFlow()
 
     /** Blendet archivierte Artikel innerhalb der Einzel-Tag-Ansicht ein/aus (Äquivalent zu
-     * iOS' `showArchivedInTagView`, siehe `ArticlesViewModel.swift`). Startzustand bewusst
-     * `false` – konsistent mit der normalen Liste, die archivierte Artikel ebenfalls nicht
-     * standardmäßig mischt. Toggle über den Augen-Button in `ArticleListScreen.kt`. */
-    private val _showArchivedInTagView = MutableStateFlow(false)
+     * iOS' `showArchivedInTagView`, siehe `ArticlesViewModel.swift`). Startzustand `true` wie
+     * auf iOS und in merlin-nextcloud: ein Tag zeigt alle seine Artikel, archivierte sind in
+     * Zeile/Karte markiert und abgeblendet. Toggle über den Augen-Button in `ArticleListScreen.kt`. */
+    private val _showArchivedInTagView = MutableStateFlow(true)
     val showArchivedInTagView: StateFlow<Boolean> = _showArchivedInTagView.asStateFlow()
 
     /**
@@ -173,9 +174,20 @@ class ArticlesViewModel @Inject constructor(
 
     // MARK: – Computed
 
-    val filteredArticles: StateFlow<List<Article>> = combine(_articles, _excludedTagIds, _searchQuery) { list, excluded, query ->
+    /**
+     * Lokal gespeicherter Lesefortschritt je Artikel (Fraktion + Zeitstempel), reaktiv aus
+     * [PreferencesStore] – Zeile und Karte zeigen damit den Fortschritt wie auf iOS an.
+     */
+    val localProgress: StateFlow<Map<Int, Pair<Float, Long>>> = preferencesStore.scrollProgressById
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
+
+    val filteredArticles: StateFlow<List<Article>> = combine(
+        _articles, _excludedTagIds, _searchQuery, _selectedTagId,
+    ) { list, excluded, query, tagId ->
         var result = list
-        if (excluded.isNotEmpty()) {
+        // Ausgeblendete Tags gelten nicht in der Einzel-Tag-Ansicht: wer einen Tag explizit
+        // öffnet, will dessen Artikel sehen (wie `filteredArticles` in ArticlesViewModel.swift).
+        if (tagId == null && excluded.isNotEmpty()) {
             result = result.filter { article -> article.tags.all { it.id !in excluded } }
         }
         if (query.isBlank()) return@combine result
@@ -205,6 +217,45 @@ class ArticlesViewModel @Inject constructor(
         viewModelScope.launch { preferencesStore.setIsCardView(value) }
     }
 
+    // MARK: – Lade-Zustand
+
+    // Bewusst VOR dem `init`-Block: `init` ruft `load()` auf, und Kotlin initialisiert
+    // Properties in Deklarationsreihenfolge – später deklarierte StateFlows wären dort noch null.
+
+    /** Nachladen älterer Artikel beim Runterscrollen: `true`, solange der Server die letzte Seite voll geliefert hat. */
+    private val _hasMoreArticles = MutableStateFlow(false)
+    val hasMoreArticles: StateFlow<Boolean> = _hasMoreArticles.asStateFlow()
+
+    private val _isLoadingMore = MutableStateFlow(false)
+    val isLoadingMore: StateFlow<Boolean> = _isLoadingMore.asStateFlow()
+
+    /** Letztes Nachladen schlug fehl – die Liste zeigt dann „Erneut versuchen“ statt automatisch weiterzuladen. */
+    private val _loadMoreFailed = MutableStateFlow(false)
+    val loadMoreFailed: StateFlow<Boolean> = _loadMoreFailed.asStateFlow()
+
+    /**
+     * Server-Offset für die nächste Seite. Nur in „Weiterlesen“ relevant, wo client-seitig
+     * gefiltert wird – sonst ist die Zahl geladener Artikel der Offset (siehe [nextOffset]).
+     * Öffentlich, damit der Listen-Footer auch nach einer Seite ohne neue sichtbare Artikel
+     * erneut nachlädt (Äquivalent zu `rawOffset` in ArticlesViewModel.swift).
+     */
+    private val _rawOffset = MutableStateFlow(0)
+    val rawOffset: StateFlow<Int> = _rawOffset.asStateFlow()
+
+    private var loadJob: Job? = null
+    private var processingListenerJob: Job? = null
+    private var loadMoreJob: Job? = null
+    /** Wird bei jedem [load] erhöht, damit ein noch laufender Abruf für eine alte Ansicht sein Ergebnis verwirft. */
+    private var loadGeneration = 0
+    /** Ansicht, für die [_articles] geladen wurde – ein Reload derselben Ansicht holt so viele Artikel wie schon nachgeladen waren. */
+    private var loadedViewKey: String? = null
+
+    private val currentViewKey: String
+        get() = "${_selectedFilter.value.name}|${_selectedTagId.value ?: "-"}|${_showArchivedInTagView.value}"
+
+    /** Eine Server-Seite: die (ggf. client-seitig gefilterten) Artikel und wie viele der Server geliefert hat. */
+    private class ArticlePage(val articles: List<Article>, val rawCount: Int)
+
     // MARK: – Init
 
     init {
@@ -230,7 +281,7 @@ class ArticlesViewModel @Inject constructor(
         // Bilder aller bereits gecachten Artikel nachträglich vorwärmen, damit
         // Offline-Lesen sofort funktioniert, auch für Artikel aus früheren Sessions.
         viewModelScope.launch {
-            val cached = articleCacheService.loadFiltered(ArticleFilter.ALL, tagId = null)
+            val cached = articleCacheService.loadAllCached().filterNot { it.isArchived }
             imageCacheService.prefetch(cached)
         }
         offlineMutationQueue.onDrained = { load() }
@@ -242,22 +293,46 @@ class ArticlesViewModel @Inject constructor(
 
     fun load() {
         processingListenerJob?.cancel()
-        viewModelScope.launch {
+        loadJob?.cancel()
+        loadMoreJob?.cancel()
+        val generation = ++loadGeneration
+        _isLoadingMore.value = false
+        _loadMoreFailed.value = false
+        val filter = _selectedFilter.value
+        val tagId = _selectedTagId.value
+        val showArchivedForTag = _showArchivedInTagView.value
+        val viewKey = currentViewKey
+        val alreadyLoaded = if (loadedViewKey == viewKey) {
+            if (filter.isContinue && tagId == null) _rawOffset.value else _articles.value.size
+        } else {
+            0
+        }
+        val limit = maxOf(PAGE_SIZE, alreadyLoaded)
+        loadJob = viewModelScope.launch {
             _isLoading.value = true
             _error.value = null
             try {
-                val fetched = fetchForFilter(_selectedFilter.value)
-                _counts.value = api.getArticleCounts()
-                _articles.value = fetched
+                val page = fetchForFilter(filter, tagId, showArchivedForTag, limit = limit, offset = 0)
+                // Zähler sind Nebensache – ein Fehler dort darf die Liste nicht blockieren.
+                refreshCounts()
+                if (generation != loadGeneration) return@launch
+                _articles.value = page.articles
                 _isOffline.value = false
-                articleCacheService.upsert(fetched)
-                prefetchImages(fetched)
+                _rawOffset.value = page.rawCount
+                _hasMoreArticles.value = page.rawCount >= limit
+                loadedViewKey = viewKey
+                articleCacheService.upsert(page.articles)
+                prefetchImages(page.articles)
                 startProcessingListenerIfNeeded()
                 offlineMutationQueue.drain()
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
-                val cached = articleCacheService.loadFiltered(
-                    _selectedFilter.value, _selectedTagId.value, _showArchivedInTagView.value,
-                )
+                if (generation != loadGeneration) return@launch
+                // Offline gibt es nichts nachzuladen – der Cache liefert alles auf einmal.
+                _hasMoreArticles.value = false
+                loadedViewKey = null
+                val cached = articleCacheService.loadFiltered(filter, tagId, showArchivedForTag)
                 if (cached.isNotEmpty()) {
                     _articles.value = cached
                     _isOffline.value = true
@@ -266,37 +341,121 @@ class ArticlesViewModel @Inject constructor(
                     _isOffline.value = false
                     _error.value = e.message ?: "Unbekannter Fehler"
                 }
+            } finally {
+                if (generation == loadGeneration) _isLoading.value = false
             }
-            _isLoading.value = false
         }
     }
 
-    private suspend fun fetchForFilter(filter: ArticleFilter): List<Article> {
+    /**
+     * Wird von den Zeilen beim Erscheinen aufgerufen: nähert sich der Nutzer dem Ende der
+     * Liste (letzte 5 sichtbare Artikel), wird die nächste Seite geholt.
+     */
+    fun loadMoreIfNeeded(article: Article) {
+        val visible = filteredArticles.value
+        val idx = visible.indexOfFirst { it.id == article.id }
+        if (idx < 0 || idx < visible.size - 5) return
+        loadMore()
+    }
+
+    /** Holt die nächste Seite. Mehrfachaufrufe während eines Abrufs sind ein No-op; nach einem Fehler nur über [retryLoadMore]. */
+    fun loadMore() {
+        if (!_hasMoreArticles.value || _isLoading.value || _isLoadingMore.value || _loadMoreFailed.value || _isOffline.value) return
+        _isLoadingMore.value = true
+        val generation = loadGeneration
+        val filter = _selectedFilter.value
         val tagId = _selectedTagId.value
+        val showArchivedForTag = _showArchivedInTagView.value
+        val offset = nextOffset
+        loadMoreJob = viewModelScope.launch {
+            try {
+                val page = fetchForFilter(filter, tagId, showArchivedForTag, limit = PAGE_SIZE, offset = offset)
+                if (generation != loadGeneration) return@launch
+                val known = _articles.value.map { it.id }.toSet()
+                val fresh = page.articles.filterNot { it.id in known }
+                _articles.value = sortedForFilter(filter, tagId, _articles.value + fresh)
+                _rawOffset.value += page.rawCount
+                _hasMoreArticles.value = page.rawCount >= PAGE_SIZE
+                _isLoadingMore.value = false
+                articleCacheService.upsert(fresh)
+                prefetchImages(fresh)
+                startProcessingListenerIfNeeded()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                if (generation != loadGeneration) return@launch
+                _isLoadingMore.value = false
+                _loadMoreFailed.value = true
+            }
+        }
+    }
+
+    fun retryLoadMore() {
+        _loadMoreFailed.value = false
+        loadMore()
+    }
+
+    /**
+     * Offset der nächsten Server-Seite. Außerhalb von „Weiterlesen“ deckt sich die Liste 1:1
+     * mit der Server-Abfrage (ein archivierter/gelöschter Artikel fehlt dort ebenfalls), die
+     * Zahl geladener Artikel ist also der richtige Offset. Doppelte fängt der ID-Abgleich ab.
+     */
+    private val nextOffset: Int
+        get() = if (_selectedTagId.value == null && _selectedFilter.value.isContinue) _rawOffset.value else _articles.value.size
+
+    private suspend fun fetchForFilter(
+        filter: ArticleFilter,
+        tagId: Int?,
+        showArchivedForTag: Boolean,
+        limit: Int,
+        offset: Int,
+    ): ArticlePage {
         if (tagId != null) {
             // In der Einzel-Tag-Ansicht blendet `showArchivedInTagView` archivierte
-            // Artikel standardmäßig aus (sonst mischt der Server Archiv + Aktiv,
+            // Artikel aus (sonst mischt der Server Archiv + Aktiv,
             // da `isArchived` beim Tag-Filter sonst gar nicht gesetzt wird).
-            val archivedFilter = if (_showArchivedInTagView.value) null else 0
-            return api.listArticles(tagId = tagId, isArchived = archivedFilter)
+            val archivedFilter = if (showArchivedForTag) null else 0
+            val fetched = api.listArticles(tagId = tagId, isArchived = archivedFilter, limit = limit, offset = offset)
+            return ArticlePage(fetched, fetched.size)
         }
-        return when (filter) {
-            ArticleFilter.ALL -> api.listArticles(isArchived = 0)
-            // Bewusst OHNE isArchived-Filter: Favoriten unabhängig vom Archiv-
-            // Status anzeigen, chronologisch nach Favorisierungszeitpunkt.
-            ArticleFilter.FAVORITES -> api.listArticles(isFavorite = 1).sortedByDescending { it.favoritedAt ?: "" }
-            ArticleFilter.ARCHIVE -> api.listArticles(isArchived = 1).sortedByDescending { it.archivedAt ?: "" }
-            ArticleFilter.VIDEOS -> api.listArticles(isArchived = 0, category = "Video")
+        val contentType = filter.group.contentType
+        val fetched = when (filter.kind) {
+            ArticleFilter.Kind.CONTINUE -> {
+                // Angefangene, aber weder fertig gelesene noch archivierte Inhalte – nutzt den
+                // geräteübergreifend synchronisierten `scrollProgress`, keine eigene Server-Abfrage.
+                val raw = api.listArticles(isArchived = 0, contentType = contentType, limit = limit, offset = offset)
+                val started = raw.filter { it.scrollProgress > 0f && it.scrollProgress < 1f }
+                return ArticlePage(sortedForFilter(filter, null, started), raw.size)
+            }
+            ArticleFilter.Kind.UNREAD -> api.listArticles(isArchived = 0, contentType = contentType, limit = limit, offset = offset)
+            // Bewusst OHNE isArchived-Filter: Favoriten unabhängig vom Archiv-Status.
+            ArticleFilter.Kind.FAVORITES -> api.listArticles(isFavorite = 1, contentType = contentType, limit = limit, offset = offset)
+            ArticleFilter.Kind.ARCHIVE -> api.listArticles(isArchived = 1, contentType = contentType, limit = limit, offset = offset)
+        }
+        return ArticlePage(sortedForFilter(filter, null, fetched), fetched.size)
+    }
+
+    /**
+     * Client-seitige Sortierung je Ansicht (wie `sortedForFilter` in ArticlesViewModel.swift):
+     * Favoriten nach Favorisierungs-, Archiv nach Archivierungszeitpunkt, „Weiterlesen“ nach
+     * zuletzt gelesen. Auch nach dem Nachladen angewendet, damit eine neue Seite nicht außer
+     * der Reihe landet.
+     */
+    private fun sortedForFilter(filter: ArticleFilter, tagId: Int?, list: List<Article>): List<Article> {
+        if (tagId != null) return list
+        return when (filter.kind) {
+            ArticleFilter.Kind.CONTINUE -> list.sortedByDescending { it.scrollUpdatedAt }
+            ArticleFilter.Kind.FAVORITES -> list.sortedByDescending { it.favoritedAt ?: "" }
+            ArticleFilter.Kind.ARCHIVE -> list.sortedByDescending { it.archivedAt ?: "" }
+            ArticleFilter.Kind.UNREAD -> list
         }
     }
 
     fun selectFilter(filter: ArticleFilter) {
-        // Verlässt eine evtl. aktive Einzel-Tag-Ansicht (Äquivalent zu iOS' Flyout-Filterzeilen,
-        // die `viewModel.selectedTagId = nil` vor dem Filterwechsel setzen, siehe
-        // `ListFlyoutModifier.swift`) – sonst würde `fetchForFilter` weiterhin den alten Tag
-        // statt des neu gewählten Filters verwenden.
+        // Verlässt eine evtl. aktive Einzel-Tag-Ansicht (wie die Filterzeilen im iOS-Seitenmenü,
+        // die `viewModel.selectedTagId = nil` vor dem Filterwechsel setzen).
         _selectedTagId.value = null
-        _showArchivedInTagView.value = false
+        _showArchivedInTagView.value = true
         _selectedFilter.value = filter
         load()
     }
@@ -315,7 +474,7 @@ class ArticlesViewModel @Inject constructor(
 
     fun selectTag(tagId: Int?) {
         _selectedTagId.value = tagId
-        _showArchivedInTagView.value = false // frischer Start pro Tag/Tag-Wechsel
+        _showArchivedInTagView.value = true // frischer Start pro Tag/Tag-Wechsel, wie iOS
         load()
     }
 
@@ -339,7 +498,7 @@ class ArticlesViewModel @Inject constructor(
         val resolvedIds = resolveTagIds(pendingTagNames)
         val article = api.createArticle(CreateArticleRequest(url = url, tagIds = (tagIds + resolvedIds).toList()))
         _articles.value = listOf(article) + _articles.value
-        _counts.value = _counts.value.copy(total = _counts.value.total + 1)
+        _counts.value = _counts.value.let { it.copy(pages = it.pages.copy(total = it.pages.total + 1)) }
         articleCacheService.upsert(article)
         prefetchImages(listOf(article))
         startProcessingListenerIfNeeded()
@@ -374,8 +533,6 @@ class ArticlesViewModel @Inject constructor(
     }
 
     // MARK: – Processing-Listener
-
-    private var processingListenerJob: Job? = null
 
     /**
      * Pollt alle 2s, bis kein Artikel mehr in Verarbeitung ist. SSE wäre die
@@ -578,30 +735,29 @@ class ArticlesViewModel @Inject constructor(
      * optimistische und server-bestätigte Updates sich identisch verhalten.
      */
     private fun applyListMembership(article: Article) {
-        if (shouldHide(article, _selectedFilter.value)) {
+        if (shouldHide(article)) {
             _articles.value = _articles.value.filterNot { it.id == article.id }
         } else {
             applyUpdate(article)
         }
     }
 
-    private fun shouldHide(article: Article, filter: ArticleFilter): Boolean = when (filter) {
-        ArticleFilter.ALL -> article.isArchived
-        ArticleFilter.FAVORITES -> !article.isFavorite
-        ArticleFilter.ARCHIVE -> !article.isArchived
-        ArticleFilter.VIDEOS -> article.isArchived || article.category != "Video"
-    }
+    private fun shouldHide(article: Article): Boolean =
+        !_selectedFilter.value.matches(article, _selectedTagId.value, _showArchivedInTagView.value)
 
     /** Fügt [article] wieder ein, falls der aktive Filter es zeigen würde und es fehlt (Rollback nach echtem Fehler). */
     private fun reinsertIfMissing(article: Article) {
-        if (shouldHide(article, _selectedFilter.value)) return
+        if (shouldHide(article)) return
         val current = _articles.value
         if (current.any { it.id == article.id }) {
             applyUpdate(article)
             return
         }
-        val idx = if (_selectedFilter.value == ArticleFilter.ARCHIVE) {
+        val kind = _selectedFilter.value.kind.takeIf { _selectedTagId.value == null }
+        val idx = if (kind == ArticleFilter.Kind.ARCHIVE) {
             current.indexOfFirst { (it.archivedAt ?: "") < (article.archivedAt ?: "") }
+        } else if (kind == ArticleFilter.Kind.FAVORITES) {
+            current.indexOfFirst { (it.favoritedAt ?: "") < (article.favoritedAt ?: "") }
         } else {
             current.indexOfFirst { it.createdAt < article.createdAt }
         }.let { if (it == -1) current.size else it }
@@ -618,5 +774,10 @@ class ArticlesViewModel @Inject constructor(
 
     private suspend fun refreshCounts() {
         runCatching { api.getArticleCounts() }.getOrNull()?.let { _counts.value = it }
+    }
+
+    companion object {
+        /** Artikel pro Server-Abruf (Erstladen und jedes Nachladen), wie `pageSize` in ArticlesViewModel.swift. */
+        const val PAGE_SIZE = 50
     }
 }

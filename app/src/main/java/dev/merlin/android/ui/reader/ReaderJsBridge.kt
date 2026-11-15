@@ -23,6 +23,8 @@ class ReaderJsBridge(
     private val onImageTap: (index: Int, srcs: List<String>) -> Unit,
     private val onSelectionChanged: (SelectionRect?) -> Unit,
     private val onInfoPopover: (InfoPopover) -> Unit,
+    /** Öffnet einen Link der Support-Infobox im externen Browser (siehe `ReaderHtmlBuilder.buildSupportBoxScript`). */
+    private val onOpenExternalLink: (String) -> Unit = {},
 ) {
     @Serializable
     data class SelectionRect(val x: Float, val y: Float, val width: Float, val height: Float)
@@ -68,6 +70,16 @@ class ReaderJsBridge(
     @JavascriptInterface
     fun onSelectionCleared() {
         mainHandler.post { onSelectionChanged.invoke(null) }
+    }
+
+    @JavascriptInterface
+    fun onOpenExternalLink(url: String) {
+        // Nur http(s): der Wert kommt zwar aus einer vom Server gelieferten, in Kotlin bereits
+        // geprüften URL, die Bridge ist aber für jede Seite in der WebView erreichbar (auch für
+        // JS aus Artikelinhalt, das der Sanitizer nicht entfernt hätte) - hier deshalb nochmals prüfen.
+        val scheme = runCatching { java.net.URI(url).scheme?.lowercase() }.getOrNull()
+        if (scheme != "http" && scheme != "https") return
+        mainHandler.post { onOpenExternalLink.invoke(url) }
     }
 
     @JavascriptInterface
