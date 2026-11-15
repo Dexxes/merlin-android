@@ -29,6 +29,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -57,6 +58,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.res.imageResource
@@ -74,7 +77,7 @@ import kotlinx.coroutines.launch
 
 /**
  * Äquivalent zu `ArticleListView.swift`: Artikelliste mit Seitenmenü ([ListDrawerContent],
- * Gegenstück zu `ListFlyoutModifier.swift`), immer sichtbarem Suchfeld, Pull-to-Refresh,
+ * Gegenstück zu `ListFlyoutModifier.swift`), Suchfeld hinter dem Lupen-Icon neben dem Menü-Button, Pull-to-Refresh,
  * Nachladen beim Scrollen und filterabhängigem Leer-Zustand.
  *
  * Toolbar wie auf iOS: in der Mitte Logo und Name der Ansicht bzw. des Tags, rechts „+“ und
@@ -112,6 +115,8 @@ fun ArticleListScreen(
     val localProgress by viewModel.localProgress.collectAsState()
     val selectedTagName = selectedTagId?.let { id -> allTags.firstOrNull { it.id == id }?.name }
 
+    var searchVisible by remember { mutableStateOf(false) }
+    val searchFocusRequester = remember { FocusRequester() }
     var tagsArticleId by remember { mutableStateOf<Int?>(null) }
     var showAddSheet by remember { mutableStateOf(false) }
     var showTagFilterSheet by remember { mutableStateOf(false) }
@@ -227,8 +232,24 @@ fun ArticleListScreen(
                         }
                     },
                     navigationIcon = {
-                        IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                            Icon(Icons.Filled.Menu, contentDescription = "Menü")
+                        Row {
+                            IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                                Icon(Icons.Filled.Menu, contentDescription = "Menü")
+                            }
+                            // Suchfeld ein-/ausblenden; beim Ausblenden wird die Suche geleert,
+                            // damit kein unsichtbarer Filter auf der Liste liegen bleibt.
+                            IconButton(
+                                onClick = {
+                                    if (searchVisible) viewModel.setSearchQuery("")
+                                    searchVisible = !searchVisible
+                                },
+                            ) {
+                                Icon(
+                                    Icons.Filled.Search,
+                                    contentDescription = if (searchVisible) "Suche schließen" else "Suchen",
+                                    tint = if (searchVisible) MaterialTheme.colorScheme.primary else LocalContentColor.current,
+                                )
+                            }
                         }
                     },
                     actions = {
@@ -275,23 +296,29 @@ fun ArticleListScreen(
         ) { padding ->
             Column(modifier = Modifier.padding(padding).fillMaxSize()) {
 
-                // Immer sichtbares Suchfeld, wie `.searchable(placement: .navigationBarDrawer(displayMode: .always))`.
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = viewModel::setSearchQuery,
-                    placeholder = { Text("Artikel suchen") },
-                    leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
-                    trailingIcon = {
-                        if (searchQuery.isNotEmpty()) {
-                            IconButton(onClick = { viewModel.setSearchQuery("") }) {
-                                Icon(Icons.Filled.Clear, contentDescription = "Suche leeren")
+                // Suchfeld über das Lupen-Icon neben dem Menü-Button ein- und ausblendbar.
+                if (searchVisible) {
+                    LaunchedEffect(Unit) { searchFocusRequester.requestFocus() }
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = viewModel::setSearchQuery,
+                        placeholder = { Text("Artikel suchen") },
+                        leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                        trailingIcon = {
+                            if (searchQuery.isNotEmpty()) {
+                                IconButton(onClick = { viewModel.setSearchQuery("") }) {
+                                    Icon(Icons.Filled.Clear, contentDescription = "Suche leeren")
+                                }
                             }
-                        }
-                    },
-                    singleLine = true,
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
-                )
+                        },
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 4.dp)
+                            .focusRequester(searchFocusRequester),
+                    )
+                }
 
                 if (isOffline) {
                     Row(
