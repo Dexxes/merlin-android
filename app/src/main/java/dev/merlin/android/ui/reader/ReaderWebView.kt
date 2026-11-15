@@ -9,7 +9,6 @@ import android.os.Handler
 import android.os.Looper
 import android.view.View
 import android.view.ViewGroup
-import android.util.Base64
 import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -83,6 +82,9 @@ fun ReaderWebView(
     // 4pt Delta-Schwelle, 40pt Mindest-Offset) gerechnet. `scrollableRangePx` kann 0 sein, wenn
     // der Inhalt kürzer als der Viewport ist.
     onScrollMetrics: (offsetPx: Float, scrollableRangePx: Float) -> Unit = { _, _ -> },
+    // Papierstruktur: die Seite bekommt keinen eigenen Hintergrund, der Aufrufer zeichnet ihn
+    // dahinter (siehe `paperBackground` in PaperBackground.kt).
+    transparentBackground: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     val webViewRef = remember { arrayOfNulls<ScrollRangeWebView>(1) }
@@ -114,9 +116,8 @@ fun ReaderWebView(
             )
         }
     }
-    val paperTexture = remember { paperTextureDataUri(context) }
-    val html = remember(article.id, highlights, appearance, isSystemDark, supportBox, supportBoxTexts) {
-        ReaderHtmlBuilder.build(article, highlights, appearance, isSystemDark, supportBoxTexts, paperTexture)
+    val html = remember(article.id, highlights, appearance, isSystemDark, supportBox, supportBoxTexts, transparentBackground) {
+        ReaderHtmlBuilder.build(article, highlights, appearance, isSystemDark, supportBoxTexts, transparentBackground)
     }
     // Breite des linken Streifens, den wir vom System-Edge-Swipe-Zurück ausnehmen wollen –
     // siehe Kommentar bei `update` unten.
@@ -135,6 +136,9 @@ fun ReaderWebView(
         modifier = modifier.fillMaxSize(),
         factory = { ctx ->
             ScrollRangeWebView(ctx).apply {
+                // Durchsichtig, damit die Papierstruktur dahinter durchscheint; ohne sie malt die
+                // Seite ihre Theme-Farbe selbst, dahinter liegt dieselbe Farbe aus Compose.
+                setBackgroundColor(android.graphics.Color.TRANSPARENT)
                 settings.javaScriptEnabled = true
                 settings.domStorageEnabled = true
                 settings.loadWithOverviewMode = true
@@ -291,13 +295,3 @@ private tailrec fun android.content.Context.findActivity(): android.app.Activity
     is android.content.ContextWrapper -> baseContext.findActivity()
     else -> null
 }
-
-/** Einmal gelesene Papierstruktur-Kachel als `data:`-URI (siehe `ReaderHtmlBuilder.PAPER_TEXTURE_ASSET`). */
-@Volatile
-private var cachedPaperTexture: String? = null
-
-private fun paperTextureDataUri(context: android.content.Context): String? =
-    cachedPaperTexture ?: runCatching {
-        val bytes = context.assets.open(ReaderHtmlBuilder.PAPER_TEXTURE_ASSET).use { it.readBytes() }
-        "data:image/png;base64," + Base64.encodeToString(bytes, Base64.NO_WRAP)
-    }.getOrNull()?.also { cachedPaperTexture = it }

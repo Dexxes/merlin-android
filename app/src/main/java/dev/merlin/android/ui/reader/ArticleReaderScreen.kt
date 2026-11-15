@@ -263,6 +263,11 @@ fun ArticleReaderScreen(
     // ist nah am Artikelende (dort soll sie sichtbar bleiben, damit man archivieren/weiterspringen
     // kann). Scrollen nach oben (oder Stillstand) zeigt sie immer.
     var lastScrollOffsetPx by remember(viewModel.articleId) { mutableFloatStateOf(0f) }
+    // Papierstruktur hinter der durchsichtigen WebView (nur Hell/Sepia, Schalter im
+    // Erscheinungsbild-Sheet); `paperScrollPx` verschiebt die Fasern mit dem Text.
+    val showsPaper = ReaderHtmlBuilder.showsPaperTexture(appearance, isSystemInDarkTheme())
+    val paperTile = rememberPaperTile()
+    var paperScrollPx by remember(viewModel.articleId) { mutableFloatStateOf(0f) }
     var scrollingDown by remember(viewModel.articleId) { mutableStateOf(false) }
     var showBottomBar by remember(viewModel.articleId) { mutableStateOf(true) }
     val density = LocalDensity.current
@@ -599,8 +604,19 @@ fun ArticleReaderScreen(
                                             onScrollPositionChanged = { progress -> viewModel.saveScrollProgress(progress) },
                                             onWebViewReady = { webViewRef = it },
                                             onScrollProgress = { scrollProgress = it },
-                                            onScrollMetrics = onReaderScrollMetrics,
-                                            modifier = Modifier.fillMaxWidth().weight(1f),
+                                            onScrollMetrics = { offset, range ->
+                                                paperScrollPx = offset
+                                                onReaderScrollMetrics(offset, range)
+                                            },
+                                            transparentBackground = showsPaper,
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .weight(1f)
+                                                .paperBackground(
+                                                    color = chromeColors.background,
+                                                    tile = paperTile.takeIf { showsPaper },
+                                                    scrollOffsetPx = { paperScrollPx },
+                                                ),
                                         )
                                     }
                                 }

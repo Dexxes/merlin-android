@@ -24,16 +24,6 @@ import dev.merlin.android.viewmodel.ArticleReaderViewModel
  */
 object ReaderHtmlBuilder {
 
-    /**
-     * Papierstruktur-Kachel in den Assets: die 512×512-Kachel aus merlin-ios
-     * (`scripts/generate-paper-texture.py`), umgerechnet in schwarze Pixel mit Alpha = 1 − Grauwert.
-     * Normal über die Theme-Farbe gelegt ergibt das genau das Multiply von iOS
-     * (Farbe × Grauwert), ohne `background-blend-mode`, das auf dem Wurzelelement in der WebView
-     * nicht greift. [ReaderWebView] liest sie einmal und reicht sie als `data:`-URI herein
-     * (`file:///android_asset` ist von der Artikel-Origin aus gesperrt).
-     */
-    const val PAPER_TEXTURE_ASSET = "paper-texture.png"
-
     /** Papierstruktur sichtbar: Schalter an und Theme hell bzw. Sepia (Dunkel bleibt reines Schwarz). */
     fun showsPaperTexture(appearance: ArticleReaderViewModel.Appearance, isSystemDark: Boolean): Boolean =
         appearance.paperTexture && when (appearance.theme) {
@@ -75,8 +65,9 @@ object ReaderHtmlBuilder {
         isSystemDark: Boolean,
         // Texte der Support-Infobox; null (oder fehlendes `article.supportBox`) = keine Box.
         supportBoxTexts: SupportBoxTexts? = null,
-        // Papierstruktur-Kachel als `data:`-URI (siehe [PAPER_TEXTURE_ASSET]); null = keine.
-        paperTextureDataUri: String? = null,
+        // Seite ohne eigenen Hintergrund: die Papierstruktur liegt in Compose hinter der
+        // durchsichtigen WebView (siehe `PaperBackground.kt`), wie unter iOS.
+        transparentBackground: Boolean = false,
     ): String {
         // Reihenfolge wie im iOS-Template (`buildReaderHTML` in ArticleReaderView.swift):
         // Titelbild-Entfernung bei ARD/ZDF/3sat/Arte → Aufmacher-Video → YouTube-Karten.
@@ -90,7 +81,7 @@ object ReaderHtmlBuilder {
             ),
         )
         val (_, fg, mutedFg) = themeColors(appearance.theme, isSystemDark)
-        val css = buildCss(appearance, isSystemDark, paperTextureDataUri)
+        val css = buildCss(appearance, isSystemDark, transparentBackground)
         val headerHtml = buildHeaderHtml(article, fg, mutedFg, appearance.accentColorHex)
         val footerHtml = buildFooterHtml(article)
         val highlightsJson = encodeHighlightsForJs(highlights)
@@ -106,7 +97,6 @@ object ReaderHtmlBuilder {
             <head>
               <meta charset="utf-8">
               <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-              <script>document.documentElement.style.setProperty('--merlin-dpr', String(window.devicePixelRatio || 1));</script>
               <style>$css</style>
             </head>
             <body>
@@ -299,25 +289,11 @@ object ReaderHtmlBuilder {
     private fun buildCss(
         appearance: ArticleReaderViewModel.Appearance,
         isSystemDark: Boolean,
-        paperTextureDataUri: String?,
+        transparentBackground: Boolean,
     ): String {
         val (bg, fg, mutedFg) = themeColors(appearance.theme, isSystemDark)
-        // Papierstruktur (wie `PaperBackground` in ArticleReaderView.swift): die Kachel dunkelt die
-        // Theme-Farbe um wenige Prozent ab, Sepia behält seinen Farbton. Am Wurzelelement gesetzt,
-        // wandert sie mit dem Text wie bei echtem Papier; ein Texel = ein Gerätepixel
-        // (`--merlin-dpr`, siehe `<head>`). `body` wird dafür durchsichtig.
-        val paperCss = if (paperTextureDataUri != null && showsPaperTexture(appearance, isSystemDark)) {
-            """
-            html {
-              background-image: url("$paperTextureDataUri");
-              background-repeat: repeat;
-              background-size: calc(512px / var(--merlin-dpr, 1)) auto;
-            }
-            body { background-color: transparent; }
-            """
-        } else {
-            ""
-        }
+        // Papierstruktur: Hintergrund durchsichtig, die Fläche dahinter zeichnet Compose.
+        val paperCss = if (transparentBackground) "html, body { background-color: transparent; }" else ""
         return """
             html, body {
               margin: 0; padding: 0;

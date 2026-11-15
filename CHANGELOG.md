@@ -21,9 +21,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   Telegram, Signal, Gallery or Files get the real photo, video or PDF. Not
   compiled or run on a device yet.
 - Paper texture as reader background like on iOS: the same tile (as black
-  with alpha, which equals multiplying) lies over the light or sepia background and scrolls with the text;
+  with alpha, which equals multiplying) is drawn in Compose behind the now
+  transparent reader WebView over the light or sepia background and scrolls with the text;
   dark stays pure black. Switch "Papierstruktur" in the appearance sheet, on
   by default, local only. Not compiled or run on a device yet.
+- Sepia: side menu, cards, dropdown menus and sheets use sepia tones instead
+  of the light default surface colors.
 - Settings → About links the privacy policy (PRIVACY.md) and offers "Entwickler
   kontaktieren", which opens a mail to the developer like on iOS.
 - Share sheet like on iOS: a bottom sheet over the dimmed sharing app with the

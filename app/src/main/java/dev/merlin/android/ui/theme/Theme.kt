@@ -68,8 +68,27 @@ private val SepiaColors = lightColorScheme(
     surfaceVariant = Color(0xFFD1C2A8),
     onSurfaceVariant = Color(0xFF7A6350),
     outline = Color(0xFFAE9678),
+    outlineVariant = Color(0xFFD1C2A8),
     error = Color(0xFFD32F2F),
     onError = Color.White,
+    // Material3 färbt Seitenmenü (ModalDrawerSheet), Karten, Dropdown-Menüs und Bottom Sheets mit
+    // den surfaceContainer-Tönen, nicht mit `surface`. Ohne eigene Werte blieben dort die hellen,
+    // leicht lila Standardtöne stehen – das Seitenmenü und die Karten in der Artikelübersicht
+    // sahen in Sepia aus wie in Hell. Abgestuft zwischen Hintergrund und `surfaceVariant`.
+    surfaceTint = Color(0xFFAE9678),
+    surfaceBright = Color(0xFFF9F2E4),
+    surfaceDim = Color(0xFFE2D4B9),
+    surfaceContainerLowest = Color(0xFFF9F2E4),
+    surfaceContainerLow = Color(0xFFF0E5CF),
+    surfaceContainer = Color(0xFFECE0C8),
+    surfaceContainerHigh = Color(0xFFE7DAC0),
+    surfaceContainerHighest = Color(0xFFE2D4B9),
+    primaryContainer = Color(0xFFE2D4B9),
+    onPrimaryContainer = Color(0xFF3B2F1E),
+    secondaryContainer = Color(0xFFE2D4B9),
+    onSecondaryContainer = Color(0xFF3B2F1E),
+    inverseSurface = Color(0xFF3B2F1E),
+    inverseOnSurface = Color(0xFFF5ECD9),
 )
 
 /**
