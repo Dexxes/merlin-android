@@ -26,6 +26,10 @@ import java.io.IOException
 import java.time.Instant
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -37,6 +41,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.supervisorScope
 import retrofit2.HttpException
 
 /** Äquivalent zu `UndoableAction` (Swift): merkt sich die letzte rückgängig machbare Mutation. */
@@ -98,7 +103,10 @@ class ArticlesViewModel @Inject constructor(
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
-    private val _isLoading = MutableStateFlow(false)
+    /** Startet mit `true`, weil `init` sofort den ersten [load] anstößt (nach dem Lesen der lokalen
+     * Defaults) – sonst sähe der Splash-Screen (MainActivity) in dieser kurzen Lücke "fertig" und
+     * verschwände, bevor überhaupt geladen wurde. */
+    private val _isLoading = MutableStateFlow(true)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
     private val _isOffline = MutableStateFlow(false)
@@ -291,6 +299,12 @@ class ArticlesViewModel @Inject constructor(
     val rawOffset: StateFlow<Int> = _rawOffset.asStateFlow()
 
     private var loadJob: Job? = null
+    /** Netzabruf des laufenden [load] – [continueOffline] bricht nur ihn ab, nicht den ganzen Ladevorgang. */
+    private var fetchDeferred: Deferred<ArticlePage>? = null
+    /** [loadGeneration], für die der Nutzer im Splash "Offline starten" gewählt hat. */
+    private var offlineRequestedGeneration = -1
+    /** Server-Settings-Abruf beim App-Start (siehe `init`). */
+    private var settingsJob: Job? = null
     private var processingListenerJob: Job? = null
     private var loadMoreJob: Job? = null
     /** Wird bei jedem [load] erhöht, damit ein noch laufender Abruf für eine alte Ansicht sein Ergebnis verwirft. */
@@ -314,19 +328,40 @@ class ArticlesViewModel @Inject constructor(
         // `.task`-Block in iOS' `MerlinApp.swift`. Vorher wurde auf Android nirgends
         // `PreferencesStore.loadFromServer()` aufgerufen – Settings (u.a. Akzentfarbe,
         // reportBackendUrl) liefen nur lokal→Server, nie Server→lokal.
-        viewModelScope.launch {
+        // Lokale Defaults zuerst lesen und erst DANN laden – iOS initialisiert `selectedFilter` &
+        // Co. synchron aus dem lokalen Cache, bevor `ArticleListView` lädt. Vorher lief `load()`
+        // hier parallel zum DataStore-Lesen und damit immer mit `ArticleFilter.DEFAULT` statt mit
+        // der gespeicherten Standardansicht.
+        val localDefaults = viewModelScope.launch {
+            _excludedTagIds.value = preferencesStore.excludedTagIds.first()
+            _selectedFilter.value = preferencesStore.defaultFilter.first()
+            _isCardView.value = preferencesStore.isCardView.first()
+            load()
+        }
+        // Server-Settings einmal pro App-Start ziehen ("Server gewinnt"), analog zum
+        // `.task`-Block in iOS' `MerlinApp.swift` – parallel zum ersten Laden der Liste.
+        settingsJob = viewModelScope.launch {
             try {
-                runCatching { api.getSettings() }.getOrNull()?.let { preferencesStore.loadFromServer(it) }
+                val settings = runCatching { api.getSettings() }.getOrNull()
+                if (settings != null) {
+                    preferencesStore.loadFromServer(settings)
+                    // Wie iOS (`sharedViewModel.selectedFilter = PreferencesStore.shared.defaultFilter`):
+                    // die Liste lädt parallel schon mit dem lokalen Default – hat der Server eine
+                    // andere Standardansicht, wird darauf umgestellt und neu geladen.
+                    localDefaults.join()
+                    val serverDefault = preferencesStore.defaultFilter.first()
+                    if (serverDefault != _selectedFilter.value && _selectedTagId.value == null) {
+                        _selectedFilter.value = serverDefault
+                        load()
+                    }
+                }
             } finally {
-                // Im finally (nicht nur im Erfolgsfall) setzen, damit ein Netzwerkfehler die Liste
-                // nicht für immer hinter dem Splash hält – analog dem `try?` in iOS' `.task`-Block,
-                // der bei Fehlschlag einfach mit den lokalen Defaults weitermacht.
+                // Im finally (nicht nur im Erfolgsfall) setzen, damit ein Netzwerkfehler oder
+                // "Offline starten" die Liste nicht für immer hinter dem Splash hält – analog dem
+                // `try?` in iOS' `.task`-Block, der bei Fehlschlag mit den lokalen Defaults weitermacht.
                 _settingsLoaded.value = true
             }
         }
-        viewModelScope.launch { _excludedTagIds.value = preferencesStore.excludedTagIds.first() }
-        viewModelScope.launch { _selectedFilter.value = preferencesStore.defaultFilter.first() }
-        viewModelScope.launch { _isCardView.value = preferencesStore.isCardView.first() }
         // Veraltete Cache-Einträge (archiviert > 24h) einmal pro App-Start entfernen.
         viewModelScope.launch {
             articleCacheService.evict()
@@ -342,7 +377,17 @@ class ArticlesViewModel @Inject constructor(
         offlineMutationQueue.onDrained = { load() }
         restoreCachedListMeta()
         loadTags()
-        load()
+    }
+
+    /**
+     * Splash-Screen: "Im Offlinemodus starten?" (iOS: `ArticlesViewModel.continueOffline()`).
+     * Bricht den hängenden Netzabruf des laufenden [load] ab, sodass er sofort auf den lokalen
+     * Cache zurückfällt, und gibt das Warten auf die Server-Settings auf.
+     */
+    fun continueOffline() {
+        offlineRequestedGeneration = loadGeneration
+        fetchDeferred?.cancel()
+        settingsJob?.cancel()
     }
 
     /**
@@ -368,6 +413,7 @@ class ArticlesViewModel @Inject constructor(
         processingListenerJob?.cancel()
         loadJob?.cancel()
         loadMoreJob?.cancel()
+        fetchDeferred = null
         val generation = ++loadGeneration
         _isLoadingMore.value = false
         _loadMoreFailed.value = false
@@ -384,10 +430,38 @@ class ArticlesViewModel @Inject constructor(
         loadJob = viewModelScope.launch {
             _isLoading.value = true
             _error.value = null
+
+            suspend fun fallBackToCache(e: Throwable, cancelledByUser: Boolean) {
+                // Offline gibt es nichts nachzuladen – der Cache liefert alles auf einmal.
+                _hasMoreArticles.value = false
+                loadedViewKey = null
+                val cached = articleCacheService.loadFiltered(filter, tagId?.let { tagTree.value.scope(it) }, showArchivedForTag)
+                if (cached.isNotEmpty()) {
+                    _articles.value = cached
+                    _isOffline.value = true
+                    // counts bewusst nicht überschreiben – letzten Online-Stand behalten.
+                } else if (cancelledByUser) {
+                    // "Offline starten" ohne Cache: leere Liste statt Fehlermeldung (wie iOS).
+                    _isOffline.value = true
+                } else {
+                    _isOffline.value = false
+                    _error.value = e.message ?: "Unbekannter Fehler"
+                }
+            }
+
             try {
-                val page = fetchForFilter(filter, tagId, showArchivedForTag, limit = limit, offset = 0)
-                // Zähler sind Nebensache – ein Fehler dort darf die Liste nicht blockieren.
-                refreshCounts()
+                // Eigener Kind-Job im supervisorScope, damit [continueOffline] gezielt nur den
+                // Netzabruf abbrechen kann, während dieser Job weiterläuft und auf den Cache zurückfällt.
+                val page = supervisorScope {
+                    val fetch = async {
+                        val page = fetchForFilter(filter, tagId, showArchivedForTag, limit = limit, offset = 0)
+                        // Zähler sind Nebensache – ein Fehler dort darf die Liste nicht blockieren.
+                        refreshCounts()
+                        page
+                    }
+                    fetchDeferred = fetch
+                    fetch.await()
+                }
                 if (generation != loadGeneration) return@launch
                 _articles.value = page.articles
                 _isOffline.value = false
@@ -399,21 +473,14 @@ class ArticlesViewModel @Inject constructor(
                 startProcessingListenerIfNeeded()
                 offlineMutationQueue.drain()
             } catch (e: CancellationException) {
-                throw e
+                // Nur der Netzabruf wurde per "Offline starten" abgebrochen → wie Netzfehler behandeln.
+                // Wurde dagegen dieser Job selbst abgebrochen (neuer load()), wirft ensureActive weiter.
+                currentCoroutineContext().ensureActive()
+                if (offlineRequestedGeneration != generation || generation != loadGeneration) throw e
+                fallBackToCache(e, cancelledByUser = true)
             } catch (e: Exception) {
                 if (generation != loadGeneration) return@launch
-                // Offline gibt es nichts nachzuladen – der Cache liefert alles auf einmal.
-                _hasMoreArticles.value = false
-                loadedViewKey = null
-                val cached = articleCacheService.loadFiltered(filter, tagId?.let { tagTree.value.scope(it) }, showArchivedForTag)
-                if (cached.isNotEmpty()) {
-                    _articles.value = cached
-                    _isOffline.value = true
-                    // counts bewusst nicht überschreiben – letzten Online-Stand behalten.
-                } else {
-                    _isOffline.value = false
-                    _error.value = e.message ?: "Unbekannter Fehler"
-                }
+                fallBackToCache(e, cancelledByUser = false)
             } finally {
                 if (generation == loadGeneration) _isLoading.value = false
             }

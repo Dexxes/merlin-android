@@ -76,8 +76,8 @@ Adaptive-Vordergrund 108/162/216/324/432px (jeweils mdpi→xxxhdpi).
 
 | Datei | Zweck |
 |---|---|
-| `MerlinApp.kt` | `Application`-Klasse mit `@HiltAndroidApp`; Äquivalent zu `MerlinApp.swift` (Splash-/Migrations-Logik fehlt noch) |
-| `MainActivity.kt` | Einzige Activity, hostet Compose; zeigt `OnboardingScreen` solange `CredentialsStore.isConfigured == false`, sonst ein `NavHost` (Routen `list`/`reader/{articleId}`, Äquivalent zu `NavigationStack`) zwischen `ArticleListScreen` und `ArticleReaderScreen`. `articleId` als typisiertes Nav-Argument, damit `hiltViewModel()` die `SavedStateHandle` von `ArticleReaderViewModel` automatisch befüllt. `AppNavigator.articleIdToOpen` (Reminder-Deep-Link) wird per `LaunchedEffect` konsumiert und navigiert direkt zum Reader |
+| `MerlinApp.kt` | `Application`-Klasse mit `@HiltAndroidApp`; Äquivalent zu `MerlinApp.swift` (Splash-Logik liegt in `MainActivity.kt`; iOS-spezifische Credentials-Migration entfällt) |
+| `MainActivity.kt` | Einzige Activity, hostet Compose; zeigt `OnboardingScreen` solange `CredentialsStore.isConfigured == false`, sonst ein `NavHost` (Routen `list`/`reader/{articleId}`, Äquivalent zu `NavigationStack`) zwischen `ArticleListScreen` und `ArticleReaderScreen`. `articleId` als typisiertes Nav-Argument, damit `hiltViewModel()` die `SavedStateHandle` von `ArticleReaderViewModel` automatisch befüllt. `AppNavigator.articleIdToOpen` (Reminder-Deep-Link) wird per `LaunchedEffect` konsumiert und navigiert direkt zum Reader. Splash wie iOS' `SplashView`: der System-Splash (`Theme.Merlin.Starting`) zeigt nur die weiße Fläche ohne Icon (die SplashScreen-API maskiert Icons kreisförmig), darüber liegt `ui/screens/MerlinSplash.kt` mit vollem Logo, Ladeindikator und nach 3 s „Im Offlinemodus starten?“ (`ArticlesViewModel.continueOffline()`); er verschwindet nach mind. 200 ms, sobald Server-Settings und erster Ladevorgang durch sind |
 | `ui/theme/Theme.kt` | `MerlinTheme`-Composable mit Platzhalter Light/Dark-Farbschema; wird mit der Settings-Portierung um Theme-Auswahl (light/dark/auto) erweitert |
 
 ## Models (`models/`)

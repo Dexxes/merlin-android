@@ -4,19 +4,15 @@
     <style name="Theme.Merlin" parent="android:Theme.Material.Light.NoActionBar" />
 
     <!-- Splash-Theme (Android SplashScreen API): nur für den kurzen Moment zwischen Prozess-
-         start und `installSplashScreen()`-Aufruf in MainActivity.onCreate aktiv, danach ersetzt
-         die API das Activity-Theme automatisch durch `Theme.Merlin`. Icon = die nackte
-         Vordergrund-PNG (`ic_launcher_foreground`) PLUS `windowSplashScreenIconBackgroundColor` –
-         genau dafür von der API vorgesehen: ein Icon OHNE eigene Hintergrund-Ebene wird sonst auf
-         eine engere Kreismaske beschnitten (unser 62%-Safe-Zone-Inhalt ragte minimal heraus); mit
-         gesetzter Icon-Hintergrundfarbe behandelt die API es wie ein Icon MIT Hintergrund-Ebene und
-         nutzt die großzügigere Maske. (Vorherige Idee, dafür ein eigenes `<adaptive-icon>`-Drawable
-         als `windowSplashScreenAnimatedIcon` zu referenzieren, ließ das Icon im Compat-Pfad
-         komplett verschwinden – dieser Weg ist der von der API dokumentierte und zuverlässige.) -->
+         start und dem ersten Compose-Frame aktiv, danach ersetzt die API das Activity-Theme
+         automatisch durch `Theme.Merlin`. Bewusst OHNE sichtbares Icon (`splash_icon_blank`):
+         die API maskiert ihr Icon kreisförmig, das Logo erschien dadurch rund abgeschnitten.
+         Das vollständige Logo samt Ladeindikator zeigt stattdessen der Compose-Splash
+         (ui/screens/MerlinSplash.kt) – wie iOS (leerer `UILaunchScreen`, dann `SplashView`).
+         Hintergrund Weiß wie iOS' `SplashView` (`Color.white`), damit der Übergang nahtlos ist. -->
     <style name="Theme.Merlin.Starting" parent="Theme.SplashScreen">
-        <item name="windowSplashScreenBackground">@color/ic_launcher_background</item>
-        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher_foreground</item>
-        <item name="windowSplashScreenIconBackgroundColor">@color/ic_launcher_background</item>
+        <item name="windowSplashScreenBackground">@color/splash_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/splash_icon_blank</item>
         <item name="postSplashScreenTheme">@style/Theme.Merlin</item>
     </style>
 </resources>
