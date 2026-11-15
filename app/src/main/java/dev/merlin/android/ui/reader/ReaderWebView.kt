@@ -21,6 +21,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -85,9 +86,13 @@ fun ReaderWebView(
     // Papierstruktur: die Seite bekommt keinen eigenen Hintergrund, der Aufrufer zeichnet ihn
     // dahinter (siehe `paperBackground` in PaperBackground.kt).
     transparentBackground: Boolean = false,
+    // Unterkante der Akzentfläche des Plakat-Headers in CSS-px (≈ dp) ab Seitenanfang.
+    onPosterBottom: (Float) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val webViewRef = remember { arrayOfNulls<ScrollRangeWebView>(1) }
+    // Die Bridge entsteht nur einmal in `factory`; über den State erreicht sie immer den aktuellen Callback.
+    val onPosterBottomState = rememberUpdatedState(onPosterBottom)
     val lastHtmlRef = remember { arrayOfNulls<String>(1) }
     // Quick-Close-Guard: erst nachdem der Restore-Loop das erste Placement gegen
     // eine echte Inhaltshöhe angewendet hat, darf onDispose speichern. Vorher
@@ -157,6 +162,7 @@ fun ReaderWebView(
                         onImageTap = onImageTap,
                         onSelectionChanged = onSelectionChanged,
                         onInfoPopover = onInfoPopover,
+                        onPosterBottom = { onPosterBottomState.value(it) },
                         onOpenExternalLink = { url ->
                             // Kein Browser installiert / Intent nicht auflösbar: still ignorieren.
                             runCatching {

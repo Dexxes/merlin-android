@@ -62,7 +62,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
@@ -84,6 +83,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -120,6 +120,8 @@ import androidx.compose.ui.unit.dp
 import androidx.core.graphics.toColorInt
 import androidx.core.net.toUri
 import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -205,12 +207,12 @@ fun ArticleReaderScreen(
     // (Hintergrund vs. Icon-Kontrast), die als helle/weiße Leiste sichtbar wird.
     val appBackgroundArgb = MaterialTheme.colorScheme.background.toArgb()
     val appIsDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    // Die Statusleiste färbt ein eigener SideEffect weiter unten (Akzentfarbe hinter dem Plakat-Header).
     SideEffect {
         if (!view.isInEditMode) {
             val window = (view.context as Activity).window
-            window.setSystemBarColors(chromeColors.background.toArgb())
+            window.setNavigationBarColorCompat(chromeColors.background.toArgb())
             val insetsController = WindowCompat.getInsetsController(window, view)
-            insetsController.isAppearanceLightStatusBars = !isChromeDark
             insetsController.isAppearanceLightNavigationBars = !isChromeDark
         }
     }
@@ -218,7 +220,8 @@ fun ArticleReaderScreen(
         onDispose {
             if (!view.isInEditMode) {
                 val window = (view.context as Activity).window
-                window.setSystemBarColors(appBackgroundArgb)
+                window.setStatusBarColorCompat(appBackgroundArgb)
+                window.setNavigationBarColorCompat(appBackgroundArgb)
                 val insetsController = WindowCompat.getInsetsController(window, view)
                 insetsController.isAppearanceLightStatusBars = !appIsDark
                 insetsController.isAppearanceLightNavigationBars = !appIsDark
@@ -269,6 +272,29 @@ fun ArticleReaderScreen(
     val paperTile = rememberPaperTile()
     var paperScrollPx by remember(viewModel.articleId) { mutableFloatStateOf(0f) }
     var scrollingDown by remember(viewModel.articleId) { mutableStateOf(false) }
+
+    // Plakat-Header (siehe ReaderHtmlBuilder.buildHeaderHtml): Die Akzentfläche reicht unter iOS bis
+    // unter die Statusleiste. Merlin läuft hier nicht edge-to-edge, die Statusleiste nimmt deshalb die
+    // Akzentfarbe an, solange die Fläche direkt darunter liegt, sonst die Reader-Hintergrundfarbe.
+    // `posterBottomPx` meldet die WebView (CSS-px ≈ dp, hier schon in echte Px umgerechnet);
+    // derivedStateOf komponiert nur neu, wenn der Zustand umkippt, nicht bei jedem Scroll-Frame.
+    var posterBottomPx by remember(viewModel.articleId) { mutableFloatStateOf(0f) }
+    val statusBarOnAccent by remember(viewModel.articleId) {
+        derivedStateOf { posterBottomPx > 0f && paperScrollPx < posterBottomPx }
+    }
+    val accentColor = remember(accentColorHex) {
+        runCatching { Color(accentColorHex.toColorInt()) }.getOrDefault(Color.Red)
+    }
+    val onAccentColor = remember(accentColorHex) { Color(PosterColors.onAccentHex(accentColorHex).toColorInt()) }
+    val statusBarColor = if (statusBarOnAccent) accentColor else chromeColors.background
+    val statusBarIsDark = statusBarColor.luminance() < 0.5f
+    SideEffect {
+        if (!view.isInEditMode) {
+            val window = (view.context as Activity).window
+            window.setStatusBarColorCompat(statusBarColor.toArgb())
+            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !statusBarIsDark
+        }
+    }
     var showBottomBar by remember(viewModel.articleId) { mutableStateOf(true) }
     val density = LocalDensity.current
     val deltaThresholdPx = with(density) { 4.dp.toPx() }
@@ -609,6 +635,15 @@ fun ArticleReaderScreen(
                                                 onReaderScrollMetrics(offset, range)
                                             },
                                             transparentBackground = showsPaper,
+                                            onPosterBottom = { cssPx ->
+                                                // Bei ARD/ZDF/3sat/Arte steht der native Player über der
+                                                // WebView, die Akzentfläche liegt dann nicht unter der Statusleiste.
+                                                posterBottomPx = if (NativeVideoHost.matches(currentArticle.url)) {
+                                                    0f
+                                                } else {
+                                                    with(density) { cssPx.dp.toPx() }
+                                                }
+                                            },
                                             modifier = Modifier
                                                 .fillMaxWidth()
                                                 .weight(1f)
@@ -668,8 +703,8 @@ fun ArticleReaderScreen(
                                                 autoScroll.stop()
                                                 showBottomBar = true
                                             },
-                                            chromeColors = chromeColors,
-                                            accentColorHex = accentColorHex,
+                                            accentColor = accentColor,
+                                            onAccentColor = onAccentColor,
                                         )
                                     } else {
                                         ReaderBottomBar(
@@ -688,7 +723,8 @@ fun ArticleReaderScreen(
                                                 null
                                             },
                                             onOpenMenu = { scope.launch { drawerState.open() } },
-                                            chromeColors = chromeColors,
+                                            accentColor = accentColor,
+                                            onAccentColor = onAccentColor,
                                         )
                                     }
                                 }
@@ -712,6 +748,29 @@ fun ArticleReaderScreen(
         !lifecycleState.isAtLeast(Lifecycle.State.RESUMED)
     LaunchedEffect(handsFreeShouldPause) {
         if (handsFreeShouldPause) autoScroll.pause()
+    }
+
+    // System-Navigationsleiste an die eigene Bottom bar koppeln: Sie verschwindet beim
+    // Runterscrollen zusammen mit der Leiste und kommt beim Hochscrollen mit ihr zurück. Ein Wisch
+    // vom unteren Rand zeigt sie solange kurz an. Beim Verlassen des Readers ist sie wieder da.
+    val readerBarVisible = showBottomBar || autoScroll.isActive
+    LaunchedEffect(readerBarVisible) {
+        if (view.isInEditMode) return@LaunchedEffect
+        val controller = WindowCompat.getInsetsController((view.context as Activity).window, view)
+        controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        if (readerBarVisible) {
+            controller.show(WindowInsetsCompat.Type.navigationBars())
+        } else {
+            controller.hide(WindowInsetsCompat.Type.navigationBars())
+        }
+    }
+    DisposableEffect(Unit) {
+        onDispose {
+            if (!view.isInEditMode) {
+                WindowCompat.getInsetsController((view.context as Activity).window, view)
+                    .show(WindowInsetsCompat.Type.navigationBars())
+            }
+        }
     }
 
     // Fortschrittsbalken als Geschwister-Overlay der Drawer/Scaffold-Hülle (siehe Kommentar an der
@@ -825,63 +884,60 @@ private fun ProgressBarOverlay(edge: ProgressEdge, progress: () -> Float, colorH
 /**
  * Reader-Bottom-Bar (abgeleitet von der iOS-`bottomBar` in ArticleReaderView.swift): gleich
  * breite Icon-Buttons ("Archivieren und zurück" links, optional Freihand-Lesen in der Mitte,
- * Menü rechts), getrennt durch Haarlinien, 54dp hoch, Hintergrund leicht transparent mit oberer
- * Haarlinie. Der frühere Zurück-Button und "Archivieren und weiter" wurden entfernt; das Menü kam
- * aus der früheren TopAppBar hierher und öffnet den (rechtsseitigen) Drawer. Archiviert nur
- * einseitig (nie un-archivieren), wie im iOS-Original. [onStartHandsFree] == null blendet den
- * Freihand-Button aus (Schalter im Erscheinungsbild-Sheet).
+ * Menü rechts), getrennt durch Haarlinien, 54dp hoch. Wie unter iOS in der Akzentfarbe des Users
+ * eingefärbt, Icons und Trennlinien in der darauf lesbaren Vordergrundfarbe (wie der Plakat-Header).
+ * Der frühere Zurück-Button und "Archivieren und weiter" wurden entfernt; das Menü kam aus der
+ * früheren TopAppBar hierher und öffnet den (rechtsseitigen) Drawer. Archiviert nur einseitig (nie
+ * un-archivieren), wie im iOS-Original. [onStartHandsFree] == null blendet den Freihand-Button aus
+ * (Schalter im Erscheinungsbild-Sheet).
  */
 @Composable
 private fun ReaderBottomBar(
     onArchiveAndBack: () -> Unit,
     onStartHandsFree: (() -> Unit)?,
     onOpenMenu: () -> Unit,
-    chromeColors: ReaderChromeColors,
+    accentColor: Color,
+    onAccentColor: Color,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier = modifier.fillMaxWidth()) {
-        HorizontalDivider(thickness = 0.5.dp, color = chromeColors.separator)
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(54.dp)
-                // Bewusst die "elevated" Reader-Chrome-Farbe statt `MaterialTheme.colorScheme.surface`:
-                // die Bottom-Bar soll zum gewählten Reader-Theme (Light/Dark/Sepia/Auto) passen, nicht
-                // zum System-Theme – siehe `rememberReaderChromeColors`-Kommentar oben.
-                .background(chromeColors.elevatedBackground.copy(alpha = 0.97f)),
-        ) {
+    val divider = onAccentColor.copy(alpha = 0.25f)
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(54.dp)
+            .background(accentColor.copy(alpha = 0.97f)),
+    ) {
+        BottomBarButton(
+            icon = Icons.Filled.Archive,
+            contentDescription = "Archivieren und zurück",
+            onClick = onArchiveAndBack,
+            tint = onAccentColor,
+            modifier = Modifier.weight(1f),
+        )
+        VerticalDivider(thickness = 0.5.dp, color = divider)
+        if (onStartHandsFree != null) {
             BottomBarButton(
-                icon = Icons.Filled.Archive,
-                contentDescription = "Archivieren und zurück",
-                onClick = onArchiveAndBack,
-                chromeColors = chromeColors,
+                icon = Icons.Filled.KeyboardDoubleArrowDown,
+                contentDescription = "Freihand-Lesen",
+                onClick = onStartHandsFree,
+                tint = onAccentColor,
                 modifier = Modifier.weight(1f),
             )
-            VerticalDivider(thickness = 0.5.dp, color = chromeColors.separator)
-            if (onStartHandsFree != null) {
-                BottomBarButton(
-                    icon = Icons.Filled.KeyboardDoubleArrowDown,
-                    contentDescription = "Freihand-Lesen",
-                    onClick = onStartHandsFree,
-                    chromeColors = chromeColors,
-                    modifier = Modifier.weight(1f),
-                )
-                VerticalDivider(thickness = 0.5.dp, color = chromeColors.separator)
-            }
-            BottomBarButton(
-                icon = Icons.Filled.Menu,
-                contentDescription = "Menü",
-                onClick = onOpenMenu,
-                chromeColors = chromeColors,
-                modifier = Modifier.weight(1f),
-            )
+            VerticalDivider(thickness = 0.5.dp, color = divider)
         }
+        BottomBarButton(
+            icon = Icons.Filled.Menu,
+            contentDescription = "Menü",
+            onClick = onOpenMenu,
+            tint = onAccentColor,
+            modifier = Modifier.weight(1f),
+        )
     }
 }
 
 /**
  * Freihand-Lesemodus: ersetzt die [ReaderBottomBar], solange der Modus an ist, in derselben Form
- * (Äquivalent zur iOS-`handsFreeBar`):
+ * und Akzentfarbe (Äquivalent zur iOS-`handsFreeBar`):
  *
  *   ⏸ | 🚶 ━━━━━●━━━━━ 🏃 | ✕
  *
@@ -894,81 +950,76 @@ private fun HandsFreeBar(
     controller: AutoScrollController,
     onSpeedChangeFinished: () -> Unit,
     onStop: () -> Unit,
-    chromeColors: ReaderChromeColors,
-    accentColorHex: String,
+    accentColor: Color,
+    onAccentColor: Color,
     modifier: Modifier = Modifier,
 ) {
-    val accent = remember(accentColorHex) {
-        runCatching { Color(accentColorHex.toColorInt()) }.getOrDefault(Color.Red)
-    }
+    val divider = onAccentColor.copy(alpha = 0.25f)
     val paused = controller.isPaused
     val speedDescription = when {
         controller.slider < 0.34f -> "langsam"
         controller.slider < 0.67f -> "mittel"
         else -> "schnell"
     }
-    Column(modifier = modifier.fillMaxWidth()) {
-        HorizontalDivider(thickness = 0.5.dp, color = chromeColors.separator)
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(54.dp)
+            .background(accentColor.copy(alpha = 0.97f)),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        BottomBarButton(
+            icon = if (paused) Icons.Filled.PlayArrow else Icons.Filled.Pause,
+            contentDescription = if (paused) "Weiter" else "Pause",
+            onClick = { controller.togglePause() },
+            tint = onAccentColor,
+            modifier = Modifier.width(60.dp),
+        )
+        VerticalDivider(thickness = 0.5.dp, color = divider)
         Row(
             modifier = Modifier
-                .fillMaxWidth()
-                .height(54.dp)
-                .background(chromeColors.elevatedBackground.copy(alpha = 0.97f)),
+                .weight(1f)
+                .padding(horizontal = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            BottomBarButton(
-                icon = if (paused) Icons.Filled.PlayArrow else Icons.Filled.Pause,
-                contentDescription = if (paused) "Weiter" else "Pause",
-                onClick = { controller.togglePause() },
-                chromeColors = chromeColors,
-                modifier = Modifier.width(60.dp),
+            Icon(
+                Icons.AutoMirrored.Filled.DirectionsWalk,
+                contentDescription = null,
+                tint = onAccentColor.copy(alpha = 0.75f),
+                modifier = Modifier.size(16.dp),
             )
-            VerticalDivider(thickness = 0.5.dp, color = chromeColors.separator)
-            Row(
+            Slider(
+                value = controller.slider,
+                onValueChange = { controller.slider = it },
+                onValueChangeFinished = onSpeedChangeFinished,
+                colors = SliderDefaults.colors(
+                    thumbColor = onAccentColor,
+                    activeTrackColor = onAccentColor,
+                    inactiveTrackColor = onAccentColor.copy(alpha = 0.3f),
+                ),
                 modifier = Modifier
                     .weight(1f)
-                    .padding(horizontal = 14.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                Icon(
-                    Icons.AutoMirrored.Filled.DirectionsWalk,
-                    contentDescription = null,
-                    tint = chromeColors.mutedForeground,
-                    modifier = Modifier.size(16.dp),
-                )
-                Slider(
-                    value = controller.slider,
-                    onValueChange = { controller.slider = it },
-                    onValueChangeFinished = onSpeedChangeFinished,
-                    colors = SliderDefaults.colors(
-                        thumbColor = accent,
-                        activeTrackColor = accent,
-                        inactiveTrackColor = chromeColors.mutedForeground.copy(alpha = 0.3f),
-                    ),
-                    modifier = Modifier
-                        .weight(1f)
-                        .semantics {
-                            contentDescription = "Scrollgeschwindigkeit"
-                            stateDescription = speedDescription
-                        },
-                )
-                Icon(
-                    Icons.AutoMirrored.Filled.DirectionsRun,
-                    contentDescription = null,
-                    tint = chromeColors.mutedForeground,
-                    modifier = Modifier.size(16.dp),
-                )
-            }
-            VerticalDivider(thickness = 0.5.dp, color = chromeColors.separator)
-            BottomBarButton(
-                icon = Icons.Filled.Close,
-                contentDescription = "Freihand-Lesen beenden",
-                onClick = onStop,
-                chromeColors = chromeColors,
-                modifier = Modifier.width(60.dp),
+                    .semantics {
+                        contentDescription = "Scrollgeschwindigkeit"
+                        stateDescription = speedDescription
+                    },
+            )
+            Icon(
+                Icons.AutoMirrored.Filled.DirectionsRun,
+                contentDescription = null,
+                tint = onAccentColor.copy(alpha = 0.75f),
+                modifier = Modifier.size(16.dp),
             )
         }
+        VerticalDivider(thickness = 0.5.dp, color = divider)
+        BottomBarButton(
+            icon = Icons.Filled.Close,
+            contentDescription = "Freihand-Lesen beenden",
+            onClick = onStop,
+            tint = onAccentColor,
+            modifier = Modifier.width(60.dp),
+        )
     }
 }
 
@@ -977,7 +1028,7 @@ private fun BottomBarButton(
     icon: ImageVector,
     contentDescription: String,
     onClick: () -> Unit,
-    chromeColors: ReaderChromeColors,
+    tint: Color,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -987,7 +1038,7 @@ private fun BottomBarButton(
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(icon, contentDescription = contentDescription, tint = chromeColors.foreground)
+        Icon(icon, contentDescription = contentDescription, tint = tint)
     }
 }
 
@@ -1202,7 +1253,11 @@ private fun rememberReaderChromeColors(theme: ReaderTheme): ReaderChromeColors {
  * edge-to-edge plus Hintergrund hinter den System-Insets.
  */
 @Suppress("DEPRECATION")
-private fun Window.setSystemBarColors(argb: Int) {
+private fun Window.setStatusBarColorCompat(argb: Int) {
     statusBarColor = argb
+}
+
+@Suppress("DEPRECATION")
+private fun Window.setNavigationBarColorCompat(argb: Int) {
     navigationBarColor = argb
 }

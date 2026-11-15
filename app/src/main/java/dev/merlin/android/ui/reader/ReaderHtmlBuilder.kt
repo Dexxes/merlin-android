@@ -32,10 +32,13 @@ object ReaderHtmlBuilder {
             ReaderTheme.LIGHT, ReaderTheme.SEPIA -> true
         }
 
-    /** Eine Zelle der Info-Card (`buildHeaderHtml`); `tapKind` != null macht sie per `READER_JS` antippbar. */
-    private data class InfoCell(
-        val label: String,
-        val value: String,
+    /**
+     * Ein Segment der Metazeile im Plakat-Header (`buildHeaderHtml`); `tapKind` != null macht es per
+     * `READER_JS` antippbar (Popover mit [popoverLabel]/[popoverValue]). Werte sind unescaped.
+     */
+    private data class MetaSegment(
+        val text: String,
+        val kind: String,
         val tapKind: String? = null,
         val popoverLabel: String? = null,
         val popoverValue: String? = null,
@@ -70,19 +73,23 @@ object ReaderHtmlBuilder {
         transparentBackground: Boolean = false,
     ): String {
         // Reihenfolge wie im iOS-Template (`buildReaderHTML` in ArticleReaderView.swift):
-        // Titelbild-Entfernung bei ARD/ZDF/3sat/Arte → Aufmacher-Video → YouTube-Karten.
+        // Titelbild einfügen → Titelbild-Entfernung bei ARD/ZDF/3sat/Arte → Aufmacher-Video →
+        // YouTube-Karten.
         val bodyHtml = ReaderMediaRewriter.rewriteYouTubeEmbeds(
             promoteHeroVideo(
                 stripHeroImageIfShownAsVideoCover(
-                    article.content ?: "<p>${escapeHtml(article.excerpt ?: "")}</p>",
+                    injectHeroImageIfNeeded(
+                        article.content ?: "<p>${escapeHtml(article.excerpt ?: "")}</p>",
+                        article,
+                    ),
                     article.url,
                 ),
                 article,
             ),
         )
-        val (_, fg, mutedFg) = themeColors(appearance.theme, isSystemDark)
+        val leadsWithHero = leadsWithHero(bodyHtml, article)
         val css = buildCss(appearance, isSystemDark, transparentBackground)
-        val headerHtml = buildHeaderHtml(article, fg, mutedFg, appearance.accentColorHex)
+        val headerHtml = buildHeaderHtml(article, leadsWithHero)
         val footerHtml = buildFooterHtml(article)
         val highlightsJson = encodeHighlightsForJs(highlights)
         // Erst NACH dem Wiederherstellen der Highlights einfügen (siehe `buildSupportBoxScript`).
@@ -99,7 +106,7 @@ object ReaderHtmlBuilder {
               <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
               <style>$css</style>
             </head>
-            <body>
+            <body${if (leadsWithHero) " class=\"merlin-leads-hero\"" else ""}>
               $headerHtml
               <div id="merlin-content">$bodyHtml$footerHtml</div>
               <script>$READER_JS</script>
@@ -178,90 +185,116 @@ object ReaderHtmlBuilder {
         }
 
     /**
-     * Äquivalent zu `articleHeader` im iOS-Original (ArticleReaderView.swift, Zeilen ~1628–1812):
-     * Site-Zeile (Akzent-Balken + Sitename), Titel, Teaser/Excerpt, Info-Card
-     * (Autor · Lesezeit · Erschienen/Gespeichert) und Tags – in dieser Reihenfolge.
-     * Lebte ursprünglich als eigene, sticky Compose-Zeile *über* der WebView; jetzt Teil des
-     * WebView-eigenen Scroll-Inhalts, damit der komplette Header (inkl. Titel + Teaser) wie auf
-     * iOS ganz normal mit dem Artikeltext mitscrollt statt fixiert zu bleiben. Die native
-     * TopAppBar zeigt den Titel deshalb nicht mehr an (siehe `ArticleReaderScreen.kt`) – er
-     * existiert nur noch einmal, hier im scrollenden Header.
+     * Plakat-Header wie `articleHeader` in `ArticleReaderView.swift` (Design „Plakat-Header mit
+     * Tonstufen“): eine Fläche in der Akzentfarbe des Users mit Topline (Site links, erster Tag
+     * rechts, 2px-Linie darunter), Titel, Teaser und einer einzeiligen Metazeile (2px-Linie
+     * darüber). Info-Card und Tag-Pills gibt es nicht mehr.
+     *
+     * Unter iOS ist der Header eine native SwiftUI-View über der WebView, hier Teil des
+     * WebView-Inhalts (scrollt mit dem Text mit). Beginnt der Artikel mit einem Titelbild
+     * ([leadsWithHero]), setzt das CSS die Fläche randlos um das Bild fort und zeichnet die
+     * Tonstufen unter der Bildunterschrift; sonst zeichnet der Header die Stufen selbst.
      */
-    private fun buildHeaderHtml(article: Article, fg: String, mutedFg: String, accentColorHex: String): String {
-        val siteHtml = if (article.displaySiteName.isNotBlank()) {
-            """
-            <div class="merlin-header-site">
-              <span class="merlin-header-accent"></span>
-              <span>${escapeHtml(article.displaySiteName.uppercase())}</span>
-            </div>
-            """.trimIndent()
+    private fun buildHeaderHtml(article: Article, leadsWithHero: Boolean): String {
+        val site = article.displaySiteName.trim()
+        val firstTag = article.tags.firstOrNull()?.name?.trim().orEmpty()
+        val toplineHtml = if (site.isNotEmpty() || firstTag.isNotEmpty()) {
+            // Tipp auf den Sitenamen öffnet den Artikel im Browser (iOS: Link-Dialog).
+            val siteHtml = if (site.isNotEmpty()) {
+                val url = safeHttpUrl(article.url)
+                if (url != null) {
+                    "<span class=\"merlin-poster-site\" data-open-url=\"${escapeHtmlAttr(url)}\">${escapeHtml(site)}</span>"
+                } else {
+                    "<span class=\"merlin-poster-site\">${escapeHtml(site)}</span>"
+                }
+            } else "<span></span>"
+            val tagHtml = if (firstTag.isNotEmpty()) "<span class=\"merlin-poster-tag\">${escapeHtml(firstTag)}</span>" else ""
+            "<div class=\"merlin-poster-top\">$siteHtml$tagHtml</div>"
         } else ""
 
         val excerptHtml = if (!article.excerpt.isNullOrBlank()) {
-            "<div class=\"merlin-header-excerpt\">${escapeHtml(article.excerpt)}</div>"
+            "<div class=\"merlin-poster-excerpt\">${escapeHtml(article.excerpt)}</div>"
         } else ""
 
-        // `tapKind`/`popoverLabel`/`popoverValue` treiben den Klick-Handler in `READER_JS`
-        // (Äquivalent zu iOS' `.popover`-Flyouts in ArticleReaderView.swift, Zeilen ~1683–1781):
-        // "author" zeigt den vollen Wert nur, wenn die einzeilige CSS-Truncation (s.u.) wirklich
-        // greift; "date" (nur gesetzt, wenn sowohl `publishedAt` als auch `createdAt` bekannt
-        // sind, also die Zelle "ERSCHIENEN" zeigt) öffnet immer ein Popover mit dem
-        // Hinzugefügt-Datum – fehlt `publishedAt`, zeigt die Zelle ohnehin schon `createdAt`
-        // direkt ("GESPEICHERT"), ein Popover wäre dort redundant (1:1 iOS-Logik).
-        val infoCells = mutableListOf<InfoCell>()
-        if (!article.author.isNullOrBlank()) {
-            infoCells.add(InfoCell("VON", escapeHtml(article.author), tapKind = "author"))
+        // Metazeile „Von Max Muster · 4 min · 24.09.26“ (iOS: `metaLineRow`). Der Autor weicht bei
+        // Platzmangel zuerst (einzeilig abgeschnitten, Tipp zeigt dann den vollen Namen); „Erschienen“
+        // öffnet per Tipp das Gespeichert-am-Popover. Fehlt `publishedAt`, steht direkt das
+        // Gespeichert-Datum da, ein Popover wäre dort redundant (wie iOS).
+        val segments = mutableListOf<MetaSegment>()
+        article.author?.trim()?.takeIf { it.isNotEmpty() }?.let { author ->
+            segments.add(MetaSegment("Von $author", kind = "author", tapKind = "author", popoverLabel = "Von", popoverValue = author))
         }
-        if (article.readingTime > 0) infoCells.add(InfoCell("LESEZEIT", "${article.readingTime} min"))
+        if (article.readingTime > 0) segments.add(MetaSegment("${article.readingTime} min", kind = "time"))
         val publishedFormatted = formatHeaderDate(article.publishedAt)
         val createdFormatted = formatHeaderDate(article.createdAt)
         if (publishedFormatted != null) {
-            infoCells.add(
-                InfoCell(
-                    "ERSCHIENEN",
+            segments.add(
+                MetaSegment(
                     publishedFormatted,
+                    kind = "date",
                     tapKind = if (createdFormatted != null) "date" else null,
-                    popoverLabel = "Hinzugefügt am",
+                    popoverLabel = "Gespeichert",
                     popoverValue = createdFormatted,
-                )
+                ),
             )
         } else if (createdFormatted != null) {
-            infoCells.add(InfoCell("GESPEICHERT", createdFormatted))
+            segments.add(MetaSegment(createdFormatted, kind = "date"))
         }
-
-        val infoCardHtml = if (infoCells.isNotEmpty()) {
-            "<div class=\"merlin-header-info\">" +
-                infoCells.joinToString("") { cell ->
-                    val attrs = if (cell.tapKind != null) {
-                        " data-tap-kind=\"${cell.tapKind}\"" +
-                            " data-popover-label=\"${escapeHtmlAttr(cell.popoverLabel ?: cell.label)}\"" +
-                            " data-popover-value=\"${escapeHtmlAttr(cell.popoverValue ?: cell.value)}\""
-                    } else ""
-                    "<div class=\"merlin-header-info-cell\"$attrs><span class=\"merlin-header-info-label\">${cell.label}</span><span class=\"merlin-header-info-value\">${cell.value}</span></div>"
-                } +
-                "</div>"
+        val metaHtml = if (segments.isNotEmpty()) {
+            val parts = segments.mapIndexed { idx, seg ->
+                val attrs = buildString {
+                    if (seg.tapKind != null && seg.popoverValue != null) {
+                        append(" data-tap-kind=\"${seg.tapKind}\"")
+                        append(" data-popover-label=\"${escapeHtmlAttr(seg.popoverLabel.orEmpty())}\"")
+                        append(" data-popover-value=\"${escapeHtmlAttr(seg.popoverValue)}\"")
+                    }
+                }
+                val segHtml = "<span class=\"merlin-poster-meta-${seg.kind}\"$attrs>${escapeHtml(seg.text)}</span>"
+                // Punkt hinter dem Autor nur bei Trunkierung sichtbar (wie iOS, Platz bleibt reserviert).
+                val dot = if (idx < segments.size - 1) {
+                    val dotClass = if (seg.kind == "author") "merlin-poster-dot merlin-poster-dot-author" else "merlin-poster-dot"
+                    "<span class=\"$dotClass\">·</span>"
+                } else ""
+                segHtml + dot
+            }
+            "<div class=\"merlin-poster-meta\">${parts.joinToString("")}</div>"
         } else ""
 
-        val tagsHtml = if (article.tags.isNotEmpty()) {
-            "<div class=\"merlin-header-tags\">" +
-                article.tags.joinToString("") { tag ->
-                    val hex = tag.color?.takeIf { it.isNotBlank() } ?: "#8E8E93"
-                    val bg = hexToRgba(hex, 0.12)
-                    val border = hexToRgba(hex, 0.3)
-                    "<span style=\"color:$hex;background:$bg;border-color:$border;\">${escapeHtml(tag.name)}</span>"
-                } +
-                "</div>"
-        } else ""
+        val stepsHtml = if (!leadsWithHero) "<div class=\"merlin-poster-steps\"></div>" else ""
 
         return """
             <div id="merlin-header">
-              $siteHtml
-              <div class="merlin-header-title">${escapeHtml(article.displayTitle)}</div>
-              $excerptHtml
-              $infoCardHtml
-              $tagsHtml
+              <div class="merlin-poster">
+                $toplineHtml
+                <div class="merlin-poster-title">${escapeHtml(article.displayTitle)}</div>
+                $excerptHtml
+                $metaHtml
+              </div>
+              $stepsHtml
             </div>
         """.trimIndent()
+    }
+
+    /**
+     * Fügt das Titelbild (`article.imageUrl`) als erste `<figure>` ein, wenn der Artikeltext nicht
+     * schon in den ersten 500 Zeichen ein Bild hat - wie `injectHeroImageIfNeeded` in
+     * `ArticleReaderView.swift`. So beginnt der Reader wie unter iOS mit dem Bild auf der
+     * Akzentfläche. Bei ARD/ZDF/3sat/Arte zeigt der native Player das Bild bereits als Cover.
+     */
+    private fun injectHeroImageIfNeeded(content: String, article: Article): String {
+        if (NativeVideoHost.matches(article.url) || article.isPdf) return content
+        val prefix = content.take(500).lowercase()
+        if (prefix.contains("<img") || prefix.contains("<figure") || prefix.contains("<picture")) return content
+        val imageUrl = article.imageUrl?.let(::safeHttpUrl) ?: return content
+        // Bewusst ohne Zeilenumbruch dahinter: ein zusätzlicher Textknoten verschöbe die XPaths der Markierungen.
+        return "<figure><img src=\"${escapeHtmlAttr(imageUrl)}\" alt=\"\"></figure>$content"
+    }
+
+    /** true, wenn der Artikeltext direkt mit dem Titelbild beginnt (siehe [buildHeaderHtml]). */
+    private fun leadsWithHero(bodyHtml: String, article: Article): Boolean {
+        if (NativeVideoHost.matches(article.url)) return false
+        val head = bodyHtml.trimStart().take(8).lowercase()
+        return head.startsWith("<figure") || head.startsWith("<img")
     }
 
     /** `dd.MM.yy` analog zur Kurzdatumsdarstellung im iOS-Original (`shortDate`). */
@@ -280,12 +313,6 @@ object ReaderHtmlBuilder {
         return runCatching { headerDateFormatter.format(java.util.Date.from(instant)) }.getOrNull()
     }
 
-    /** Hex-Farbe (`#RRGGBB`) → `rgba(r,g,b,alpha)`-CSS-String für die Tag-Pills. */
-    private fun hexToRgba(hex: String, alpha: Double): String = runCatching {
-        val color = android.graphics.Color.parseColor(hex)
-        "rgba(${android.graphics.Color.red(color)},${android.graphics.Color.green(color)},${android.graphics.Color.blue(color)},$alpha)"
-    }.getOrDefault("rgba(142,142,147,$alpha)")
-
     private fun buildCss(
         appearance: ArticleReaderViewModel.Appearance,
         isSystemDark: Boolean,
@@ -294,6 +321,30 @@ object ReaderHtmlBuilder {
         val (bg, fg, mutedFg) = themeColors(appearance.theme, isSystemDark)
         // Papierstruktur: Hintergrund durchsichtig, die Fläche dahinter zeichnet Compose.
         val paperCss = if (transparentBackground) "html, body { background-color: transparent; }" else ""
+        val isDark = bg == "#000000"
+        val isSepia = appearance.theme == ReaderTheme.SEPIA
+        val accent = appearance.accentColorHex
+        val onAccent = PosterColors.onAccentHex(accent)
+        val titleSize = String.format(java.util.Locale.US, "%.1f", appearance.fontSize * 2.1)
+        // Tonstufen (14/12/10/8 px, 75/55/35/15 % Akzent) gegen die Theme-Hintergrundfarbe.
+        val stepColors = PosterColors.stepColors(accent, bg)
+        val stepsHeight = PosterColors.stepsHeight
+        var y = 0
+        val gradientStops = PosterColors.steps.zip(stepColors).joinToString(", ") { (step, color) ->
+            val from = y
+            y += step.first
+            "$color ${from}px ${y}px"
+        }
+        val stepsGradient = "linear-gradient(to bottom, $gradientStops)"
+        var shadowY = 0
+        val stepsShadow = PosterColors.steps.zip(stepColors).joinToString(", ") { (step, color) ->
+            shadowY += step.first
+            "0 ${shadowY}px 0 $color"
+        }
+        val codeBg = when { isSepia -> "#e8d9be"; isDark -> "#2c2c2e"; else -> "#f2f2f7" }
+        val hairline = if (isDark) "#2c2c2e" else "#e5e5ea"
+        val tableBorder = if (isDark) "#3a3a3c" else "#d1d1d6"
+        val infoboxBg = when { isSepia -> "#e8d9be"; isDark -> "#1e2d3d"; else -> "#f0f7ff" }
         return """
             html, body {
               margin: 0; padding: 0;
@@ -305,48 +356,94 @@ object ReaderHtmlBuilder {
               -webkit-text-size-adjust: 100%;
             }
             $paperCss
-            #merlin-header { padding: 16px 20px 8px; }
-            .merlin-header-site { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
-            .merlin-header-accent { width: 18px; height: 3px; border-radius: 2px; background: ${appearance.accentColorHex}; flex-shrink: 0; }
-            .merlin-header-site span:last-child { font-size: 12px; font-weight: 600; letter-spacing: 1.2px; color: $mutedFg; }
-            .merlin-header-title { font-size: ${appearance.fontSize + 5}px; font-weight: 700; line-height: 1.25; color: $fg; }
-            .merlin-header-excerpt { margin-top: 8px; font-size: ${appearance.fontSize - 1}px; line-height: 1.4; color: $mutedFg; }
-            .merlin-header-info {
-              margin-top: 14px; display: flex; border: 1px solid rgba(127,127,127,0.25);
-              border-radius: 10px; overflow: hidden;
+            /* ── Plakat-Header (wie `articleHeader` in ArticleReaderView.swift) ── */
+            #merlin-header { margin: 0; }
+            .merlin-poster {
+              background: $accent; color: $onAccent;
+              padding: 28px 20px 22px;
+              display: flex; flex-direction: column; gap: 18px;
             }
-            .merlin-header-info-cell {
-              flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; padding: 8px 10px;
-              border-left: 1px solid rgba(127,127,127,0.25);
+            .merlin-poster-top {
+              display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+              font-size: 11px; font-weight: 700; letter-spacing: 2px; line-height: 1.3;
+              padding-bottom: 8px; border-bottom: 2px solid $onAccent;
             }
-            .merlin-header-info-cell:first-child { border-left: none; }
-            .merlin-header-info-cell[data-tap-kind] { cursor: pointer; }
-            .merlin-header-info-label { font-size: 9px; font-weight: 600; letter-spacing: 1px; color: $mutedFg; }
-            /* Niemals zweizeilig (Äquivalent zu iOS' `.lineLimit(1)`): einzeilig abschneiden statt
-               umzubrechen – der Klick-Handler in READER_JS erkennt die Truncation per
-               scrollWidth/clientWidth und bietet dann (nur für "Von") ein natives Popover an. */
-            .merlin-header-info-value {
-              font-size: 12px; font-weight: 600; color: $fg;
-              display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            .merlin-poster-site { flex: 0 1 auto; min-width: 0; overflow-wrap: anywhere; }
+            .merlin-poster-site[data-open-url] { cursor: pointer; }
+            .merlin-poster-tag {
+              flex: 0 1 auto; min-width: 0; text-align: right;
+              white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
             }
-            .merlin-header-tags { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px; }
-            .merlin-header-tags span {
-              font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 12px;
-              border: 1px solid transparent;
+            .merlin-poster-title {
+              font-size: ${titleSize}px; font-weight: 800; letter-spacing: -1px; line-height: 1.15;
+              overflow-wrap: break-word; hyphens: auto;
             }
-            #merlin-content { padding: 8px 20px 48px; }
-            /* Erstes Element direkt unter dem Header (i. d. R. das Hero-Bild) bekommt keinen
-               eigenen Top-Margin – sonst summiert sich der Innenabstand von #merlin-header,
-               #merlin-content und der figure-Margin zu einem unnötig großen Abstand. */
+            .merlin-poster-excerpt { font-size: ${appearance.fontSize}px; font-weight: 500; line-height: 1.35; }
+            /* Niemals zweizeilig: der Autor weicht zuerst (einzeilig abgeschnitten, Tipp zeigt
+               dann den vollen Namen), Lesezeit und Datum behalten ihre Breite. */
+            .merlin-poster-meta {
+              display: flex; align-items: baseline; gap: 6px;
+              font-size: 11px; font-weight: 700; letter-spacing: 1px; line-height: 1.3;
+              white-space: nowrap; padding-top: 8px; border-top: 2px solid $onAccent;
+            }
+            .merlin-poster-meta > span { flex: none; }
+            .merlin-poster-meta > .merlin-poster-meta-author {
+              flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis;
+            }
+            .merlin-poster-meta [data-tap-kind] { cursor: pointer; }
+            /* Punkt hinter dem Autor nur, wenn der Name abgeschnitten ist (READER_JS setzt die Klasse). */
+            .merlin-poster-dot-author { visibility: hidden; }
+            .merlin-poster-meta.merlin-poster-meta--truncated .merlin-poster-dot-author { visibility: visible; }
+            /* Tonstufen Akzent → Hintergrund, wenn kein Titelbild die Fläche fortsetzt. */
+            .merlin-poster-steps { height: ${stepsHeight}px; background: $stepsGradient; }
+            #merlin-content { padding: 16px 20px 48px; }
+            .merlin-leads-hero #merlin-content { padding-top: 0; }
+            /* Erstes Element direkt unter dem Header bekommt keinen eigenen Top-Margin. */
             #merlin-content > *:first-child { margin-top: 0; }
+            #merlin-content > *:first-child > *:first-child { margin-top: 0; }
             img, video { max-width: 100%; height: auto; border-radius: 8px; display: block; }
-            figure { margin: 1em 0; }
-            figcaption { color: ${appearance.accentColorHex}; font-size: 0.85em; margin-top: 6px; }
-            /* Links in Textfarbe statt Akzentfarbe (Unterstreichung bleibt einziges
-               Unterscheidungsmerkmal zu normalem Fließtext). */
-            a { color: $fg; text-decoration: underline; }
-            p, li { margin: 0 0 1em 0; }
-            h1, h2, h3 { line-height: 1.25; }
+            img { margin: 8px 0; }
+            figure { margin: 1em 0 0; }
+            figure img { margin-bottom: 0; }
+            figcaption {
+              font-size: 0.75em; line-height: 1.4; color: $accent; text-align: left;
+              margin-top: 2px; margin-bottom: 1em;
+            }
+            /* Bildquelle (vom Server als <cite> markiert): nicht fett, kursiv, halbtransparent */
+            figcaption cite { font-weight: 400; font-style: italic; opacity: 0.5; }
+            figcaption cite * { font-weight: inherit; font-style: inherit; }
+            /* Links in Bildunterschriften wie der übrige Caption-Text */
+            figcaption a { color: inherit !important; text-decoration: none; }
+            /* p { margin-top: 0 } ließe den ersten Absatz sonst direkt am Bild darüber kleben. */
+            img + p, figure + p { margin-top: 1em; }
+            /* Links in Textfarbe, Unterstreichung in der gedämpften Farbe (wie iOS). */
+            a { color: $fg; text-decoration: underline; text-decoration-color: $mutedFg; }
+            p { margin: 0 0 1em 0; }
+            h1, h2, h3 { line-height: 1.3; margin-top: 1.6em; margin-bottom: 0.4em; }
+            h1 { font-size: 1.5em; }
+            h2 { font-size: 1.25em; }
+            h3 { font-size: 1.1em; }
+            ul, ol { padding-left: 1.5em; }
+            li { margin: 0 0 0.3em 0; }
+            hr { border: none; border-top: 1px solid $hairline; margin: 2em 0; }
+            table {
+              border-collapse: collapse; width: 100%; max-width: 100%; font-size: 0.9em;
+              display: block; overflow-x: auto;
+            }
+            th, td { padding: 8px 12px; border: 1px solid $tableBorder; text-align: left; }
+            th { background: $codeBg; font-weight: 600; }
+            pre, code { background: $codeBg; border-radius: 6px; font-size: 0.9em; }
+            code { padding: 2px 5px; }
+            pre { padding: 12px; overflow-x: auto; white-space: pre; }
+            pre code { background: none; padding: 0; }
+            .merlin-infobox {
+              background: $infoboxBg; border-left: 4px solid $accent;
+              border-radius: 0 8px 8px 0; padding: 14px 16px; margin: 1.5em 0;
+              font-size: 0.93em; line-height: 1.6; color: $fg;
+            }
+            .merlin-infobox > *:first-child { margin-top: 0; }
+            .merlin-infobox > *:last-child { margin-bottom: 0; }
+            .merlin-infobox a { color: $accent !important; }
             /* Querformat: Bilder (insb. das Hero-Bild aus ContentExtractorService.php,
                <figure class="merlin-hero-image">) sollen fast die gesamte Bildschirmbreite
                einnehmen statt vom 20px-Innenabstand von #merlin-content eingeengt zu werden.
@@ -360,6 +457,36 @@ object ReaderHtmlBuilder {
                 border-radius: 4px;
               }
             }
+            /* ── Titelbild auf Akzentfläche, randlos, danach Tonstufen (wie iOS) ── */
+            #merlin-content > figure:first-child,
+            #merlin-content > img:first-child {
+              display: block;
+              width: calc(100% + 40px) !important;
+              max-width: none !important;
+              margin: 0 -20px 0 !important;
+              background: $accent;
+              border-radius: 0 !important;
+            }
+            #merlin-content > figure:first-child img {
+              width: 100% !important; max-width: 100% !important;
+              margin: 0 !important; border-radius: 0 !important;
+            }
+            #merlin-content > figure:first-child figcaption {
+              margin: 0; padding: 10px 20px 14px;
+              color: $onAccent;
+              font-size: 11px; font-weight: 700; letter-spacing: 1px;
+            }
+            #merlin-content > figure:first-child::after {
+              content: ""; display: block; height: ${stepsHeight}px;
+              background: $stepsGradient;
+            }
+            /* nacktes <img> ohne <figure>: Stufen per box-shadow */
+            #merlin-content > img:first-child {
+              margin-bottom: ${stepsHeight}px !important;
+              box-shadow: $stepsShadow;
+            }
+            #merlin-content > figure.merlin-inline-media:first-child merlin-inline-player video { border-radius: 0; }
+            #merlin-content > figure.merlin-inline-media:first-child > .merlin-inline-media-source { padding: 0 20px; }
             blockquote {
               margin: 1.5em 0; padding: 0;
               text-align: center;
@@ -382,14 +509,14 @@ object ReaderHtmlBuilder {
             /* Some sources place the attribution in a paragraph right after the
                blockquote (e.g. <blockquote>…</blockquote><p><cite>Name</cite></p>)
                instead of nesting it inside the blockquote itself. */
-            blockquote + p {
+            blockquote + p:has(> cite:only-child) {
               display: block;
               text-align: center !important;
               font-family: ${dev.merlin.android.models.ReaderFont.SYSTEM.cssValue};
               font-size: 0.85em;
               color: ${appearance.accentColorHex};
             }
-            blockquote + p cite, blockquote + p cite * { font-style: normal; }
+            blockquote + p:has(> cite:only-child) cite, blockquote + p:has(> cite:only-child) cite * { font-style: normal; }
             pre, code { font-family: ${dev.merlin.android.models.ReaderFont.MONO.cssValue}; }
             .merlin-highlight { border-radius: 2px; padding: 0 1px; cursor: pointer; }
             .merlin-img-error {
@@ -763,22 +890,25 @@ window.MerlinReader = (function() {
     }
   });
 
-  // Info-Card-Popover (Äquivalent zu iOS' `.popover`-Flyouts): "Von" nur bei
+  // Metazeilen-Popover im Plakat-Header (Äquivalent zu iOS' `.popover`-Flyouts): "Von" nur bei
   // tatsächlicher Truncation (scrollWidth>clientWidth), "Erschienen" (data-tap-kind="date")
   // immer – siehe `buildHeaderHtml`-Kommentar für die Auswahllogik.
   document.addEventListener('click', function(ev) {
-    var cell = ev.target.closest && ev.target.closest('.merlin-header-info-cell[data-tap-kind]');
+    if (!ev.target.closest) return;
+    var site = ev.target.closest('#merlin-header [data-open-url]');
+    if (site) {
+      MerlinHighlightBridge.onOpenExternalLink(site.getAttribute('data-open-url'));
+      return;
+    }
+    var cell = ev.target.closest('#merlin-header [data-tap-kind]');
     if (!cell) return;
     var kind = cell.getAttribute('data-tap-kind');
-    if (kind === 'author') {
-      var valueEl = cell.querySelector('.merlin-header-info-value');
-      if (!valueEl || valueEl.scrollWidth <= valueEl.clientWidth + 1) return;
-    }
+    if (kind === 'author' && cell.scrollWidth <= cell.clientWidth + 1) return;
     var label = cell.getAttribute('data-popover-label') || '';
     var value = cell.getAttribute('data-popover-value') || '';
     if (!value) return;
-    // Rect der angetippten Zelle (CSS-px, bereits scroll-relativ wie bei `onSelectionChange`
-    // oben) – Kotlin braucht die Position, um das Popover über/unter der Zelle zu verankern
+    // Rect des angetippten Segments (CSS-px, bereits scroll-relativ wie bei `onSelectionChange`
+    // oben) – Kotlin braucht die Position, um das Popover über/unter dem Segment zu verankern
     // statt es wirkungslos zentriert anzuzeigen (siehe `InfoPopoverOverlay`).
     var rect = cell.getBoundingClientRect();
     MerlinHighlightBridge.onInfoPopover(JSON.stringify({
@@ -786,6 +916,32 @@ window.MerlinReader = (function() {
       x: rect.left, y: rect.top, width: rect.width, height: rect.height
     }));
   });
+
+  // Plakat-Header: Punkt hinter dem Autor nur bei abgeschnittenem Namen zeigen und die Unterkante
+  // der Akzentfläche (Header bzw. führendes Titelbild samt Bildunterschrift) an Kotlin melden –
+  // dort färbt sich die Statusleiste in der Akzentfarbe, solange die Fläche darunter liegt.
+  function layoutPoster() {
+    var author = document.querySelector('.merlin-poster-meta-author');
+    if (author) {
+      author.parentNode.classList.toggle('merlin-poster-meta--truncated', author.scrollWidth > author.clientWidth + 1);
+    }
+    var poster = document.querySelector('#merlin-header .merlin-poster');
+    if (!poster) return;
+    var bottom = poster.getBoundingClientRect().bottom;
+    if (document.body.classList.contains('merlin-leads-hero')) {
+      var hero = document.querySelector('#merlin-content > figure:first-child, #merlin-content > img:first-child');
+      if (hero) bottom = hero.getBoundingClientRect().bottom;
+    }
+    if (MerlinHighlightBridge.onPosterBottom) {
+      MerlinHighlightBridge.onPosterBottom(bottom + (window.scrollY || 0));
+    }
+  }
+  layoutPoster();
+  window.addEventListener('load', layoutPoster);
+  window.addEventListener('resize', layoutPoster);
+  document.addEventListener('load', function(ev) {
+    if (ev.target && ev.target.tagName === 'IMG') layoutPoster();
+  }, true);
 
   document.addEventListener('error', function(ev) {
     var el = ev.target;
