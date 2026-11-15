@@ -138,6 +138,10 @@ fun ReaderWebView(
         ReaderHtmlBuilder.highlightsScript(highlights, commentCounts)
     }
     val highlightsScriptState = rememberUpdatedState(highlightsScript)
+    // Titelbild-URLs: diese Bilder lädt der Reader selbst und schneidet durchsichtige Ränder ab
+    // (siehe [HeroImageTrimmer]), damit das Titelbild wirklich randlos erscheint.
+    val heroUrls = remember(html, article.url) { HeroImageTrimmer.heroUrls(html, article.url) }
+    val heroUrlsState = rememberUpdatedState(heroUrls)
     val pageLoadedRef = remember { booleanArrayOf(false) }
     val lastAppliedScriptRef = remember { arrayOfNulls<String>(1) }
     // Breite des linken Streifens, den wir vom System-Edge-Swipe-Zurück ausnehmen wollen –
@@ -191,9 +195,15 @@ fun ReaderWebView(
                     "MerlinHighlightBridge",
                 )
                 webViewClient = object : WebViewClient() {
-                    // Liefert die im Erscheinungsbild gewählte installierte Schrift aus (siehe ReaderLocalFonts).
-                    override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? =
-                        ReaderLocalFonts.intercept(request.url) ?: super.shouldInterceptRequest(view, request)
+                    // Installierte Schrift aus dem Erscheinungsbild (siehe ReaderLocalFonts) und
+                    // Titelbild ohne durchsichtigen Rand (siehe HeroImageTrimmer).
+                    override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
+                        ReaderLocalFonts.intercept(request.url)?.let { return it }
+                        if (request.method == "GET" && request.url.toString() in heroUrlsState.value) {
+                            HeroImageTrimmer.load(request)?.let { return it }
+                        }
+                        return super.shouldInterceptRequest(view, request)
+                    }
 
                     override fun onPageFinished(view: WebView, url: String?) {
                         pageLoadedRef[0] = true
@@ -295,6 +305,14 @@ private class FullScreenVideoChromeClient(
 ) : WebChromeClient() {
     private var customView: View? = null
     private var customViewCallback: CustomViewCallback? = null
+
+    /**
+     * Ohne `poster` (das Vorschaubild ist bei Inline-Videos ein CSS-Hintergrund, siehe
+     * `ReaderMediaRewriter.INLINE_MEDIA_JS`) malt die WebView sonst ein graues Standardbild über die
+     * Box. Ein 1×1 durchsichtiges Bitmap lässt den Hintergrund sichtbar.
+     */
+    override fun getDefaultVideoPoster(): android.graphics.Bitmap =
+        android.graphics.Bitmap.createBitmap(1, 1, android.graphics.Bitmap.Config.ARGB_8888)
 
     override fun onShowCustomView(view: View, callback: CustomViewCallback) {
         if (customView != null) {

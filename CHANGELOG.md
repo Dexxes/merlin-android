@@ -190,6 +190,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Title images that are screenshots with a transparent border and drop shadow
+  (PNG/WebP) now really fill the width: the reader loads the title image itself
+  and trims fully transparent edges (at most 15 % per side, so cut-out logos
+  stay as they are). Before, the accent color showed through the border and the
+  image looked like a card with a margin. Not compiled or run on a device yet.
+- A lead video (e.g. rbb24.de) now fills the width before it plays: the
+  preview image is drawn as the player's CSS background (`cover`) instead of
+  the video's `poster`, which Android's WebView drew left-aligned and narrower
+  when its aspect ratio differed from 16:9, leaving a strip of accent color on
+  the right. Not compiled or run on a device yet.
 - Reader: the end of the article (source or byline) is no longer half hidden
   behind the bottom bar. The text keeps the bar's height plus some space free
   at the bottom.
