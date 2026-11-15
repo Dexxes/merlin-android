@@ -4,6 +4,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,8 +17,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Archive
@@ -44,6 +44,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -348,10 +349,19 @@ private fun MetaText(text: String, modifier: Modifier = Modifier, small: Boolean
     )
 }
 
+/**
+ * Bewusst ein einfaches, horizontal scrollbares `Row` statt einer `LazyRow`: eine verschachtelte
+ * Lazy-Liste in jeder Zeile der Artikelliste ist teuer (eigene Subkomposition pro Zeile) und hat
+ * beim Scrollen zu verpassten Frames geführt. Ein Artikel hat nur wenige Tags, Lazy bringt hier
+ * nichts.
+ */
 @Composable
 private fun TagLine(tags: List<Tag>) {
-    LazyRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-        items(tags) { tag -> TagChip(tag) }
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = Modifier.horizontalScroll(rememberScrollState()),
+    ) {
+        tags.forEach { tag -> key(tag.id) { TagChip(tag) } }
     }
 }
 

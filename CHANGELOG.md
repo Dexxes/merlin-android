@@ -26,6 +26,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Smoother scrolling. In the reader, the reading progress bar no longer
+  rebuilds the whole screen on every scroll step; only the bar is redrawn.
+  In the article list, the tag line of each row is a plain scrollable row
+  instead of a nested lazy list. Not compiled or run on a device yet.
 - Splash screen like on iOS: the logo now shows in full instead of being cut
   to a circle (it is drawn smaller so it fits inside the system's round icon
   area), and a loading indicator appears below it. The splash stays until the
