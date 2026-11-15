@@ -90,7 +90,7 @@ class ArticlesViewModel @Inject constructor(
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
 
-    private val _counts = MutableStateFlow(ArticleCounts(total = 0, unread = 0, favorites = 0, archived = 0))
+    private val _counts = MutableStateFlow(ArticleCounts())
     val counts: StateFlow<ArticleCounts> = _counts.asStateFlow()
 
     /** Tag-IDs, deren Artikel ausgeblendet werden; automatisch in [PreferencesStore] persistiert. */
@@ -247,7 +247,8 @@ class ArticlesViewModel @Inject constructor(
             _error.value = null
             try {
                 val fetched = fetchForFilter(_selectedFilter.value)
-                _counts.value = api.getArticleCounts()
+                // Zähler sind Nebensache – ein Fehler dort darf die Liste nicht blockieren.
+                refreshCounts()
                 _articles.value = fetched
                 _isOffline.value = false
                 articleCacheService.upsert(fetched)
@@ -339,7 +340,7 @@ class ArticlesViewModel @Inject constructor(
         val resolvedIds = resolveTagIds(pendingTagNames)
         val article = api.createArticle(CreateArticleRequest(url = url, tagIds = (tagIds + resolvedIds).toList()))
         _articles.value = listOf(article) + _articles.value
-        _counts.value = _counts.value.copy(total = _counts.value.total + 1)
+        _counts.value = _counts.value.let { it.copy(pages = it.pages.copy(total = it.pages.total + 1)) }
         articleCacheService.upsert(article)
         prefetchImages(listOf(article))
         startProcessingListenerIfNeeded()
