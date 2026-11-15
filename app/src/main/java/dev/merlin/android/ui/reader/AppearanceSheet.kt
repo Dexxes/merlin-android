@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -16,7 +17,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -32,6 +32,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -149,26 +150,28 @@ fun AppearanceSheet(
                 ACCENT_COLORS.forEach { hex ->
                     val color = Color(android.graphics.Color.parseColor(hex))
                     val selected = hex.equals(accentColorHex, ignoreCase = true)
-                    Card(
-                        shape = CircleShape,
+                    // Die Farbe füllt den ganzen Kreis (nicht nur ein Kind-Element, das ohne
+                    // Häkchen keine Höhe hätte).
+                    Box(
+                        contentAlignment = Alignment.Center,
                         modifier = Modifier
                             .size(32.dp)
-                            .clickable { scope.launch { viewModel.preferencesStore.setAccentProgressColorHex(hex); viewModel.syncAppearanceToServer() } }
+                            .clip(CircleShape)
+                            .background(color)
                             .border(
                                 width = if (selected) 2.dp else 0.dp,
                                 color = MaterialTheme.colorScheme.onSurface,
                                 shape = CircleShape,
-                            ),
+                            )
+                            .clickable { scope.launch { viewModel.preferencesStore.setAccentProgressColorHex(hex); viewModel.syncAppearanceToServer() } },
                     ) {
-                        Column(modifier = Modifier.fillMaxWidth().background(color)) {
-                            if (selected) {
-                                Icon(
-                                    Icons.Filled.Check,
-                                    contentDescription = "Ausgewählt",
-                                    tint = Color.White,
-                                    modifier = Modifier.padding(6.dp),
-                                )
-                            }
+                        if (selected) {
+                            Icon(
+                                Icons.Filled.Check,
+                                contentDescription = "Ausgewählt",
+                                tint = Color.White,
+                                modifier = Modifier.size(18.dp),
+                            )
                         }
                     }
                 }

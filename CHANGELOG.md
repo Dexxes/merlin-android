@@ -37,6 +37,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Appearance sheet: the accent color circles show their colors again (they
+  were empty unless selected). Not compiled or run on a device yet.
 - Smoother scrolling. In the reader, the reading progress bar no longer
   rebuilds the whole screen on every scroll step; only the bar is redrawn.
   In the article list, the tag line of each row is a plain scrollable row
