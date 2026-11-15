@@ -12,8 +12,10 @@ import androidx.datastore.preferences.preferencesDataStore
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.merlin.android.models.ArticleFilter
 import dev.merlin.android.models.ProgressEdge
+import dev.merlin.android.models.Tag
 import dev.merlin.android.models.ReaderFont
 import dev.merlin.android.models.ReaderTheme
+import dev.merlin.android.network.ArticleCounts
 import dev.merlin.android.network.Settings
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -57,6 +59,8 @@ class PreferencesStore @Inject constructor(
         val REPORT_BACKEND_URL = stringPreferencesKey("report_backend_url")
         val CACHE_RETENTION_DAYS = intPreferencesKey("cache_retention_days")
         val NEEDS_SETTINGS_SYNC = booleanPreferencesKey("needs_settings_sync")
+        val CACHED_COUNTS = stringPreferencesKey("cached_article_counts")
+        val CACHED_TAGS = stringPreferencesKey("cached_tags")
     }
 
     private fun positionKey(articleId: Int) = doublePreferencesKey("pos_$articleId")
@@ -188,6 +192,27 @@ class PreferencesStore @Inject constructor(
             it.name.startsWith("pos_") || it.name.startsWith("pct_") || it.name.startsWith("pctts_")
         }
         toRemove.forEach { prefs.remove(it) }
+    }
+
+    // MARK: – Offline-Stand des Seitenmenüs
+
+    /**
+     * Letzter bekannter Stand von Zählern und Tags fürs Seitenmenü, damit es auch offline (v.a.
+     * nach einem Kaltstart ohne Verbindung) nicht leer bzw. bei 0 steht. Wird bei jeder Änderung
+     * aus [dev.merlin.android.viewmodel.ArticlesViewModel] geschrieben; `null` = nichts gespeichert.
+     */
+    suspend fun cachedCounts(): ArticleCounts? = dataStore.data.first()[Keys.CACHED_COUNTS]
+        ?.let { runCatching { json.decodeFromString<ArticleCounts>(it) }.getOrNull() }
+    suspend fun setCachedCounts(value: ArticleCounts) = dataStore.edit { it[Keys.CACHED_COUNTS] = json.encodeToString(value) }
+
+    suspend fun cachedTags(): List<Tag>? = dataStore.data.first()[Keys.CACHED_TAGS]
+        ?.let { runCatching { json.decodeFromString<List<Tag>>(it) }.getOrNull() }
+    suspend fun setCachedTags(value: List<Tag>) = dataStore.edit { it[Keys.CACHED_TAGS] = json.encodeToString(value) }
+
+    /** Beim Logout/„Cache leeren“: Zähler und Tags des alten Kontos nicht weiter anzeigen. */
+    suspend fun clearCachedListMeta() = dataStore.edit {
+        it.remove(Keys.CACHED_COUNTS)
+        it.remove(Keys.CACHED_TAGS)
     }
 
     // MARK: – Server-Sync
