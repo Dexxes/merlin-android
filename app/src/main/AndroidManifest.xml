@@ -52,17 +52,22 @@
 
         <!-- Share-Target, Äquivalent zu MerlinShare-Extension (iOS). Läuft als
              normale Activity im Haupt-App-Prozess statt als eigene Extension
-             (siehe ShareActivity.kt/ShareViewModel.kt – todo.md Abschnitt 10). -->
+             (siehe ShareActivity.kt/ShareViewModel.kt – todo.md Abschnitt 10).
+             Transparentes Fenster, damit die teilende App hinter dem Sheet
+             abgedunkelt sichtbar bleibt. Nimmt Links/Text und, wie iOS, Dateien
+             jeder Art an (einzeln und mehrere), die nach „Merlin Dateien“ gehen. -->
         <activity
             android:name=".ui.share.ShareActivity"
             android:exported="true"
-            android:theme="@style/Theme.Merlin"
+            android:theme="@style/Theme.Merlin.Share"
             android:excludeFromRecents="true"
-            android:noHistory="true">
+            android:noHistory="true"
+            android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
                 <category android:name="android.intent.category.DEFAULT" />
-                <data android:mimeType="text/plain" />
+                <data android:mimeType="*/*" />
             </intent-filter>
         </activity>
 

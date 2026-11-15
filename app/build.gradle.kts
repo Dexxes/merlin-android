@@ -87,6 +87,10 @@ dependencies {
     // Login Flow v2 (Custom Tabs zum Öffnen der Server-Login-URL)
     implementation("androidx.browser:browser:1.10.0")
 
+    // EXIF-Daten beim Komprimieren geteilter Fotos übernehmen (share/ImageCompressor.kt);
+    // dieselbe Version, die Coil 2.7 ohnehin transitiv mitbringt
+    implementation("androidx.exifinterface:exifinterface:1.3.7")
+
     // Bilder / TTS
     implementation("io.coil-kt:coil:2.7.0")
     implementation("io.coil-kt:coil-compose:2.7.0")

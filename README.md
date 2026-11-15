@@ -22,7 +22,9 @@ same data model and API surface.
   notifications
 - **Reading-position sync** across devices (Android/iOS/Web) via the server,
   with last-write-wins conflict resolution
-- **Share-to-Merlin**: save articles from any app via the Android share sheet
+- **Share-to-Merlin**: save articles from any app via the Android share sheet,
+  with tag tree; share photos, videos, PDFs and other files into "Merlin Dateien"
+  (merlin-nextcloud), photos optionally compressed
 - **Dual backend support**: connect to a Nextcloud instance or to a
   standalone `merlin-server`, selectable during onboarding or later in
   Settings. Nextcloud-only features (TTS, SSE, settings sync, public share,
