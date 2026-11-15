@@ -244,6 +244,14 @@ object ReaderMediaRewriter {
       player.style.backgroundImage='url("'+(poster.currentSrc||poster.src).replace(/["\\]/g,encodeURIComponent)+'")';
       player.classList.add('merlin-inline-player--poster');
       media.addEventListener('play',function(){player.classList.add('merlin-inline-player--started');},{once:true});
+      // Die Box hat das Seitenverhältnis des Vorschaubilds (wie WebKit mit poster), sobald Videodaten
+      // da sind das des Videos. Das Video füllt die Box absolut, damit Bild und Bedienelemente
+      // deckungsgleich sind (die WebView legte das Video sonst schmaler als die Box an).
+      var ratio=function(w,h){if(w>0&&h>0)player.style.aspectRatio=w+' / '+h;};
+      var probe=new Image();
+      probe.onload=function(){if(media.readyState<1)ratio(probe.naturalWidth,probe.naturalHeight);};
+      probe.src=poster.currentSrc||poster.src;
+      media.addEventListener('loadedmetadata',function(){ratio(media.videoWidth,media.videoHeight);});
     }
     figure.insertBefore(player,figure.firstChild);
     figure.classList.add(PLAYABLE);
@@ -274,8 +282,14 @@ object ReaderMediaRewriter {
             }
             merlin-inline-player audio { display: block; width: 100%; }
             merlin-inline-player.merlin-inline-player--poster {
+              position: relative; width: 100%; aspect-ratio: 16 / 9; max-height: 125vw;
               background-color: #000; background-position: center; background-size: cover;
               background-repeat: no-repeat; border-radius: 8px; overflow: hidden;
+            }
+            merlin-inline-player.merlin-inline-player--poster video {
+              position: absolute; top: 0; left: 0;
+              width: 100% !important; height: 100% !important; max-width: none !important;
+              max-height: none; aspect-ratio: auto; margin: 0; border-radius: 0;
             }
             /* Ohne poster legt Blink eine graue Fläche über die ganze Box – bis zum Start weg damit. */
             merlin-inline-player.merlin-inline-player--poster:not(.merlin-inline-player--started) video,
