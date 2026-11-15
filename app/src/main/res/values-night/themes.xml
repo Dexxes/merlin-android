@@ -8,17 +8,6 @@
          Splash-Activity nicht vermeidbar. -->
     <style name="Theme.Merlin" parent="android:Theme.Material.NoActionBar" />
 
-    <!-- Dunkles Pendant zu Theme.Merlin.Starting (values/themes.xml): echtes Schwarz statt des
-         hellen Icon-Hintergrunds, passend zum Dark-Mode-Prinzip "echtes Schwarz" (siehe
-         ui/theme/Theme.kt DarkColors.background) statt des Material-Default-Splash-Scrims. Icon =
-         dieselbe nackte Vordergrund-PNG wie im Light-Theme, aber mit schwarzer
-         `windowSplashScreenIconBackgroundColor` statt @color/ic_launcher_background – siehe
-         Kommentar in values/themes.xml für den Grund (Icon-Hintergrundfarbe statt eigenem
-         <adaptive-icon>-Drawable, das im Compat-Pfad nicht zuverlässig gerendert wurde). -->
-    <style name="Theme.Merlin.Starting" parent="Theme.SplashScreen">
-        <item name="windowSplashScreenBackground">@android:color/black</item>
-        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher_foreground</item>
-        <item name="windowSplashScreenIconBackgroundColor">@android:color/black</item>
-        <item name="postSplashScreenTheme">@style/Theme.Merlin</item>
-    </style>
+    <!-- Theme.Merlin.Starting bewusst nur in values/themes.xml: der Splash ist wie iOS'
+         `SplashView` auch im Dark Mode weiß. -->
 </resources>

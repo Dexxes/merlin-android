@@ -26,6 +26,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Splash screen like on iOS: the logo now shows in full instead of being cut
+  to a circle (it is drawn smaller so it fits inside the system's round icon
+  area), and a loading indicator appears below it. The splash stays until the
+  server settings and the first article list have loaded. If that takes more
+  than 3 seconds, it asks "Im Offlinemodus starten?" and "Offline starten"
+  opens the cached articles right away. The splash is white in light and dark
+  mode, as on iOS. Not compiled or run on a device yet.
 - PDF articles: a saved link to a PDF (server category `PDF`, or a URL ending
   in `.pdf`) opens in the reader as the document itself. The server stores only
   the URL; the app downloads the PDF from the source when the article is
@@ -88,6 +95,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- The list now loads with the saved default view on launch, and switches to
+  the server's default view once the server settings arrive (as on iOS).
+  Before, the first load always used the built-in default.
 - Offline, the side menu no longer shows 0 for every count and no tags: the
   last known counts and tags are stored on the device and shown until the
   server answers again, also after a cold start without a connection. A

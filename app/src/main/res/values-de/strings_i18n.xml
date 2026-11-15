@@ -248,6 +248,8 @@
     <string name="siteCredentials_status_pending">"Ausstehend"</string>
     <string name="siteCredentials_title">"Zugangsdaten für Websites"</string>
     <string name="siteCredentials_usernamePlaceholder">"Benutzername"</string>
+    <string name="splash_slowConnection_message">"Verbindungsaufbau dauert... Im Offlinemodus starten?"</string>
+    <string name="splash_slowConnection_offline">"Offline starten"</string>
     <string name="tagFilterSheet_clearAll">"Alle einblenden"</string>
     <string name="tagFilterSheet_emptyMessage">"Füge Artikeln Tags hinzu, um sie hier filtern zu können."</string>
     <string name="tagFilterSheet_emptyTitle">"Keine Tags vorhanden"</string>

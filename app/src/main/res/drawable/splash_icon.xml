@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Icon des System-Splashs (Theme.Merlin.Starting). Die Android-12+-SplashScreen-API zeichnet
+     ein Icon ohne Icon-Hintergrund auf 288 × 288 dp und schneidet es auf einen Kreis mit 2/3 des
+     Durchmessers (192 dp) zu. Das Logo wird deshalb mit 1/3 Rand auf 96 dp verkleinert (wie iOS'
+     `SplashView`): seine äußersten Pixel liegen bei ~52 % der Kantenlänge vom Mittelpunkt, also
+     bei ~50 dp – deutlich innerhalb des 96-dp-Maskenradius, nichts wird abgeschnitten.
+     Der Compose-Splash (ui/screens/MerlinSplash.kt, LOGO_SIZE) zeigt das Logo in derselben Größe
+     an derselben Stelle, damit der Übergang nicht springt. -->
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:inset="33.333%">
+    <bitmap
+        android:filter="false"
+        android:gravity="fill"
+        android:src="@drawable/merlin_logo" />
+</inset>

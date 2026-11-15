@@ -248,6 +248,8 @@
     <string name="siteCredentials_status_pending">"Pending"</string>
     <string name="siteCredentials_title">"Site Credentials"</string>
     <string name="siteCredentials_usernamePlaceholder">"Username"</string>
+    <string name="splash_slowConnection_message">"Connecting is taking a while... Start in offline mode?"</string>
+    <string name="splash_slowConnection_offline">"Start offline"</string>
     <string name="tagFilterSheet_clearAll">"Show All"</string>
     <string name="tagFilterSheet_emptyMessage">"Add tags to articles to filter by them here."</string>
     <string name="tagFilterSheet_emptyTitle">"No Tags Yet"</string>

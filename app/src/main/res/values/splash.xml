@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Splash-Hintergrund (System-Splash und Compose-Splash), wie iOS' `SplashView`
+         immer Weiß – unabhängig vom Hell/Dunkel-Modus. -->
+    <color name="splash_background">#FFFFFF</color>
+</resources>
