@@ -297,6 +297,9 @@ class ArticlesViewModel @Inject constructor(
     private var loadGeneration = 0
     /** Ansicht, für die [_articles] geladen wurde – ein Reload derselben Ansicht holt so viele Artikel wie schon nachgeladen waren. */
     private var loadedViewKey: String? = null
+    /** Server hat Zähler/Tags schon geliefert – dann darf der Offline-Stand sie nicht mehr überschreiben. */
+    private var countsFromServer = false
+    private var tagsFromServer = false
 
     private val currentViewKey: String
         get() = "${_selectedFilter.value.name}|${_selectedTagId.value ?: "-"}|${_showArchivedInTagView.value}"
@@ -337,8 +340,26 @@ class ArticlesViewModel @Inject constructor(
             imageCacheService.prefetch(cached)
         }
         offlineMutationQueue.onDrained = { load() }
+        restoreCachedListMeta()
         loadTags()
         load()
+    }
+
+    /**
+     * Zähler und Tags sonst nur live geladen – offline (Kaltstart ohne Verbindung) stand das
+     * Seitenmenü deshalb bei 0 und ohne Tags. Jetzt wird der letzte bekannte Stand aus
+     * [PreferencesStore] sofort angezeigt, solange der Server noch nichts geliefert hat, und jede
+     * Änderung (Server-Antwort oder lokale Änderung wie Umbenennen/Löschen) wieder gespeichert.
+     */
+    private fun restoreCachedListMeta() {
+        viewModelScope.launch {
+            preferencesStore.cachedCounts()?.let { if (!countsFromServer) _counts.value = it }
+            preferencesStore.cachedTags()?.let { if (!tagsFromServer) _allTags.value = it }
+            // Erst nach dem Wiederherstellen mitschreiben, sonst überschreibt der leere
+            // Startwert den gespeicherten Stand.
+            launch { _counts.collect { preferencesStore.setCachedCounts(it) } }
+            launch { _allTags.collect { preferencesStore.setCachedTags(it) } }
+        }
     }
 
     // MARK: – Load
@@ -522,8 +543,12 @@ class ArticlesViewModel @Inject constructor(
         viewModelScope.launch { refreshTags() }
     }
 
+    /** Offline bleibt der bisherige (ggf. aus dem Cache geladene) Stand stehen, statt die Tags zu leeren. */
     private suspend fun refreshTags() {
-        _allTags.value = runCatching { api.listTags() }.getOrDefault(emptyList())
+        runCatching { api.listTags() }.getOrNull()?.let {
+            tagsFromServer = true
+            _allTags.value = it
+        }
     }
 
     /**
@@ -948,7 +973,10 @@ class ArticlesViewModel @Inject constructor(
     private fun isNetworkError(e: Exception): Boolean = e is IOException
 
     private suspend fun refreshCounts() {
-        runCatching { api.getArticleCounts() }.getOrNull()?.let { _counts.value = it }
+        runCatching { api.getArticleCounts() }.getOrNull()?.let {
+            countsFromServer = true
+            _counts.value = it
+        }
     }
 
     companion object {

@@ -86,6 +86,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   a failed settings push is marked dirty and retried via WorkManager once
   connectivity returns, instead of being silently dropped
 
+### Fixed
+
+- Offline, the side menu no longer shows 0 for every count and no tags: the
+  last known counts and tags are stored on the device and shown until the
+  server answers again, also after a cold start without a connection. A
+  failed tag refresh keeps the current tags instead of clearing them. Logout
+  and "Cache leeren" remove the stored state. Not compiled or run on a device
+  yet.
+
 ### Known limitations
 
 - Text-to-speech playback (Media3/ExoPlayer) is not yet implemented

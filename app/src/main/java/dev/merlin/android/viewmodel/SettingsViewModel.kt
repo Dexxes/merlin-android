@@ -160,6 +160,7 @@ class SettingsViewModel @Inject constructor(
         cancelLogin()
         clearLoginWebSession()
         credentialsStore.clearCredentials()
+        viewModelScope.launch { preferencesStore.clearCachedListMeta() }
         refreshAccountInfo()
         _testResult.value = null
     }
@@ -241,6 +242,7 @@ class SettingsViewModel @Inject constructor(
     fun clearCache() {
         viewModelScope.launch {
             preferencesStore.clearReadingPositions()
+            preferencesStore.clearCachedListMeta()
             articleCacheService.clear()
             imageCacheService.clear()
             pdfCacheService.clear()
