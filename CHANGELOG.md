@@ -69,6 +69,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Setup: the server URL field on the onboarding screen now starts with
+  "https://" like on iOS (Settings already did), so only the domain has to be
+  typed; the login button stays disabled while only "https://" is there, and
+  both URL fields open the URL keyboard without autocorrect. Not compiled or
+  run on a device yet.
 - Appearance sheet: the accent color circles show their colors again (they
   were empty unless selected). Not compiled or run on a device yet.
 - Smoother scrolling. In the reader, the reading progress bar no longer

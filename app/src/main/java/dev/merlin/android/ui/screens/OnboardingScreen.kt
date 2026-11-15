@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -23,6 +24,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import dev.merlin.android.R
@@ -42,7 +44,10 @@ fun OnboardingScreen(
     onLoginSuccess: () -> Unit,
     viewModel: OnboardingViewModel = hiltViewModel(),
 ) {
-    var serverUrl by remember { mutableStateOf("") }
+    // "https://" vorbelegt, damit nur noch die Domain getippt werden muss –
+    // wie `SettingsView.swift` auf iOS. Löscht der Nutzer das Schema, ergänzt
+    // `LoginFlowService.normalizeBaseUrl` es wieder.
+    var serverUrl by remember { mutableStateOf("https://") }
     var backendKind by remember { mutableStateOf(viewModel.initialBackendKind) }
 
     val isLoading by viewModel.isLoading.collectAsState()
@@ -93,6 +98,7 @@ fun OnboardingScreen(
             label = { Text(stringResource(R.string.settings_account_urlLabel)) },
             placeholder = { Text(stringResource(R.string.settings_account_urlPlaceholder)) },
             singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, autoCorrectEnabled = false),
             enabled = !isLoading,
             modifier = Modifier
                 .fillMaxWidth()
@@ -101,7 +107,7 @@ fun OnboardingScreen(
 
         Button(
             onClick = { viewModel.startLogin(serverUrl, backendKind) },
-            enabled = !isLoading && serverUrl.isNotBlank(),
+            enabled = !isLoading && serverUrl.isNotBlank() && serverUrl.trim() != "https://",
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = 16.dp),
