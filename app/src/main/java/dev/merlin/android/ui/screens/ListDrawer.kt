@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -156,7 +157,7 @@ fun ListDrawerContent(
             SingleChoiceSegmentedButtonRow(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 6.dp),
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
             ) {
                 val groups = ContentGroup.entries.filter { it != ContentGroup.FILES || showFilesTab }
                 groups.forEachIndexed { index, group ->
@@ -165,7 +166,12 @@ fun ListDrawerContent(
                         onClick = { menuGroup = group },
                         shape = SegmentedButtonDefaults.itemShape(index = index, count = groups.size),
                         icon = {},
-                    ) { Text(group.label) }
+                        // Vier Tabs (mit Dateien) passen in die 300 dp nur mit schmalem Innenabstand;
+                        // Beschriftung einzeilig, damit „Dateien“ nicht umbricht.
+                        contentPadding = PaddingValues(horizontal = 4.dp),
+                    ) {
+                        Text(group.label, maxLines = 1, softWrap = false, overflow = TextOverflow.Clip)
+                    }
                 }
             }
 

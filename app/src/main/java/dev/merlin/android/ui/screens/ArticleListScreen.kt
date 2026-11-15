@@ -65,6 +65,7 @@ import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.res.imageResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
@@ -246,9 +247,26 @@ fun ArticleListScreen(
                                     contentDescription = null,
                                     modifier = Modifier.padding(start = 6.dp).size(18.dp),
                                 )
-                                Text(selectedTagName, modifier = Modifier.padding(start = 4.dp))
+                                // Einzeilig wie auf iOS: lange Tag-/Ansichtsnamen werden gekürzt statt umzubrechen.
+                                Text(
+                                    selectedTagName,
+                                    // Wie der kompakte Inline-Titel auf iOS: kleiner als titleLarge, damit
+                                    // auch „Nicht geöffnet“ zwischen Menü/Suche und Auge/Plus passt.
+                                    style = MaterialTheme.typography.titleMedium,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.padding(start = 4.dp).weight(1f, fill = false),
+                                )
                             } else {
-                                Text(selectedFilter.label, modifier = Modifier.padding(start = 6.dp))
+                                Text(
+                                    selectedFilter.label,
+                                    // Wie der kompakte Inline-Titel auf iOS: kleiner als titleLarge, damit
+                                    // auch „Nicht geöffnet“ zwischen Menü/Suche und Auge/Plus passt.
+                                    style = MaterialTheme.typography.titleMedium,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.padding(start = 6.dp).weight(1f, fill = false),
+                                )
                             }
                         }
                     },
