@@ -217,6 +217,45 @@ class ArticlesViewModel @Inject constructor(
         viewModelScope.launch { preferencesStore.setIsCardView(value) }
     }
 
+    // MARK: – Lade-Zustand
+
+    // Bewusst VOR dem `init`-Block: `init` ruft `load()` auf, und Kotlin initialisiert
+    // Properties in Deklarationsreihenfolge – später deklarierte StateFlows wären dort noch null.
+
+    /** Nachladen älterer Artikel beim Runterscrollen: `true`, solange der Server die letzte Seite voll geliefert hat. */
+    private val _hasMoreArticles = MutableStateFlow(false)
+    val hasMoreArticles: StateFlow<Boolean> = _hasMoreArticles.asStateFlow()
+
+    private val _isLoadingMore = MutableStateFlow(false)
+    val isLoadingMore: StateFlow<Boolean> = _isLoadingMore.asStateFlow()
+
+    /** Letztes Nachladen schlug fehl – die Liste zeigt dann „Erneut versuchen“ statt automatisch weiterzuladen. */
+    private val _loadMoreFailed = MutableStateFlow(false)
+    val loadMoreFailed: StateFlow<Boolean> = _loadMoreFailed.asStateFlow()
+
+    /**
+     * Server-Offset für die nächste Seite. Nur in „Weiterlesen“ relevant, wo client-seitig
+     * gefiltert wird – sonst ist die Zahl geladener Artikel der Offset (siehe [nextOffset]).
+     * Öffentlich, damit der Listen-Footer auch nach einer Seite ohne neue sichtbare Artikel
+     * erneut nachlädt (Äquivalent zu `rawOffset` in ArticlesViewModel.swift).
+     */
+    private val _rawOffset = MutableStateFlow(0)
+    val rawOffset: StateFlow<Int> = _rawOffset.asStateFlow()
+
+    private var loadJob: Job? = null
+    private var processingListenerJob: Job? = null
+    private var loadMoreJob: Job? = null
+    /** Wird bei jedem [load] erhöht, damit ein noch laufender Abruf für eine alte Ansicht sein Ergebnis verwirft. */
+    private var loadGeneration = 0
+    /** Ansicht, für die [_articles] geladen wurde – ein Reload derselben Ansicht holt so viele Artikel wie schon nachgeladen waren. */
+    private var loadedViewKey: String? = null
+
+    private val currentViewKey: String
+        get() = "${_selectedFilter.value.name}|${_selectedTagId.value ?: "-"}|${_showArchivedInTagView.value}"
+
+    /** Eine Server-Seite: die (ggf. client-seitig gefilterten) Artikel und wie viele der Server geliefert hat. */
+    private class ArticlePage(val articles: List<Article>, val rawCount: Int)
+
     // MARK: – Init
 
     init {
@@ -251,39 +290,6 @@ class ArticlesViewModel @Inject constructor(
     }
 
     // MARK: – Load
-
-    /** Nachladen älterer Artikel beim Runterscrollen: `true`, solange der Server die letzte Seite voll geliefert hat. */
-    private val _hasMoreArticles = MutableStateFlow(false)
-    val hasMoreArticles: StateFlow<Boolean> = _hasMoreArticles.asStateFlow()
-
-    private val _isLoadingMore = MutableStateFlow(false)
-    val isLoadingMore: StateFlow<Boolean> = _isLoadingMore.asStateFlow()
-
-    /** Letztes Nachladen schlug fehl – die Liste zeigt dann „Erneut versuchen“ statt automatisch weiterzuladen. */
-    private val _loadMoreFailed = MutableStateFlow(false)
-    val loadMoreFailed: StateFlow<Boolean> = _loadMoreFailed.asStateFlow()
-
-    /**
-     * Server-Offset für die nächste Seite. Nur in „Weiterlesen“ relevant, wo client-seitig
-     * gefiltert wird – sonst ist die Zahl geladener Artikel der Offset (siehe [nextOffset]).
-     * Öffentlich, damit der Listen-Footer auch nach einer Seite ohne neue sichtbare Artikel
-     * erneut nachlädt (Äquivalent zu `rawOffset` in ArticlesViewModel.swift).
-     */
-    private val _rawOffset = MutableStateFlow(0)
-    val rawOffset: StateFlow<Int> = _rawOffset.asStateFlow()
-
-    private var loadJob: Job? = null
-    private var loadMoreJob: Job? = null
-    /** Wird bei jedem [load] erhöht, damit ein noch laufender Abruf für eine alte Ansicht sein Ergebnis verwirft. */
-    private var loadGeneration = 0
-    /** Ansicht, für die [_articles] geladen wurde – ein Reload derselben Ansicht holt so viele Artikel wie schon nachgeladen waren. */
-    private var loadedViewKey: String? = null
-
-    private val currentViewKey: String
-        get() = "${_selectedFilter.value.name}|${_selectedTagId.value ?: "-"}|${_showArchivedInTagView.value}"
-
-    /** Eine Server-Seite: die (ggf. client-seitig gefilterten) Artikel und wie viele der Server geliefert hat. */
-    private class ArticlePage(val articles: List<Article>, val rawCount: Int)
 
     fun load() {
         processingListenerJob?.cancel()
@@ -527,8 +533,6 @@ class ArticlesViewModel @Inject constructor(
     }
 
     // MARK: – Processing-Listener
-
-    private var processingListenerJob: Job? = null
 
     /**
      * Pollt alle 2s, bis kein Artikel mehr in Verarbeitung ist. SSE wäre die
