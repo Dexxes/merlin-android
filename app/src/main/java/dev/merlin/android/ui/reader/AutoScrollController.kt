@@ -1,7 +1,6 @@
 package dev.merlin.android.ui.reader
 
 import android.webkit.WebView
-import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -10,8 +9,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 
 /**
- * Etwas, das der Freihand-Lesemodus nach unten schieben kann: die WebView des Readers oder die
- * `LazyColumn` des PDF-Readers.
+ * Etwas, das der Freihand-Lesemodus nach unten schieben kann: die WebView des Text- bzw.
+ * PDF-Readers.
  */
 interface AutoScrollTarget {
     /** Aktueller Scroll-Offset in Pixeln (nur zum Erkennen fremder Bewegung, z.B. eines Flings). */
@@ -25,27 +24,11 @@ interface AutoScrollTarget {
     fun scrollByPx(px: Int)
 }
 
-/** WebView des Readers: sie scrollt selbst (siehe [ReaderWebView]). */
+/** WebView des Readers: sie scrollt selbst (siehe [ReaderWebView] und [PdfReaderView]). */
 class WebViewAutoScrollTarget(private val webView: WebView) : AutoScrollTarget {
     override val offsetPx: Int get() = webView.scrollY
     override fun canScrollForward(): Boolean = webView.canScrollVertically(1)
     override fun scrollByPx(px: Int) = webView.scrollBy(0, px)
-}
-
-/** Seitenliste des PDF-Readers (siehe [PdfReaderView]). */
-class LazyListAutoScrollTarget(
-    private val listState: LazyListState,
-    private val offset: () -> Float,
-) : AutoScrollTarget {
-    override val offsetPx: Int get() = offset().toInt()
-    override val isUserScrolling: Boolean get() = listState.isScrollInProgress
-    override fun canScrollForward(): Boolean = listState.canScrollForward
-
-    // `dispatchRawDelta` umgeht den Scroll-Mutex: `isScrollInProgress` bleibt dadurch false und
-    // zeigt weiterhin nur Ziehen/Fling des Nutzers an.
-    override fun scrollByPx(px: Int) {
-        listState.dispatchRawDelta(px.toFloat())
-    }
 }
 
 /**

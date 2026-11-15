@@ -31,6 +31,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import dev.merlin.android.R
 import dev.merlin.android.models.Article
 import dev.merlin.android.models.Highlight
+import dev.merlin.android.models.CommentAnchor
 import dev.merlin.android.models.HighlightCreate
 import dev.merlin.android.viewmodel.ArticleReaderViewModel
 
@@ -70,7 +71,7 @@ fun ReaderWebView(
     // zugleich robuster gegen Reflow/Bild-Nachladen als ein fester Pixelwert.
     initialScrollProgress: Float,
     onCreateHighlight: (HighlightCreate) -> Unit,
-    onHighlightTap: (Int) -> Unit,
+    onHighlightTap: (Int, ReaderJsBridge.SelectionRect?) -> Unit,
     onImageTap: (index: Int, srcs: List<String>) -> Unit,
     onSelectionChanged: (ReaderJsBridge.SelectionRect?) -> Unit,
     onInfoPopover: (ReaderJsBridge.InfoPopover) -> Unit,
@@ -88,6 +89,11 @@ fun ReaderWebView(
     transparentBackground: Boolean = false,
     // Unterkante der Akzentfläche des Plakat-Headers in CSS-px (≈ dp) ab Seitenanfang.
     onPosterBottom: (Float) -> Unit = {},
+    // Kommentare (nur merlin-nextcloud): Zähler je Markierung, Tipp auf eine Kommentarstelle und
+    // „Kommentieren“ an einer frischen Auswahl.
+    commentCounts: Map<Int, Int> = emptyMap(),
+    onOpenComments: (Int, String) -> Unit = { _, _ -> },
+    onCommentAnchor: (CommentAnchor) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val webViewRef = remember { arrayOfNulls<ScrollRangeWebView>(1) }
@@ -121,9 +127,17 @@ fun ReaderWebView(
             )
         }
     }
-    val html = remember(article.id, highlights, appearance, isSystemDark, supportBox, supportBoxTexts, transparentBackground) {
-        ReaderHtmlBuilder.build(article, highlights, appearance, isSystemDark, supportBoxTexts, transparentBackground)
+    val html = remember(article.id, appearance, isSystemDark, supportBox, supportBoxTexts, transparentBackground) {
+        ReaderHtmlBuilder.build(article, appearance, isSystemDark, supportBoxTexts, transparentBackground)
     }
+    // Markierungen und Kommentar-Zähler setzt ein Skript nach dem Laden bzw. bei jeder Änderung –
+    // ein Neuladen der Seite (wie früher) würde die Leseposition zurücksetzen.
+    val highlightsScript = remember(highlights, commentCounts) {
+        ReaderHtmlBuilder.highlightsScript(highlights, commentCounts)
+    }
+    val highlightsScriptState = rememberUpdatedState(highlightsScript)
+    val pageLoadedRef = remember { booleanArrayOf(false) }
+    val lastAppliedScriptRef = remember { arrayOfNulls<String>(1) }
     // Breite des linken Streifens, den wir vom System-Edge-Swipe-Zurück ausnehmen wollen –
     // siehe Kommentar bei `update` unten.
     val gestureExclusionWidthPx = with(LocalDensity.current) { 32.dp.roundToPx() }
@@ -159,6 +173,8 @@ fun ReaderWebView(
                     ReaderJsBridge(
                         onCreateHighlight = onCreateHighlight,
                         onHighlightTap = onHighlightTap,
+                        onOpenComments = onOpenComments,
+                        onCommentAnchor = onCommentAnchor,
                         onImageTap = onImageTap,
                         onSelectionChanged = onSelectionChanged,
                         onInfoPopover = onInfoPopover,
@@ -174,6 +190,10 @@ fun ReaderWebView(
                 )
                 webViewClient = object : WebViewClient() {
                     override fun onPageFinished(view: WebView, url: String?) {
+                        pageLoadedRef[0] = true
+                        val script = highlightsScriptState.value
+                        lastAppliedScriptRef[0] = script
+                        view.evaluateJavascript(script, null)
                         restoreScrollWithRetry(view as ScrollRangeWebView, initialScrollProgress, attemptsLeft = 8) {
                             restoreAppliedRef[0] = true
                         }
@@ -203,8 +223,12 @@ fun ReaderWebView(
         update = { webView ->
             if (lastHtmlRef[0] != html) {
                 lastHtmlRef[0] = html
+                pageLoadedRef[0] = false
                 // baseUrl = Artikel-URL, damit relative Bild-/Link-Pfade im Original-HTML aufgehen.
                 webView.loadDataWithBaseURL(article.url, html, "text/html", "utf-8", null)
+            } else if (pageLoadedRef[0] && lastAppliedScriptRef[0] != highlightsScript) {
+                lastAppliedScriptRef[0] = highlightsScript
+                webView.evaluateJavascript(highlightsScript, null)
             }
         },
     )

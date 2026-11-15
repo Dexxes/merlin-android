@@ -61,7 +61,6 @@ object ReaderHtmlBuilder {
 
     fun build(
         article: Article,
-        highlights: List<Highlight>,
         appearance: ArticleReaderViewModel.Appearance,
         // System-Dark-Mode-Signal von außen (Compose `isSystemInDarkTheme()`) – die WebView selbst
         // kennt den App-weiten Dark-Mode-Status nicht, siehe `buildCss`-Kommentar zu AUTO.
@@ -91,8 +90,9 @@ object ReaderHtmlBuilder {
         val css = buildCss(appearance, isSystemDark, transparentBackground)
         val headerHtml = buildHeaderHtml(article, leadsWithHero)
         val footerHtml = buildFooterHtml(article)
-        val highlightsJson = encodeHighlightsForJs(highlights)
-        // Erst NACH dem Wiederherstellen der Highlights einfügen (siehe `buildSupportBoxScript`).
+        // Markierungen kommen erst nach dem Laden per [highlightsScript] (siehe ReaderWebView), damit
+        // neue Markierungen und Kommentar-Pushes die Seite nicht neu laden. Die Support-Infobox ist ein
+        // eigenes Element und verschiebt keinen XPath-Index (siehe `buildSupportBoxScript`).
         val supportBoxScript = article.supportBox
             ?.let { box -> supportBoxTexts?.let { buildSupportBoxScript(box, it, article.id) } }
             ?.let { "<script>$it</script>" }
@@ -112,7 +112,6 @@ object ReaderHtmlBuilder {
               <script>$READER_JS</script>
               <script>${ReaderMediaRewriter.YOUTUBE_JS}</script>
               <script>${ReaderMediaRewriter.INLINE_MEDIA_JS}</script>
-              <script>window.__MERLIN_INIT_HIGHLIGHTS__ = $highlightsJson; MerlinReader.restoreHighlights(window.__MERLIN_INIT_HIGHLIGHTS__);</script>
               $supportBoxScript
             </body>
             </html>
@@ -518,7 +517,19 @@ object ReaderHtmlBuilder {
             }
             blockquote + p:has(> cite:only-child) cite, blockquote + p:has(> cite:only-child) cite * { font-style: normal; }
             pre, code { font-family: ${dev.merlin.android.models.ReaderFont.MONO.cssValue}; }
-            .merlin-highlight { border-radius: 2px; padding: 0 1px; cursor: pointer; }
+            .merlin-highlight { border-radius: 2px; padding: 0 1px; cursor: pointer; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+            .merlin-highlight--comment {
+              background-color: transparent; color: inherit; padding: 0; border-radius: 0;
+              text-decoration-line: underline; -webkit-text-decoration-line: underline;
+              text-decoration-color: var(--mh-author, #c2410c); -webkit-text-decoration-color: var(--mh-author, #c2410c);
+              text-decoration-thickness: 2px; text-underline-offset: 3px;
+            }
+            mark.merlin-highlight[data-comment-count]::after {
+              content: attr(data-comment-count); display: inline-block; margin-left: 3px; padding: 0 5px;
+              min-width: 8px; border-radius: 8px; background: var(--mh-author, #1c1c1e); color: #fff;
+              font-size: 0.68em; font-weight: 700; line-height: 1.5; text-align: center; vertical-align: super;
+            }
+            .merlin-highlight--flash { outline: 2px solid var(--mh-author, #f59e0b); outline-offset: 1px; }
             .merlin-img-error {
               display: flex; align-items: center; justify-content: center;
               background: rgba(127,127,127,0.15); border-radius: 8px;
@@ -665,17 +676,29 @@ object ReaderHtmlBuilder {
         "orange" to "#fed7aa",
     )
 
-    private fun encodeHighlightsForJs(highlights: List<Highlight>): String {
-        val items = highlights.joinToString(",") { h ->
-            """{"id":${h.id},"startXpath":${jsString(h.startXpath)},"startOffset":${h.startOffset},"endXpath":${jsString(h.endXpath)},"endOffset":${h.endOffset},"color":${jsString(h.color)}}"""
+    /**
+     * JS-Aufruf, der Markierungen und Kommentar-Zähler im Text auf [highlights] bzw. [counts] setzt
+     * (Äquivalent zu `CommentStore.webViewScript()` auf iOS). PDF-Markierungen überspringt das
+     * Skript selbst.
+     */
+    fun highlightsScript(highlights: List<Highlight>, counts: Map<Int, Int>): String {
+        val items = highlights.filter { !it.isPdf }.joinToString(",") { h ->
+            val author = h.authorColor?.takeIf { HEX_COLOR.matches(it) }?.let(::jsString) ?: "null"
+            """{"id":${h.id},"startXpath":${jsString(h.startXpath)},"startOffset":${h.startOffset},"endXpath":${jsString(h.endXpath)},"endOffset":${h.endOffset},"color":${jsString(h.color)},"authorColor":$author}"""
         }
-        return "[$items]"
+        val countJson = counts.entries.joinToString(",") { (id, n) -> "\"$id\":$n" }
+        return "window.MerlinReader && MerlinReader.setHighlights([$items], {$countJson});"
     }
+
+    private val HEX_COLOR = Regex("^#[0-9a-fA-F]{6}$")
 
     private fun jsString(value: String): String = "\"" + value
         .replace("\\", "\\\\")
         .replace("\"", "\\\"")
-        .replace("\n", "\\n") + "\""
+        .replace("\n", "\\n")
+        .replace("\r", "\\r")
+        .replace("\u2028", "\\u2028")
+        .replace("\u2029", "\\u2029") + "\""
 
     private fun escapeHtml(value: String): String = value
         .replace("&", "&amp;")
@@ -752,19 +775,25 @@ ps[idx].after(box);
 
     /**
      * JS-Laufzeit im WebView: XPath-Generierung/-Auflösung (`tag[n]`/`text()[n]`
-     * relativ zu `document.body`, wie im iOS-Original), Highlight-Erstellung
-     * über Text-Selektion, Restore in umgekehrter Dokumentreihenfolge (damit
-     * `Range.splitText` spätere Highlights nicht vor früheren XPaths
-     * invalidiert), Tap-Handling für bestehende Highlights (Löschen) und
-     * Bilder (Lightbox – aktuell nur Platzhalter-Stub, siehe `todo.md`).
+     * relativ zu `#merlin-content`, das entspricht dem `<body>` bei iOS und im Web-Reader; ältere
+     * Android-Markierungen ab `<body>` werden per Textvergleich noch gefunden), Markierungen in
+     * Erstellungsreihenfolge wie iOS, Tap-Handling für Markierungen und Bilder.
      */
     private const val READER_JS = """
 window.MerlinReader = (function() {
+  // XPaths zählen ab dem Artikelinhalt (#merlin-content), nicht ab <body>: bei iOS und im
+  // Web-Reader steht der Inhalt direkt im <body>, hier davor noch der Kopf. Nur so finden
+  // alle Apps dieselbe Stelle.
+  function contentRoot() {
+    return document.getElementById('merlin-content') || document.body;
+  }
+
   function getXPath(node) {
-    if (node === document.body) return '';
+    var root = contentRoot();
+    if (node === root) return '';
     var parts = [];
     var current = node;
-    while (current && current !== document.body) {
+    while (current && current !== root) {
       var parent = current.parentNode;
       if (!parent) break;
       var siblings = Array.prototype.filter.call(parent.childNodes, function(n) { return n.nodeType === current.nodeType && (current.nodeType !== 1 || n.tagName === current.tagName); });
@@ -779,9 +808,9 @@ window.MerlinReader = (function() {
     return parts.join('/');
   }
 
-  function resolveXPath(xpath) {
-    if (!xpath) return document.body;
-    var node = document.body;
+  function resolveXPath(xpath, base) {
+    var node = base || contentRoot();
+    if (!xpath) return node;
     var parts = xpath.split('/');
     for (var i = 0; i < parts.length; i++) {
       var m = parts[i].match(/^(.+)\[(\d+)\]$/);
@@ -797,56 +826,158 @@ window.MerlinReader = (function() {
     return node;
   }
 
-  function rangeFromHighlight(h) {
-    var startNode = resolveXPath(h.startXpath);
-    var endNode = resolveXPath(h.endXpath);
-    if (!startNode || !endNode) return null;
-    var range = document.createRange();
-    try {
-      range.setStart(startNode, h.startOffset);
-      range.setEnd(endNode, h.endOffset);
-    } catch (e) { return null; }
-    return range;
+  // ── Markierungen ───────────────────────────────────────────────────────
+  // Wie im iOS-Reader (`merlinHighlightJS`): je Textknoten ein <mark>, gesetzt in
+  // Erstellungsreihenfolge (die XPaths einer Markierung wurden im DOM berechnet, in dem alle
+  // älteren Markierungen schon als <mark> standen). Farbe `comment` = nur kommentierte Stelle:
+  // unterstrichen in der Farbe des Verfassers statt hinterlegt. Der Kommentar-Zähler hängt als
+  // CSS-::after am letzten Stück, ändert also weder Text noch XPaths.
+  var COLORS = { yellow: '#fde68a', green: '#bbf7d0', blue: '#bfdbfe', pink: '#fbcfe8', orange: '#fed7aa' };
+  var COMMENT_COLOR = 'comment';
+  var currentHighlights = [], commentCounts = {}, deferred = null;
+
+  function authorColorOf(h) {
+    return h && typeof h.authorColor === 'string' && /^#[0-9a-f]{6}$/i.test(h.authorColor) ? h.authorColor : null;
   }
 
-  function wrapRange(range, color, id) {
-    var span = document.createElement('span');
-    span.className = 'merlin-highlight';
-    span.style.backgroundColor = color;
-    // Highlight-Farben sind alle helle Pastelltöne, daher fixe dunkle
-    // Schrift statt geerbter Textfarbe – im Dark-Theme ist die geerbte
-    // Schrift sonst fast weiß und auf dem hellen Hintergrund unlesbar.
-    span.style.color = '#1c1c1e';
-    span.setAttribute('data-highlight-id', id);
-    try {
-      range.surroundContents(span);
-    } catch (e) {
-      // surroundContents schlägt fehl, wenn die Range mehrere Elementgrenzen
-      // überspannt – Fallback: Inhalt extrahieren und in den Span einfügen.
-      var content = range.extractContents();
-      span.appendChild(content);
-      range.insertNode(span);
+  function makeMark(h) {
+    var m = document.createElement('mark');
+    m.className = 'merlin-highlight';
+    m.setAttribute('data-highlight-id', String(h.id));
+    m.setAttribute('data-highlight-color', h.color);
+    var author = authorColorOf(h);
+    if (author) m.style.setProperty('--mh-author', author);
+    if (h.color === COMMENT_COLOR) {
+      m.className += ' merlin-highlight--comment';
+    } else {
+      // Alle Farben sind helle Pastelltöne: feste dunkle Schrift, sonst ist der Text im
+      // Dunkel-Theme auf hellem Grund unlesbar.
+      m.style.backgroundColor = COLORS[h.color] || COLORS.yellow;
+      m.style.color = '#1c1c1e';
     }
-    span.addEventListener('click', function(ev) {
-      ev.stopPropagation();
-      MerlinHighlightBridge.onHighlightTap(id);
+    return m;
+  }
+
+  function wrapRange(range, h) {
+    if (range.collapsed) return;
+    var root = range.commonAncestorContainer.nodeType === 3 ? range.commonAncestorContainer.parentNode : range.commonAncestorContainer;
+    var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    var nodes = [], n;
+    while ((n = walker.nextNode())) { if (range.intersectsNode(n)) nodes.push(n); }
+    for (var i = 0; i < nodes.length; i++) {
+      var tn = nodes[i];
+      var startOff = (i === 0 && tn === range.startContainer) ? range.startOffset : 0;
+      var endOff = (i === nodes.length - 1 && tn === range.endContainer) ? range.endOffset : tn.length;
+      if (startOff >= endOff) continue;
+      if (endOff < tn.length) tn.splitText(endOff);
+      var slice = startOff > 0 ? tn.splitText(startOff) : tn;
+      var mark = makeMark(h);
+      slice.parentNode.insertBefore(mark, slice);
+      mark.appendChild(slice);
+    }
+  }
+
+  function restoreHighlight(h) {
+    if (h.pdfPage != null) return;
+    var r = rangeFor(h, contentRoot());
+    // Ältere Android-Versionen zählten ab <body>: dann passt der Text nicht, also dort versuchen.
+    if (!r || !sameText(r, h.highlightedText)) {
+      var legacy = rangeFor(h, document.body);
+      if (legacy && sameText(legacy, h.highlightedText)) r = legacy;
+    }
+    if (r && !r.collapsed) wrapRange(r, h);
+  }
+
+  function rangeFor(h, base) {
+    var sn = resolveXPath(h.startXpath, base), en = resolveXPath(h.endXpath, base);
+    if (!sn || !en) return null;
+    try {
+      var r = document.createRange();
+      r.setStart(sn, h.startOffset);
+      r.setEnd(en, h.endOffset);
+      return r;
+    } catch (e) { return null; }
+  }
+
+  function sameText(range, text) {
+    var norm = function(s) { return String(s || '').replace(/\s+/g, ' ').trim(); };
+    return !text || norm(range.toString()) === norm(text);
+  }
+
+  function unwrapAllMarks() {
+    var parents = [];
+    Array.prototype.forEach.call(document.querySelectorAll('mark.merlin-highlight'), function(el) {
+      var p = el.parentNode; if (!p) return;
+      while (el.firstChild) p.insertBefore(el.firstChild, el);
+      p.removeChild(el);
+      if (parents.indexOf(p) < 0) parents.push(p);
+    });
+    parents.forEach(function(p) { if (p.isConnected) p.normalize(); });
+  }
+
+  function marksOf(id) {
+    return Array.prototype.slice.call(document.querySelectorAll('mark.merlin-highlight[data-highlight-id="' + String(id) + '"]'));
+  }
+
+  function applyCommentCounts() {
+    Array.prototype.forEach.call(document.querySelectorAll('mark.merlin-highlight[data-comment-count]'), function(el) {
+      el.removeAttribute('data-comment-count');
+    });
+    Object.keys(commentCounts).forEach(function(id) {
+      var count = commentCounts[id]; if (!count) return;
+      var spans = marksOf(id);
+      if (spans.length) spans[spans.length - 1].setAttribute('data-comment-count', String(count));
     });
   }
 
-  function restoreHighlights(highlights) {
-    // Reverse Dokumentreihenfolge: spätere Highlights zuerst anwenden, damit
-    // ihr DOM-Splitting frühere XPaths nicht verschiebt (1:1 vom iOS-Original).
-    var sorted = highlights.slice().reverse();
-    sorted.forEach(function(h) {
-      var range = rangeFromHighlight(h);
-      if (range) wrapRange(range, h.color, h.id);
+  function hasSelection() {
+    var sel = window.getSelection();
+    return !!sel && !sel.isCollapsed && sel.rangeCount > 0;
+  }
+
+  function render(highlights) {
+    currentHighlights = highlights;
+    unwrapAllMarks();
+    // Erstellungsreihenfolge = aufsteigende Server-ID; offline angelegte (negative ID) zuletzt.
+    var order = function(h) { return h.id > 0 ? h.id : Number.MAX_SAFE_INTEGER; };
+    highlights.slice().sort(function(a, b) { return order(a) - order(b); }).forEach(restoreHighlight);
+    applyCommentCounts();
+  }
+
+  // Neu zeichnen bei jeder Änderung (eigene, Push vom Kommentar-Kanal). Solange eine Auswahl offen
+  // ist, nur vormerken – sonst ginge sie verloren.
+  function setHighlights(highlights, counts) {
+    commentCounts = counts || {};
+    if (hasSelection()) { deferred = highlights; return; }
+    deferred = null;
+    render(highlights);
+  }
+
+  function flushDeferred() {
+    if (deferred === null || hasSelection()) return;
+    var list = deferred; deferred = null;
+    render(list);
+  }
+
+  function textOf(id) {
+    return marksOf(id).map(function(e) { return e.textContent; }).join('');
+  }
+
+  function rectOf(nodes) {
+    var top = Infinity, left = Infinity, bottom = -Infinity, right = -Infinity;
+    nodes.forEach(function(n) {
+      var r = n.getBoundingClientRect();
+      top = Math.min(top, r.top); left = Math.min(left, r.left);
+      bottom = Math.max(bottom, r.bottom); right = Math.max(right, r.right);
     });
+    return { x: left, y: top, width: right - left, height: bottom - top };
   }
 
   function onSelectionChange() {
     var sel = window.getSelection();
     if (!sel || sel.isCollapsed || sel.rangeCount === 0) {
       MerlinHighlightBridge.onSelectionCleared();
+      flushDeferred();
       return;
     }
     var range = sel.getRangeAt(0);
@@ -854,24 +985,60 @@ window.MerlinReader = (function() {
     MerlinHighlightBridge.onSelectionChanged(JSON.stringify({ x: rect.left, y: rect.top, width: rect.width, height: rect.height }));
   }
 
-  function createHighlightFromSelection(color) {
+  function selectionAnchor() {
     var sel = window.getSelection();
-    if (!sel || sel.isCollapsed || sel.rangeCount === 0) return;
+    if (!sel || sel.isCollapsed || sel.rangeCount === 0) return null;
     var range = sel.getRangeAt(0);
     var text = range.toString();
-    var startXpath = getXPath(range.startContainer);
-    var endXpath = getXPath(range.endContainer);
-    var payload = {
+    if (!text.trim()) return null;
+    return {
       highlightedText: text,
-      startXpath: startXpath,
+      startXpath: getXPath(range.startContainer),
       startOffset: range.startOffset,
-      endXpath: endXpath,
-      endOffset: range.endOffset,
-      color: color
+      endXpath: getXPath(range.endContainer),
+      endOffset: range.endOffset
     };
-    sel.removeAllRanges();
-    MerlinHighlightBridge.onCreateHighlight(JSON.stringify(payload));
   }
+
+  function createHighlightFromSelection(color) {
+    var anchor = selectionAnchor();
+    if (!anchor) return;
+    anchor.color = color;
+    window.getSelection().removeAllRanges();
+    MerlinHighlightBridge.onCreateHighlight(JSON.stringify(anchor));
+  }
+
+  // „Kommentieren“ an einer frischen Auswahl: noch nichts einfärben, Kotlin öffnet das
+  // Kommentarfeld mit der zitierten Stelle; erst der abgeschickte Kommentar legt sie an.
+  function commentFromSelection() {
+    var anchor = selectionAnchor();
+    if (!anchor) return;
+    window.getSelection().removeAllRanges();
+    MerlinHighlightBridge.onCommentAnchor(JSON.stringify(anchor));
+  }
+
+  // „Im Text zeigen“ aus dem Kommentar-Sheet.
+  function reveal(id) {
+    var spans = marksOf(id);
+    if (!spans.length) return;
+    spans[0].scrollIntoView({ block: 'center', behavior: 'smooth' });
+    spans.forEach(function(s) { s.classList.add('merlin-highlight--flash'); });
+    setTimeout(function() { spans.forEach(function(s) { s.classList.remove('merlin-highlight--flash'); }); }, 1200);
+  }
+
+  document.addEventListener('click', function(ev) {
+    var mark = ev.target.closest && ev.target.closest('mark.merlin-highlight');
+    if (!mark || hasSelection()) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    var id = mark.getAttribute('data-highlight-id');
+    // Unterstrichene Kommentarstelle: gleich die Kommentare, es gibt keine Farbe zu ändern.
+    if (mark.getAttribute('data-highlight-color') === COMMENT_COLOR) {
+      MerlinHighlightBridge.onOpenComments(parseInt(id, 10), textOf(id));
+      return;
+    }
+    MerlinHighlightBridge.onHighlightTap(parseInt(id, 10), JSON.stringify(rectOf(marksOf(id))));
+  }, true);
 
   document.addEventListener('selectionchange', onSelectionChange);
 
@@ -958,8 +1125,10 @@ window.MerlinReader = (function() {
   }, true);
 
   return {
-    restoreHighlights: restoreHighlights,
-    createHighlightFromSelection: createHighlightFromSelection
+    setHighlights: setHighlights,
+    createHighlightFromSelection: createHighlightFromSelection,
+    commentFromSelection: commentFromSelection,
+    reveal: reveal
   };
 })();
 """

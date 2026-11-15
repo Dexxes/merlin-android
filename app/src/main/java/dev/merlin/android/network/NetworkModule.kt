@@ -23,7 +23,7 @@ import retrofit2.converter.kotlinx.serialization.asConverterFactory
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
 
-    private const val PLACEHOLDER_BASE_URL = "https://example.invalid/index.php/apps/merlin/"
+    const val PLACEHOLDER_BASE_URL = "https://example.invalid/index.php/apps/merlin/"
 
     @Provides
     @Singleton

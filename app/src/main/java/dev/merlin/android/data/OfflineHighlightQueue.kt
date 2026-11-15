@@ -9,7 +9,9 @@ import androidx.work.WorkManager
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.merlin.android.models.Highlight
 import dev.merlin.android.models.HighlightCreate
+import dev.merlin.android.models.HighlightUpdate
 import dev.merlin.android.network.MerlinApi
+import dev.merlin.android.network.requireSuccess
 import java.time.Instant
 import java.util.UUID
 import javax.inject.Inject
@@ -66,6 +68,8 @@ class OfflineHighlightQueue @Inject constructor(
             endOffset = payload.endOffset,
             color = payload.color,
             createdAt = Instant.now().toString(),
+            pdfPage = payload.pdfPage,
+            pdfRects = payload.pdfRects,
         )
         highlightCacheService.upsert(optimistic)
         mutationDao.insert(
@@ -108,6 +112,41 @@ class OfflineHighlightQueue @Inject constructor(
     }
 
     /**
+     * Merkt eine Änderung (Farbe/Stelle) an einem schon angelegten Highlight vor und übernimmt sie
+     * gleich in den Cache. Wartet für die Platzhalter-ID noch eine Anlage, wird stattdessen deren
+     * Payload angepasst – eine `PUT` auf eine negative ID ginge ohnehin ins Leere.
+     */
+    suspend fun enqueueUpdate(highlight: Highlight, change: HighlightUpdate) = mutex.withLock {
+        highlightCacheService.upsert(highlight.updated(change))
+        if (highlight.id < 0) {
+            val pendingCreate = mutationDao.getAll()
+                .firstOrNull { it.kind == PendingHighlightMutationKind.CREATE && it.localHighlightId == highlight.id }
+            val payload = pendingCreate?.payloadJson
+                ?.let { runCatching { json.decodeFromString<HighlightCreate>(it) }.getOrNull() }
+            if (pendingCreate != null && payload != null) {
+                val updated = payload.copy(
+                    highlightedText = change.highlightedText,
+                    color = change.color ?: payload.color,
+                    pdfPage = change.pdfPage ?: payload.pdfPage,
+                    pdfRects = change.pdfRects ?: payload.pdfRects,
+                )
+                mutationDao.deleteById(pendingCreate.id)
+                mutationDao.insert(pendingCreate.copy(payloadJson = json.encodeToString(updated)))
+            }
+            return@withLock
+        }
+        mutationDao.insert(
+            PendingHighlightMutationEntity(
+                id = UUID.randomUUID().toString(),
+                articleId = highlight.articleId,
+                kind = PendingHighlightMutationKind.UPDATE,
+                highlightId = highlight.id,
+                payloadJson = json.encodeToString(change),
+            ),
+        )
+    }
+
+    /**
      * Spielt alle wartenden Mutationen ein. Anders als bei
      * [OfflineMutationQueue] gibt es hier keine Paritäts-/Last-write-wins-
      * Berechnung – jede Highlight-Mutation ist unabhängig und wird in
@@ -129,7 +168,8 @@ class OfflineHighlightQueue @Inject constructor(
             } catch (e: HttpException) {
                 // 404 beim Löschen heißt: Highlight ist bereits weg – kein Fehler, kein Retry
                 // (Äquivalent zur 404-Behandlung in OfflineMutationQueue/MerlinAPI.swift).
-                mutation.kind == PendingHighlightMutationKind.DELETE && e.code() == 404
+                // Ebenso beim Ändern: eine gelöschte Markierung lässt sich nicht mehr umfärben.
+                mutation.kind != PendingHighlightMutationKind.CREATE && e.code() == 404
             } catch (e: Exception) {
                 false
             }
@@ -155,9 +195,16 @@ class OfflineHighlightQueue @Inject constructor(
                 }
                 highlightCacheService.upsert(real)
             }
+            PendingHighlightMutationKind.UPDATE -> {
+                val id = mutation.highlightId ?: return
+                val change = mutation.payloadJson?.let {
+                    runCatching { json.decodeFromString<HighlightUpdate>(it) }.getOrNull()
+                } ?: return
+                highlightCacheService.upsert(api.updateHighlight(id, change))
+            }
             PendingHighlightMutationKind.DELETE -> {
                 val id = mutation.highlightId ?: return
-                api.deleteHighlight(id)
+                api.deleteHighlight(id).requireSuccess()
             }
         }
     }

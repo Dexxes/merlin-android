@@ -6,6 +6,8 @@ import androidx.room.PrimaryKey
 /** Äquivalent zu `PendingHighlightMutation.Kind` aus `OfflineHighlightQueue.swift`. */
 enum class PendingHighlightMutationKind {
     CREATE,
+    /** Farbe/Stelle geändert (`PUT api/highlights/{id}`), [PendingHighlightMutationEntity.payloadJson] = `HighlightUpdate`. */
+    UPDATE,
     DELETE,
 }
 

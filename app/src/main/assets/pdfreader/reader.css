@@ -1,0 +1,144 @@
+/* PDF-Reader (PdfReaderView.kt): Seiten untereinander, je Seite Canvas, Markierungen, Suchtreffer,
+   Text-Layer von pdf.js (für Auswahl) und Links. Die Text-Layer-Regeln stammen aus pdf_viewer.css. */
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--merlin-bg, #ffffff);
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: none;
+}
+
+#viewer {
+  padding: 8px 0 96px; /* unten Platz für die Bottom-Bar */
+}
+
+.page {
+  position: relative;
+  margin: 0 auto 12px;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+}
+
+.page canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+}
+
+.hlLayer, .findLayer, .linkLayer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.hlLayer { z-index: 1; }
+.findLayer { z-index: 2; }
+
+.hl {
+  position: absolute;
+  mix-blend-mode: multiply;
+  border-radius: 1px;
+}
+
+.hl.comment {
+  mix-blend-mode: normal;
+  background: transparent;
+  border-bottom: 2px solid var(--mh-author, #c2410c);
+  box-sizing: border-box;
+}
+
+.hl-count {
+  position: absolute;
+  transform: translate(2px, -60%);
+  padding: 0 5px;
+  min-width: 8px;
+  border-radius: 8px;
+  background: var(--mh-author, #1c1c1e);
+  color: #ffffff;
+  font: 700 10px/1.5 sans-serif;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.hl.flash { outline: 2px solid var(--mh-author, #f59e0b); }
+
+.find {
+  position: absolute;
+  background: rgba(250, 204, 21, 0.45);
+  border-radius: 1px;
+}
+
+.find.current { background: rgba(249, 115, 22, 0.6); }
+
+.linkLayer { z-index: 4; }
+
+.linkLayer a {
+  position: absolute;
+  pointer-events: auto;
+  display: block;
+}
+
+/* ── pdf.js-Text-Layer ─────────────────────────────────────────────────── */
+.textLayer {
+  position: absolute;
+  text-align: initial;
+  inset: 0;
+  overflow: clip;
+  opacity: 1;
+  line-height: 1;
+  -webkit-text-size-adjust: none;
+  text-size-adjust: none;
+  forced-color-adjust: none;
+  transform-origin: 0 0;
+  caret-color: CanvasText;
+  z-index: 3;
+}
+
+.textLayer :is(span, br) {
+  color: transparent;
+  position: absolute;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0% 0%;
+}
+
+.textLayer > :not(.markedContent), .textLayer .markedContent span:not(.markedContent) { z-index: 1; }
+.textLayer span.markedContent { top: 0; height: 0; }
+.textLayer span[role="img"] { -webkit-user-select: none; user-select: none; cursor: default; }
+.textLayer ::selection { background: rgba(0, 100, 255, 0.28); }
+.textLayer br::selection { background: transparent; }
+
+.textLayer .endOfContent {
+  display: block;
+  position: absolute;
+  inset: 100% 0 0;
+  z-index: 0;
+  cursor: default;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.textLayer.selecting .endOfContent { top: 0; }
+
+/* Gedrehte Seiten: pdf.js legt den Text-Layer in unrotierten Maßen an und markiert die Drehung. */
+.textLayer[data-main-rotation="90"] { transform: rotate(90deg) translateY(-100%); }
+.textLayer[data-main-rotation="180"] { transform: rotate(180deg) translate(-100%, -100%); }
+.textLayer[data-main-rotation="270"] { transform: rotate(270deg) translateX(-100%); }
+
+.spinner {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 22px;
+  height: 22px;
+  margin: -11px 0 0 -11px;
+  border: 2px solid rgba(0, 0, 0, 0.15);
+  border-top-color: rgba(0, 0, 0, 0.5);
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }

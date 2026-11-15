@@ -1,13 +1,20 @@
 package dev.merlin.android.network
 
 import dev.merlin.android.models.Article
+import dev.merlin.android.models.Comment
+import dev.merlin.android.models.CommentCreateRequest
+import dev.merlin.android.models.CommentUpdateRequest
+import dev.merlin.android.models.CommentsPayload
 import dev.merlin.android.models.FavoritedAtSerializer
 import dev.merlin.android.models.Highlight
 import dev.merlin.android.models.HighlightCreate
+import dev.merlin.android.models.HighlightUpdate
 import dev.merlin.android.models.SiteCredentialInfo
 import dev.merlin.android.models.SiteCredentialUpdateRequest
 import dev.merlin.android.models.SiteCredentialsResponse
 import dev.merlin.android.models.Tag
+import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import okhttp3.ResponseBody
@@ -153,8 +160,36 @@ interface MerlinApi {
     @POST("api/articles/{articleId}/highlights")
     suspend fun createHighlight(@Path("articleId") articleId: Int, @Body body: HighlightCreate): Highlight
 
+    /**
+     * Stelle und ggf. Farbe einer Markierung ändern, die id bleibt (nur merlin-nextcloud, siehe
+     * [CommentsPayload.highlightUpdate]).
+     */
+    @PUT("api/highlights/{id}")
+    suspend fun updateHighlight(@Path("id") id: Int, @Body body: HighlightUpdate): Highlight
+
+    /** merlin-nextcloud antwortet mit 204 ohne Body, daher `Response<Unit>`. */
     @DELETE("api/highlights/{id}")
-    suspend fun deleteHighlight(@Path("id") id: Int): SuccessResponse
+    suspend fun deleteHighlight(@Path("id") id: Int): Response<Unit>
+
+    // ── Kommentare (nur merlin-nextcloud) ─────────────────────────────────
+    // Fehler kommen als `{error: code}` (siehe CommentApiException), merlin-server antwortet 404.
+    // Der Push-Kanal (`comments/stream`) läuft über CommentStreamClient, nicht über Retrofit.
+
+    /** Alle Threads und Markierungen eines Artikels samt Änderungsmarke. */
+    @GET("api/articles/{articleId}/comments")
+    suspend fun getComments(@Path("articleId") articleId: Int): CommentsPayload
+
+    /** Neuer Kommentar am Artikel, an einer Markierung, an einer frischen Auswahl (`anchor`) oder als Antwort. */
+    @POST("api/articles/{articleId}/comments")
+    suspend fun createComment(@Path("articleId") articleId: Int, @Body body: CommentCreateRequest): Comment
+
+    /** Nur eigene Kommentare (Besitzer) – Gast-Kommentare lehnt der Server mit 403 ab. */
+    @PUT("api/comments/{id}")
+    suspend fun updateComment(@Path("id") id: Int, @Body body: CommentUpdateRequest): Comment
+
+    /** Der Besitzer darf jeden Kommentar seines Artikels löschen (204 ohne Body). */
+    @DELETE("api/comments/{id}")
+    suspend fun deleteComment(@Path("id") id: Int): Response<Unit>
 
     @GET("api/settings")
     suspend fun getSettings(): Settings
@@ -185,6 +220,13 @@ interface MerlinApi {
      */
     @PUT("api/articles/{articleId}/share")
     suspend fun updateShare(@Path("articleId") articleId: Int, @Body body: Map<String, String?>): ArticleShareResponse
+
+    /** Gast-Beiträge (Markieren/Kommentieren) hinter dem Link erlauben oder abschalten (nur merlin-nextcloud). */
+    @PUT("api/articles/{articleId}/share")
+    suspend fun updateShareAllowComments(
+        @Path("articleId") articleId: Int,
+        @Body body: AllowCommentsRequest,
+    ): ArticleShareResponse
 
     /** Token austauschen — alter Link wird sofort ungültig, Passwort/Ablauf bleiben erhalten. */
     @POST("api/articles/{articleId}/share/regenerate")
@@ -397,8 +439,17 @@ data class VideoStreamResponse(
     val defaultIndex: Int? = null,
 )
 
+/** [allowComments] fehlt im JSON, wenn null (merlin-server kennt das Feld nicht). */
+@OptIn(ExperimentalSerializationApi::class)
 @Serializable
-data class CreateShareRequest(val password: String? = null, val expiresAt: String? = null)
+data class CreateShareRequest(
+    val password: String? = null,
+    val expiresAt: String? = null,
+    @EncodeDefault(EncodeDefault.Mode.NEVER) val allowComments: Boolean? = null,
+)
+
+@Serializable
+data class AllowCommentsRequest(val allowComments: Boolean)
 
 @Serializable
 data class ArticleShareResponse(
@@ -410,4 +461,6 @@ data class ArticleShareResponse(
     val createdAt: String? = null,
     val updatedAt: String? = null,
     val url: String? = null,
+    /** Dürfen Gäste hinter dem Link markieren und kommentieren? null = älterer Server ohne Kommentare. */
+    val allowComments: Boolean? = null,
 )

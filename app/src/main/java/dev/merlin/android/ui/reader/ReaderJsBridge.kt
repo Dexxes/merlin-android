@@ -3,6 +3,7 @@ package dev.merlin.android.ui.reader
 import android.os.Handler
 import android.os.Looper
 import android.webkit.JavascriptInterface
+import dev.merlin.android.models.CommentAnchor
 import dev.merlin.android.models.HighlightCreate
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -19,10 +20,15 @@ import kotlinx.serialization.json.Json
  */
 class ReaderJsBridge(
     private val onCreateHighlight: (HighlightCreate) -> Unit,
-    private val onHighlightTap: (Int) -> Unit,
+    /** Farbige Markierung angetippt: id und ihr Rechteck (CSS-px, wie [SelectionRect]). */
+    private val onHighlightTap: (Int, SelectionRect?) -> Unit,
     private val onImageTap: (index: Int, srcs: List<String>) -> Unit,
     private val onSelectionChanged: (SelectionRect?) -> Unit,
     private val onInfoPopover: (InfoPopover) -> Unit,
+    /** Unterstrichene Kommentarstelle angetippt: Kommentare dieser Markierung (id, zitierter Text). */
+    private val onOpenComments: (Int, String) -> Unit = { _, _ -> },
+    /** „Kommentieren“ an einer frischen Auswahl: Stelle für den ersten Kommentar. */
+    private val onCommentAnchor: (CommentAnchor) -> Unit = {},
     /** Öffnet einen Link der Support-Infobox im externen Browser (siehe `ReaderHtmlBuilder.buildSupportBoxScript`). */
     private val onOpenExternalLink: (String) -> Unit = {},
     /** Unterkante der Akzentfläche des Plakat-Headers in CSS-px ab Seitenanfang (siehe `layoutPoster` in `READER_JS`). */
@@ -53,8 +59,20 @@ class ReaderJsBridge(
     }
 
     @JavascriptInterface
-    fun onHighlightTap(id: Int) {
-        mainHandler.post { onHighlightTap.invoke(id) }
+    fun onHighlightTap(id: Int, rectJson: String) {
+        val rect = runCatching { json.decodeFromString<SelectionRect>(rectJson) }.getOrNull()
+        mainHandler.post { onHighlightTap.invoke(id, rect) }
+    }
+
+    @JavascriptInterface
+    fun onOpenComments(id: Int, text: String) {
+        mainHandler.post { onOpenComments.invoke(id, text) }
+    }
+
+    @JavascriptInterface
+    fun onCommentAnchor(payloadJson: String) {
+        val anchor = runCatching { json.decodeFromString<CommentAnchor>(payloadJson) }.getOrNull() ?: return
+        mainHandler.post { onCommentAnchor.invoke(anchor) }
     }
 
     @JavascriptInterface

@@ -9,6 +9,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Comments like on iOS (merlin-nextcloud only): "Kommentare (n)" in the reader
+  menu opens a sheet with all threads (replies, edit own, delete, sort by text
+  order or newest/oldest reply, links in comments are tappable). Selecting text
+  offers "Kommentieren" next to the colors; commented passages are underlined in
+  the author's color with a count badge, and tapping one opens its threads with
+  "Im Text zeigen". Comments and highlights of guests arrive live over the
+  server's push channel (SSE), which is closed while the reader is in the
+  background. The share-link sheet gets the switch "Besucher dürfen markieren
+  und kommentieren". Not compiled or run on a device yet.
+- Tapping a highlight shows the color bar with the current color: change the
+  color (keeps the id and its comments via `PUT api/highlights/{id}` where the
+  server supports it), comment on it or remove it (with a confirmation when it
+  has comments).
+- Search in the article ("Im Artikel suchen" in the reader menu) for text and
+  PDF articles, with "x von y" and previous/next.
+- PDF reader with pdf.js (bundled, 4.10.38) instead of `PdfRenderer`: pinch zoom
+  up to 5x with sharp re-rendering, text selection, highlights and comments
+  stored as page + rectangles like on iOS and the web, search, and links in the
+  PDF (opened in the browser). The WebView only loads the bundled assets and
+  the cached PDF. Adds about 4 MB to the APK. Not compiled or run on a device
+  yet.
+
+### Changed
+
+- Highlights in text articles are applied by script instead of being baked into
+  the HTML, so new highlights or comments no longer reload the page. Marks are
+  wrapped in creation order like on iOS.
+- Highlight and comment positions (XPaths) now count from the article content
+  instead of `<body>`, like iOS and the web reader, so passages marked on
+  Android show up there too. Highlights saved by older Android builds are still
+  found by comparing their text.
+
+### Added
+
 - File metadata below file entries (merlin-nextcloud only): the "Metadaten"
   section the server puts below the content (file, EXIF/GPS, IPTC, XMP, ID3,
   QuickTime/MP4, PDF info) is now styled in the reader like on iOS, with
