@@ -18,7 +18,6 @@ import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
@@ -40,21 +39,16 @@ import dev.merlin.android.models.Tag
  * Zustand (`eye` = sichtbar, `eye.slash` = ausgeblendet). „Alle einblenden“ (nur sichtbar,
  * wenn etwas ausgeblendet ist) entspricht `onClearAll`.
  *
- * Tap auf den Rest der Zeile (Icon + Name) filtert die Artikelliste stattdessen auf genau
- * diesen einen Tag (Äquivalent zu iOS' Tag-Auswahl im Flyout-Menü/Sidebar, siehe
- * `ListFlyoutModifier.swift`/`ArticleListView.swift` dort – auf Android gab es dafür bisher
- * keinen UI-Einstieg, obwohl `ArticlesViewModel.selectTag()` bereits existierte).
+ * Wie auf iOS schaltet ein Tap auf die ganze Zeile die Sichtbarkeit um. Die Auswahl eines
+ * einzelnen Tags liegt im Seitenmenü ([ListDrawerContent]), nicht mehr hier.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TagFilterSheet(
     allTags: List<Tag>,
     excludedTagIds: Set<Int>,
-    selectedTagId: Int? = null,
     onToggle: (Int) -> Unit,
     onClearAll: () -> Unit,
-    onSelectTag: (Int) -> Unit = {},
-    onClearTagFilter: () -> Unit = {},
     onDismiss: () -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState()
@@ -66,9 +60,6 @@ fun TagFilterSheet(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
             ) {
                 Text("Tag-Filter", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                if (selectedTagId != null) {
-                    TextButton(onClick = onClearTagFilter) { Text("Filter zurücksetzen") }
-                }
                 if (excludedTagIds.isNotEmpty()) {
                     TextButton(onClick = onClearAll) { Text("Alle einblenden") }
                 }
@@ -80,37 +71,29 @@ fun TagFilterSheet(
                 LazyColumn(contentPadding = PaddingValues(bottom = 8.dp)) {
                     items(allTags, key = { it.id }) { tag ->
                         val isExcluded = tag.id in excludedTagIds
-                        val isSelected = tag.id == selectedTagId
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onToggle(tag.id) }
+                                .padding(horizontal = 16.dp, vertical = 14.dp),
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clickable { onSelectTag(tag.id) }
-                                    .padding(horizontal = 16.dp, vertical = 14.dp),
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Filled.Tag,
-                                    contentDescription = null,
-                                    tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.width(24.dp),
-                                )
-                                Text(
-                                    tag.name,
-                                    modifier = Modifier.weight(1f).padding(start = 8.dp),
-                                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                                )
-                            }
-                            IconButton(onClick = { onToggle(tag.id) }) {
-                                Icon(
-                                    imageVector = if (isExcluded) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
-                                    contentDescription = if (isExcluded) "Eingeblendet" else "Ausgeblendet",
-                                    tint = if (isExcluded) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary,
-                                )
-                            }
+                            Icon(
+                                imageVector = Icons.Filled.Tag,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.width(24.dp),
+                            )
+                            Text(
+                                tag.name,
+                                modifier = Modifier.weight(1f).padding(start = 8.dp),
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                            Icon(
+                                imageVector = if (isExcluded) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                                contentDescription = if (isExcluded) "Ausgeblendet" else "Eingeblendet",
+                                tint = if (isExcluded) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary,
+                            )
                         }
                         HorizontalDivider()
                     }
