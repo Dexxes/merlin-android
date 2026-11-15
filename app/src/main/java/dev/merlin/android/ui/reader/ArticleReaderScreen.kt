@@ -56,7 +56,6 @@ import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
@@ -67,8 +66,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -165,7 +163,7 @@ fun ArticleReaderScreen(
     val progressEdge by viewModel.progressEdge.collectAsState()
     val accentColorHex by viewModel.accentColorHex.collectAsState()
 
-    // Native Chrome (TopAppBar/ReaderHeader/ReaderBottomBar) folgt bewusst dem gewählten
+    // Native Chrome (ReaderHeader/ReaderBottomBar) folgt bewusst dem gewählten
     // Reader-Theme statt `MaterialTheme.colorScheme` (System-Theme) – sonst klafft die Chrome
     // weiß/hell auseinander, wenn der Nutzer z.B. "Dunkel" als Reader-Theme wählt, während das
     // System-Theme hell ist (oder umgekehrt bei "Hell" auf einem Dark-Mode-Gerät). Siehe
@@ -173,7 +171,7 @@ fun ArticleReaderScreen(
     val chromeColors = rememberReaderChromeColors(appearance.theme)
 
     // Status- und Navigationsleiste folgen normalerweise `MerlinTheme`/`Theme.kt`, also dem
-    // System-Theme – exakt derselbe Bug wie bei TopAppBar/Header/Bottom-Bar oben, nur auf
+    // System-Theme – exakt derselbe Bug wie bei Header/Bottom-Bar oben, nur auf
     // Systemleisten-Ebene: weicht das gewählte Reader-Theme vom System-Theme ab, bleiben Status-
     // und Navigationsleiste in der falschen (System-)Farbe, während die restliche Reader-Chrome
     // schon auf `chromeColors` umgestellt ist – sichtbar als weißer Streifen oben/unten im
@@ -268,10 +266,9 @@ fun ArticleReaderScreen(
     // Äußerste Hülle: Äquivalent zum iOS-`GeometryReader` mit `.ignoresSafeArea()` für den
     // Fortschrittsbalken in ArticleReaderView.swift – der Balken liegt dort über dem *gesamten*
     // Bildschirm (inkl. der Fläche unter der Statusleiste), nicht nur über dem Artikelinhalt.
-    // Android hat hier zusätzlich eine echte `TopAppBar`, die im iOS-Original kein Äquivalent mit
-    // eigenem Layout-Platzbedarf hat; damit der Balken trotzdem die komplette Bildschirmhöhe
-    // einnimmt statt nur den Bereich unterhalb der TopAppBar, sitzt er als Geschwister-Overlay
-    // außerhalb von Scaffold/TopAppBar in dieser Box, nicht innerhalb des Scaffold-Contents.
+    // Damit der Balken die komplette Bildschirmhöhe einnimmt statt nur den (um die System-Insets
+    // verkleinerten) Scaffold-Content-Bereich, sitzt er als Geschwister-Overlay außerhalb des
+    // Scaffold in dieser Box, nicht innerhalb des Scaffold-Contents.
     Box(modifier = Modifier.fillMaxSize()) {
     // ModalNavigationDrawer öffnet in Material3 ausschließlich von der Start-Kante (links in LTR) –
     // es gibt keinen nativen "DrawerPosition"-Parameter für eine rechtsseitige Variante. Trick:
@@ -284,7 +281,7 @@ fun ArticleReaderScreen(
         // Standardmäßig öffnet ModalNavigationDrawer per Edge-Swipe – das kollidiert mit dem
         // WebView-Scrollen (jede Geste in Bildschirmnähe wird als Drawer-Aufziehen interpretiert).
         // Das Action-Sheet unter iOS (ArticleReaderView.swift) öffnet ausschließlich per Button-Tap, nie
-        // per Wisch-Geste – daher hier ebenfalls deaktiviert; Öffnen weiterhin über den Menü-Button.
+        // per Wisch-Geste – daher hier ebenfalls deaktiviert; Öffnen weiterhin über den Menü-Button in der Bottom-Bar.
         gesturesEnabled = drawerState.isOpen,
         drawerContent = {
             CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
@@ -431,26 +428,10 @@ fun ArticleReaderScreen(
         CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
         Scaffold(
             containerColor = chromeColors.background,
-            topBar = {
-                TopAppBar(
-                    // Titellos (kein fixer Titel-Balken, nur das Menü). Der Titel existiert nur
-                    // einmal: im scrollenden Header (siehe ReaderHtmlBuilder.buildHeaderHtml).
-                    // Bewusst kein Zurück-Button oben links (System-Zurück genügt) und kein
-                    // Favoriten-Stern oben rechts – Favorisieren bleibt über das Seitenmenü möglich.
-                    title = {},
-                    actions = {
-                        IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                            Icon(Icons.Filled.Menu, contentDescription = "Menü")
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = chromeColors.background,
-                        titleContentColor = chromeColors.foreground,
-                        navigationIconContentColor = chromeColors.foreground,
-                        actionIconContentColor = chromeColors.foreground,
-                    ),
-                )
-            },
+            // Bewusst keine TopAppBar mehr: kein Zurück-Button (System-Zurück genügt), kein
+            // Favoriten-Stern (Favorisieren über das Seitenmenü) und das Menü sitzt rechts in der
+            // [ReaderBottomBar]. Der Titel existiert nur im scrollenden Header
+            // (siehe ReaderHtmlBuilder.buildHeaderHtml).
             snackbarHost = { SnackbarHost(snackbarHostState) { data -> Snackbar(snackbarData = data) } },
         ) { padding ->
             Box(modifier = Modifier.padding(padding).fillMaxSize().background(chromeColors.background)) {
@@ -597,6 +578,7 @@ fun ArticleReaderScreen(
                                             if (!currentArticle.isArchived) viewModel.toggleArchive()
                                             onBack()
                                         },
+                                        onOpenMenu = { scope.launch { drawerState.open() } },
                                         chromeColors = chromeColors,
                                     )
                                 }
@@ -611,7 +593,7 @@ fun ArticleReaderScreen(
 
     // Fortschrittsbalken als Geschwister-Overlay der Drawer/Scaffold-Hülle (siehe Kommentar an der
     // äußeren Box oben) – `Modifier.fillMaxSize()` bezieht sich hier auf die volle Bildschirmgröße
-    // dieses Composables, nicht auf den von der TopAppBar verkleinerten Scaffold-Content-Bereich.
+    // dieses Composables, nicht auf den um die System-Insets verkleinerten Scaffold-Content-Bereich.
     if (progressEdge != ProgressEdge.OFF) {
         ProgressBarOverlay(
             edge = progressEdge,
@@ -688,7 +670,7 @@ fun ArticleReaderScreen(
  *
  * [progress] ist bewusst ein Lambda und wird erst in der Draw-Phase (`drawBehind`) gelesen: der
  * Fortschritt ändert sich bei jedem Scroll-Event. Würde der Wert in einer Composition gelesen,
- * müsste bei jedem Frame der ganze `ArticleReaderScreen` (Drawer, TopAppBar, Reader-Wrapper)
+ * müsste bei jedem Frame der ganze `ArticleReaderScreen` (Drawer, Bottom-Bar, Reader-Wrapper)
  * neu komponiert werden – das war eine Hauptursache für ruckelndes Scrollen. So wird pro Frame
  * nur dieser Balken neu gezeichnet.
  */
@@ -714,14 +696,17 @@ private fun ProgressBarOverlay(edge: ProgressEdge, progress: () -> Float, colorH
 }
 
 /**
- * Reader-Bottom-Bar (abgeleitet von der iOS-`bottomBar` in ArticleReaderView.swift): nur noch ein
- * Icon-Button "Archivieren und zurück" über die volle Breite, 54dp hoch, Hintergrund leicht
- * transparent mit oberer Haarlinie. Der frühere Zurück-Button und "Archivieren und weiter" wurden
- * entfernt. Archiviert nur einseitig (nie un-archivieren), wie im iOS-Original.
+ * Reader-Bottom-Bar (abgeleitet von der iOS-`bottomBar` in ArticleReaderView.swift): 2 gleich
+ * breite Icon-Buttons ("Archivieren und zurück" links, Menü rechts), getrennt durch eine
+ * Haarlinie, 54dp hoch, Hintergrund leicht transparent mit oberer Haarlinie. Der frühere
+ * Zurück-Button und "Archivieren und weiter" wurden entfernt; das Menü kam aus der früheren
+ * TopAppBar hierher und öffnet den (rechtsseitigen) Drawer. Archiviert nur einseitig (nie
+ * un-archivieren), wie im iOS-Original.
  */
 @Composable
 private fun ReaderBottomBar(
     onArchiveAndBack: () -> Unit,
+    onOpenMenu: () -> Unit,
     chromeColors: ReaderChromeColors,
     modifier: Modifier = Modifier,
 ) {
@@ -740,6 +725,14 @@ private fun ReaderBottomBar(
                 icon = Icons.Filled.Archive,
                 contentDescription = "Archivieren und zurück",
                 onClick = onArchiveAndBack,
+                chromeColors = chromeColors,
+                modifier = Modifier.weight(1f),
+            )
+            VerticalDivider(thickness = 0.5.dp, color = chromeColors.separator)
+            BottomBarButton(
+                icon = Icons.Filled.Menu,
+                contentDescription = "Menü",
+                onClick = onOpenMenu,
                 chromeColors = chromeColors,
                 modifier = Modifier.weight(1f),
             )
@@ -912,7 +905,7 @@ private fun HighlightColorToolbar(onColorSelected: (String) -> Unit, modifier: M
 }
 
 /**
- * Farben für die native Chrome (TopAppBar, [ReaderBottomBar]), passend zum
+ * Farben für die native Chrome ([ReaderBottomBar]), passend zum
  * gewählten Reader-Theme statt zum System-Theme – Äquivalent zu den iOS-Farben `readerBgColor`/
  * `readerFgColor`/`readerButtonBgColor`/`readerSeparatorColor`/`readerFgMutedColor`
  * (ArticleReaderView.swift). `elevatedBackground` ist die etwas hellere/dunklere Fläche für
