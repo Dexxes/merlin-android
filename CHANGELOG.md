@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Share sheet like on iOS: a bottom sheet over the dimmed sharing app with the
+  Merlin logo and a status line, tags as an indented tree (selecting a sub-tag
+  selects its parents, deselecting a tag deselects its sub-tags), "Neuer Tag"
+  for comma-separated new tags (Done on the keyboard saves) and the save button
+  pinned below the scrolling content. Files can be shared too (one or several
+  photos, videos, audio, PDFs or other files, merlin-nextcloud only): they are
+  uploaded to the Nextcloud folder "Merlin Dateien" (large files in chunks)
+  with progress, and get an entry with the chosen tags. Photos offer strong,
+  light or no compression, each with a preview crop and the resulting size
+  (last choice is remembered; EXIF incl. location is kept). Errors stay for
+  10 s or until tapped. Unlike iOS there is no text recognition in photos yet.
+  Not compiled or run on a device yet.
 - Hands-free reading (auto-scroll) like on iOS: a new button in the middle of
   the reader's bottom bar starts it. While it runs, the bottom bar becomes a
   bar with pause/resume, a speed slider (10–150 dp/s, quadratic like on iOS,

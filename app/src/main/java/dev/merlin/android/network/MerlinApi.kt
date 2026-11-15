@@ -10,6 +10,7 @@ import dev.merlin.android.models.SiteCredentialsResponse
 import dev.merlin.android.models.Tag
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import okhttp3.ResponseBody
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.DELETE
@@ -84,6 +85,23 @@ interface MerlinApi {
 
     @PUT("api/articles/{id}/progress")
     suspend fun updateProgress(@Path("id") id: Int, @Body body: UpdateProgressRequest): ProgressResponse
+
+    // ── Merlin Dateien (nur merlin-nextcloud ≥ 1.0.18) ─────────────────────
+    // Der Upload selbst läuft per WebDAV, siehe dev.merlin.android.share.FileUploader.
+
+    /** Legt bei Bedarf „Merlin Dateien“ und den Unterordner der Dateiart an und liefert einen freien Pfad. */
+    @POST("api/files/target")
+    suspend fun requestFileTarget(@Body body: RequestFileTargetRequest): FileUploadTarget
+
+    /**
+     * Meldet eine hochgeladene Datei als Eintrag an. Tags wie bei iOS über `tagIds[]` in der
+     * Query. Die Antwort (der Eintrag) wird nicht gebraucht, daher roh als [ResponseBody].
+     */
+    @POST("api/files")
+    suspend fun registerFile(
+        @Query("tagIds[]") tagIds: List<Int>,
+        @Body body: RegisterFileRequest,
+    ): ResponseBody
 
     @GET("api/tags")
     suspend fun listTags(): List<Tag>
@@ -253,6 +271,17 @@ data class MoveTagRequest(val parentId: Int)
 /** Antwort von `DELETE api/tags/{id}`; [deletedIds] fehlt bei älteren Servern ohne Unter-Tags. */
 @Serializable
 data class DeleteTagResponse(val success: Boolean = true, val deletedIds: List<Int>? = null)
+
+@Serializable
+data class RequestFileTargetRequest(val name: String, val mimeType: String)
+
+/** Antwort von `POST api/files/target`; [davPath]/[uploadsPath] relativ zur Server-Adresse, schon URL-kodiert. */
+@Serializable
+data class FileUploadTarget(val path: String, val davPath: String, val uploadsPath: String, val kind: String? = null)
+
+/** [text] = auf dem Gerät erkannter Text (OCR); Android sendet ihn (noch) nicht. */
+@Serializable
+data class RegisterFileRequest(val path: String, val text: String? = null)
 
 @Serializable
 data class RenameFileRequest(val name: String)

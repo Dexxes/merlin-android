@@ -32,6 +32,7 @@ Die App erlaubt die Android-Sicherung (`allowBackup`). Wenn du die Sicherung dei
 Die App überträgt alle Inhalte ausschließlich an den Server, den du selbst einträgst. Dazu gehören:
 
 - gespeicherte Links und Texte, die du über das Teilen-Menü an Merlin sendest
+- Dateien (Fotos, Videos, Audio, PDFs und andere), die du über das Teilen-Menü an Merlin sendest. Sie werden in deine Nextcloud in den Ordner „Merlin Dateien“ hochgeladen, Fotos auf Wunsch vorher auf dem Gerät verkleinert. Die Metadaten der Fotos (zum Beispiel Aufnahmeort) bleiben dabei erhalten.
 - Tags, Favoriten, Archivstatus, Lesepositionen und Markierungen
 - Einstellungen der App
 - Zugangsdaten für Abos von Nachrichtenseiten, wenn du sie hinterlegst. Der Server nutzt sie nur, um sich bei der jeweiligen Seite anzumelden.
@@ -105,6 +106,7 @@ The app allows Android backup (`allowBackup`). If you have turned on device back
 The app sends all content only to the server you enter yourself. This includes:
 
 - saved links, and text you share to Merlin through the share sheet
+- files (photos, videos, audio, PDFs and others) you share to Merlin through the share sheet. They are uploaded to the "Merlin Dateien" folder in your Nextcloud; photos are optionally scaled down on the device first. Their metadata (for example the location a photo was taken) is kept.
 - tags, favorites, archive status, reading positions and highlights
 - app settings
 - login credentials for news site subscriptions, if you add them. The server uses them only to log in to that site.

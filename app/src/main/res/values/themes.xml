@@ -3,6 +3,17 @@
          Wird hier nur als Fenster-/Splash-Theme für die Activity benötigt. -->
     <style name="Theme.Merlin" parent="android:Theme.Material.Light.NoActionBar" />
 
+    <!-- Share-Sheet (ShareActivity): transparentes Fenster ohne Fenster-Animation, damit die
+         teilende App wie auf iOS hinter dem Sheet sichtbar bleibt; die Abdunkelung zeichnet
+         ShareScreen selbst. Erbt Theme.Merlin, also auch dessen Nacht-Variante. -->
+    <style name="Theme.Merlin.Share">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:backgroundDimEnabled">false</item>
+        <item name="android:windowAnimationStyle">@android:style/Animation.Translucent</item>
+    </style>
+
     <!-- Splash-Theme (Android SplashScreen API): nur für den kurzen Moment zwischen Prozess-
          start und dem ersten Compose-Frame aktiv, danach ersetzt die API das Activity-Theme
          automatisch durch `Theme.Merlin`. Icon = `splash_icon`: das Merlin-Logo, auf 1/3 der
