@@ -113,6 +113,19 @@ data class Article(
         get() = category == "PDF" ||
             runCatching { java.net.URI(url).path }.getOrNull()?.lowercase()?.endsWith(".pdf") == true
 
+    /**
+     * Wo die PDF eines PDF-Artikels liegt (wie `pdfSourceURL` in `Article.swift`): bei
+     * Datei-Einträgen der signierte Link aus dem Marker `div.merlin-pdf[data-pdf-src]` im Inhalt
+     * (`url` führt dort in die Nextcloud-Dateien-App und bräuchte einen Login; `null`, solange
+     * der Inhalt noch nicht geladen ist), sonst die Quell-URL.
+     */
+    val pdfSourceUrl: String?
+        get() {
+            if (fileId == null) return url
+            val raw = content?.let { PDF_SRC_REGEX.find(it)?.groupValues?.get(1) } ?: return null
+            return raw.replace("&amp;", "&")
+        }
+
     val displaySiteName: String
         get() = siteName ?: runCatching { java.net.URI(url).host }.getOrNull() ?: url
 
@@ -137,7 +150,10 @@ data class Article(
             requiresLoginDomain == other.requiresLoginDomain &&
             isPaywalled == other.isPaywalled &&
             unsupportedSiteDomain == other.unsupportedSiteDomain &&
-            tags.map { it.id }.sorted() == other.tags.map { it.id }.sorted()
+            // Tag-Namen mit vergleichen, damit ein umbenannter Tag in Zeile/Karte neu gezeichnet wird.
+            tags.map { it.id to it.name }.sortedBy { it.first } == other.tags.map { it.id to it.name }.sortedBy { it.first } &&
+            // Umbenennen eines Datei-Eintrags ändert den Titel (ob `updatedAt` mitzieht, ist nicht garantiert).
+            title == other.title
     }
 
     override fun hashCode(): Int {
@@ -150,3 +166,6 @@ data class Article(
         return result
     }
 }
+
+/** Marker der PDF-Quelle im Inhalt von Datei-Einträgen, siehe [Article.pdfSourceUrl]. */
+private val PDF_SRC_REGEX = Regex("data-pdf-src=\"([^\"]+)\"")

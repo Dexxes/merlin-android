@@ -74,6 +74,14 @@ interface MerlinApi {
     suspend fun toggleArchive(@Path("id") id: Int): ToggleArchiveResponse
 
     /** Geräteübergreifende Leseposition (Fraktion 0..1 + Client-Zeitstempel für Last-Write-Wins). */
+    /**
+     * Benennt die Datei eines Eintrags aus „Merlin Dateien“ um (nur merlin-nextcloud ≥ 1.0.19).
+     * [RenameFileRequest.name] ohne Endung, die der Server beibehält; 409 = Name im Ordner
+     * schon vergeben. Liefert den neu aufgebauten Eintrag (Titel folgt dem Dateinamen).
+     */
+    @PUT("api/articles/{id}/file-name")
+    suspend fun renameFile(@Path("id") id: Int, @Body body: RenameFileRequest): Article
+
     @PUT("api/articles/{id}/progress")
     suspend fun updateProgress(@Path("id") id: Int, @Body body: UpdateProgressRequest): ProgressResponse
 
@@ -86,8 +94,24 @@ interface MerlinApi {
     @PUT("api/tags/{id}")
     suspend fun updateTag(@Path("id") id: Int, @Body body: UpdateTagRequest): Tag
 
+    /**
+     * Hängt einen Tag (samt Unter-Tags) unter einen anderen; `parentId = 0` = oberste Ebene.
+     * Kreise lehnt der Server mit 400 ab. Eigener Request statt [UpdateTagRequest], weil
+     * `encodeDefaults` sonst `"name": null` mitschicken würde.
+     */
+    @PUT("api/tags/{id}")
+    suspend fun moveTag(@Path("id") id: Int, @Body body: MoveTagRequest): Tag
+
+    /**
+     * Benennt einen Tag um. Eigener Request statt [UpdateTagRequest], weil `encodeDefaults`
+     * sonst `"color": null` mitschicken und die Farbe löschen könnte.
+     */
+    @PUT("api/tags/{id}")
+    suspend fun renameTag(@Path("id") id: Int, @Body body: RenameTagRequest): Tag
+
+    /** Löscht den Tag samt Unter-Tags; die Artikel bleiben, nur die Zuordnungen fallen weg. */
     @DELETE("api/tags/{id}")
-    suspend fun deleteTag(@Path("id") id: Int): SuccessResponse
+    suspend fun deleteTag(@Path("id") id: Int): DeleteTagResponse
 
     @POST("api/articles/{articleId}/tags/{tagId}")
     suspend fun addTagToArticle(@Path("articleId") articleId: Int, @Path("tagId") tagId: Int): SuccessResponse
@@ -218,8 +242,23 @@ data class UpdateArticleRequest(
     val isArchived: Boolean? = null,
 )
 
+/** [parentId] legt einen Unter-Tag an (nur merlin-nextcloud, andere Server ignorieren das Feld). */
 @Serializable
-data class CreateTagRequest(val name: String, val color: String? = null)
+data class CreateTagRequest(val name: String, val color: String? = null, val parentId: Int? = null)
+
+/** Neuer Eltern-Tag für `PUT api/tags/{id}`; `0` = oberste Ebene. */
+@Serializable
+data class MoveTagRequest(val parentId: Int)
+
+/** Antwort von `DELETE api/tags/{id}`; [deletedIds] fehlt bei älteren Servern ohne Unter-Tags. */
+@Serializable
+data class DeleteTagResponse(val success: Boolean = true, val deletedIds: List<Int>? = null)
+
+@Serializable
+data class RenameFileRequest(val name: String)
+
+@Serializable
+data class RenameTagRequest(val name: String)
 
 @Serializable
 data class UpdateTagRequest(val name: String? = null, val color: String? = null)

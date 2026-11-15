@@ -13,10 +13,15 @@ import dev.merlin.android.data.PreferencesStore
 import dev.merlin.android.models.Article
 import dev.merlin.android.models.ArticleFilter
 import dev.merlin.android.models.Tag
+import dev.merlin.android.models.TagTree
 import dev.merlin.android.network.ArticleCounts
 import dev.merlin.android.network.CreateArticleRequest
 import dev.merlin.android.network.CreateTagRequest
+import dev.merlin.android.network.CredentialsStore
 import dev.merlin.android.network.MerlinApi
+import dev.merlin.android.network.MoveTagRequest
+import dev.merlin.android.network.RenameFileRequest
+import dev.merlin.android.network.RenameTagRequest
 import java.io.IOException
 import java.time.Instant
 import javax.inject.Inject
@@ -32,6 +37,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import retrofit2.HttpException
 
 /** Äquivalent zu `UndoableAction` (Swift): merkt sich die letzte rückgängig machbare Mutation. */
 data class UndoableAction(val kind: Kind, val article: Article) {
@@ -71,7 +77,15 @@ class ArticlesViewModel @Inject constructor(
     val imageLoader: ImageLoader,
     /** Äquivalent zu `HapticFeedback` (iOS) – Vibration-Feedback bei Favorit/Archiv/Löschen, siehe Aufrufe unten. */
     private val hapticUtil: HapticUtil,
+    private val credentialsStore: CredentialsStore,
 ) : ViewModel() {
+
+    /**
+     * Dateien-Tab und verschachtelte Tags (Verschieben, Unter-Tags anlegen) gibt es nur mit
+     * merlin-nextcloud – der Standalone-Server kennt weder Datei-Einträge noch `parentId`.
+     */
+    val supportsNextcloudOnlyFeatures: Boolean
+        get() = credentialsStore.supportsNextcloudOnlyFeatures
 
     // MARK: – State
 
@@ -112,6 +126,11 @@ class ArticlesViewModel @Inject constructor(
     private val _allTags = MutableStateFlow<List<Tag>>(emptyList())
     val allTags: StateFlow<List<Tag>> = _allTags.asStateFlow()
 
+    /** Verschachtelte Tags als Baum über [allTags] (Äquivalent zu `tagTree` in ArticlesViewModel.swift). */
+    val tagTree: StateFlow<TagTree> = _allTags
+        .map { TagTree(it) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, TagTree(emptyList()))
+
     private val _selectedTagId = MutableStateFlow<Int?>(null)
     val selectedTagId: StateFlow<Int?> = _selectedTagId.asStateFlow()
 
@@ -143,6 +162,13 @@ class ArticlesViewModel @Inject constructor(
 
     val selectedTagName: String?
         get() = _selectedTagId.value?.let { id -> _allTags.value.firstOrNull { it.id == id }?.name }
+
+    /**
+     * Was die Einzel-Tag-Ansicht umfasst: der gewählte Tag plus seine Unter-Tags (der Server
+     * filtert `tagId` genauso). `null` = keine Tag-Ansicht.
+     */
+    private val selectedTagScope: Set<Int>?
+        get() = _selectedTagId.value?.let { tagTree.value.scope(it) }
 
     // MARK: – Undo stack
 
@@ -184,13 +210,15 @@ class ArticlesViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
 
     val filteredArticles: StateFlow<List<Article>> = combine(
-        _articles, _excludedTagIds, _searchQuery, _selectedTagId,
-    ) { list, excluded, query, tagId ->
+        _articles, _excludedTagIds, _searchQuery, _selectedTagId, tagTree,
+    ) { list, excluded, query, tagId, tree ->
         var result = list
         // Ausgeblendete Tags gelten nicht in der Einzel-Tag-Ansicht: wer einen Tag explizit
         // öffnet, will dessen Artikel sehen (wie `filteredArticles` in ArticlesViewModel.swift).
+        // Ein ausgeblendeter Tag blendet auch seine Unter-Tags aus (`hiddenTagIds` auf iOS).
         if (tagId == null && excluded.isNotEmpty()) {
-            result = result.filter { article -> article.tags.all { it.id !in excluded } }
+            val hidden = excluded.flatMapTo(mutableSetOf()) { tree.scope(it) }
+            result = result.filter { article -> article.tags.all { it.id !in hidden } }
         }
         if (query.isBlank()) return@combine result
         val q = query.lowercase()
@@ -200,6 +228,24 @@ class ArticlesViewModel @Inject constructor(
                 article.siteName?.lowercase()?.contains(q) == true
         }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    /** Im Seitenmenü aufgeklappte Eltern-Tags, persistiert in [PreferencesStore.expandedTagIds]. */
+    val expandedTagIds: StateFlow<Set<Int>> = preferencesStore.expandedTagIds
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
+
+    fun setTagExpanded(tagId: Int, expanded: Boolean) {
+        val current = expandedTagIds.value
+        val updated = if (expanded) current + tagId else current - tagId
+        if (updated != current) viewModelScope.launch { preferencesStore.setExpandedTagIds(updated) }
+    }
+
+    /** Klappt die Eltern-Tags des gewählten Tags auf, damit er im Seitenmenü sichtbar bleibt. */
+    fun expandAncestorsOfSelectedTag() {
+        val selected = _selectedTagId.value ?: return
+        val ancestors = tagTree.value.ancestorIds(selected)
+        val current = expandedTagIds.value
+        if (!current.containsAll(ancestors)) viewModelScope.launch { preferencesStore.setExpandedTagIds(current + ancestors) }
+    }
 
     fun toggleTagExclusion(tagId: Int) {
         val current = _excludedTagIds.value
@@ -338,7 +384,7 @@ class ArticlesViewModel @Inject constructor(
                 // Offline gibt es nichts nachzuladen – der Cache liefert alles auf einmal.
                 _hasMoreArticles.value = false
                 loadedViewKey = null
-                val cached = articleCacheService.loadFiltered(filter, tagId, showArchivedForTag)
+                val cached = articleCacheService.loadFiltered(filter, tagId?.let { tagTree.value.scope(it) }, showArchivedForTag)
                 if (cached.isNotEmpty()) {
                     _articles.value = cached
                     _isOffline.value = true
@@ -473,8 +519,94 @@ class ArticlesViewModel @Inject constructor(
     // MARK: – Tags
 
     fun loadTags() {
+        viewModelScope.launch { refreshTags() }
+    }
+
+    private suspend fun refreshTags() {
+        _allTags.value = runCatching { api.listTags() }.getOrDefault(emptyList())
+    }
+
+    /**
+     * Hängt einen Tag samt Unter-Tags unter [parentId] (`null` = oberste Ebene) und lädt danach
+     * Tags und – falls eine Tag-Ansicht offen ist, deren Umfang sich ändern kann – die Liste neu
+     * (Äquivalent zu `moveTag(_:under:)` in ArticlesViewModel.swift).
+     */
+    fun moveTag(tagId: Int, parentId: Int?) {
+        if (!tagTree.value.canMove(tagId, parentId)) return
         viewModelScope.launch {
-            _allTags.value = runCatching { api.listTags() }.getOrDefault(emptyList())
+            try {
+                api.moveTag(tagId, MoveTagRequest(parentId = parentId ?: 0))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _error.value = if (isNetworkError(e)) "Keine Verbindung – Tag nicht verschoben." else e.message ?: "Unbekannter Fehler"
+                return@launch
+            }
+            refreshTags()
+            if (_selectedTagId.value != null) load()
+        }
+    }
+
+    /**
+     * Benennt einen Tag um und übernimmt den neuen Namen lokal in Tag-Liste, geladene Artikel und
+     * Cache. Tag-Namen sind im ganzen Baum eindeutig: ein schon vorhandener Name wird vorab
+     * abgelehnt. Liefert die Fehlermeldung für den Dialog, `null` bei Erfolg. Kein Offline-Queueing.
+     */
+    suspend fun renameTag(tag: Tag, name: String): String? {
+        val newName = name.trim()
+        if (newName.isEmpty() || newName == tag.name) return null
+        if (_allTags.value.any { it.id != tag.id && it.name.equals(newName, ignoreCase = true) }) {
+            return "Es gibt schon einen Tag mit diesem Namen."
+        }
+        val renamed = try {
+            api.renameTag(tag.id, RenameTagRequest(newName))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            return if (isNetworkError(e)) "Keine Verbindung – bitte später erneut versuchen." else e.message ?: "Unbekannter Fehler"
+        }
+        val finalName = renamed.name.ifEmpty { newName }
+        _allTags.value = _allTags.value.map { if (it.id == tag.id) it.copy(name = finalName) else it }
+        val changed = mutableListOf<Article>()
+        _articles.value = _articles.value.map { article ->
+            if (article.tags.none { it.id == tag.id }) return@map article
+            article.copy(tags = article.tags.map { if (it.id == tag.id) it.copy(name = finalName) else it })
+                .also { changed += it }
+        }
+        articleCacheService.upsert(changed)
+        return null
+    }
+
+    /**
+     * Löscht einen Tag (samt Unter-Tags) auf dem Server und entfernt ihn anschließend lokal: aus
+     * der Tag-Liste, den ausgeblendeten Tags und von allen geladenen Artikeln. War der Tag gerade
+     * geöffnet, geht es zurück zur normalen Liste. Kein Offline-Queueing (wie iOS): ohne
+     * Verbindung gibt es eine Fehlermeldung und nichts ändert sich.
+     */
+    fun deleteTag(tag: Tag) {
+        viewModelScope.launch {
+            val deletedIds: Set<Int> = try {
+                api.deleteTag(tag.id).deletedIds?.toSet() ?: tagTree.value.scope(tag.id)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _error.value = if (isNetworkError(e)) "Keine Verbindung – Tag nicht gelöscht." else e.message ?: "Unbekannter Fehler"
+                return@launch
+            }
+
+            _allTags.value = _allTags.value.filterNot { it.id in deletedIds }
+            if (_excludedTagIds.value.any { it in deletedIds }) {
+                _excludedTagIds.value = _excludedTagIds.value - deletedIds
+                preferencesStore.setExcludedTagIds(_excludedTagIds.value)
+            }
+            val changed = mutableListOf<Article>()
+            _articles.value = _articles.value.map { article ->
+                if (article.tags.none { it.id in deletedIds }) return@map article
+                article.copy(tags = article.tags.filterNot { it.id in deletedIds }).also { changed += it }
+            }
+            articleCacheService.upsert(changed)
+
+            if (_selectedTagId.value?.let { it in deletedIds } == true) selectTag(null)
         }
     }
 
@@ -500,9 +632,16 @@ class ArticlesViewModel @Inject constructor(
      * Wirft die Exception weiter (statt sie zu schlucken) – der Aufrufer (`AddArticleSheet`) zeigt
      * sie als Fehlertext, analog dem `catch`-Block in `AddArticleSheet.save()`.
      */
-    suspend fun addArticle(url: String, tagIds: Set<Int> = emptySet(), pendingTagNames: List<String> = emptyList()) {
-        val resolvedIds = resolveTagIds(pendingTagNames)
-        val article = api.createArticle(CreateArticleRequest(url = url, tagIds = (tagIds + resolvedIds).toList()))
+    suspend fun addArticle(
+        url: String,
+        tagIds: Set<Int> = emptySet(),
+        pendingTagNames: List<String> = emptyList(),
+        /** Eltern-Tag für neu angelegte Tags (verschachtelte Tags, nur merlin-nextcloud). */
+        newTagParentId: Int? = null,
+    ) {
+        val resolvedIds = resolveTagIds(pendingTagNames, newTagParentId)
+        val allIds = withParentOf(tagIds + resolvedIds, newTagParentId.takeIf { resolvedIds.isNotEmpty() })
+        val article = api.createArticle(CreateArticleRequest(url = url, tagIds = allIds.toList()))
         _articles.value = listOf(article) + _articles.value
         _counts.value = _counts.value.let { it.copy(pages = it.pages.copy(total = it.pages.total + 1)) }
         articleCacheService.upsert(article)
@@ -517,14 +656,18 @@ class ArticlesViewModel @Inject constructor(
      * verhindert Duplikate, falls ein Name parallel schon als existierender Tag angelegt wurde
      * (z.B. von einem anderen Client), seit [allTags] zuletzt geladen wurde.
      */
-    private suspend fun resolveTagIds(names: List<String>): List<Int> {
+    private suspend fun resolveTagIds(names: List<String>, parentId: Int? = null): List<Int> {
         if (names.isEmpty()) return emptyList()
         val knownTags = _allTags.value.ifEmpty { runCatching { api.listTags() }.getOrDefault(emptyList()) }
         return names.map { name ->
             knownTags.firstOrNull { it.name.equals(name, ignoreCase = true) }?.id
-                ?: api.createTag(CreateTagRequest(name = name)).id
+                ?: api.createTag(CreateTagRequest(name = name, parentId = parentId)).id
         }
     }
+
+    /** Ein neuer Unter-Tag wählt seinen Eltern-Tag samt dessen Eltern mit aus (wie iOS' `AddArticleSheet`). */
+    private fun withParentOf(ids: Set<Int>, parentId: Int?): Set<Int> =
+        if (parentId == null) ids else tagTree.value.selecting(parentId, ids)
 
     /**
      * Öffentlicher Speicherpunkt für [EditTagsDialog]: löst [pendingTagNames] zu IDs auf
@@ -532,10 +675,35 @@ class ArticlesViewModel @Inject constructor(
      * Suspend (anders als [setTags]), damit der Aufrufer per `try`/`catch` einen Ladezustand
      * bzw. eine Fehlermeldung anzeigen kann (analog `AddArticleSheet.save()`).
      */
-    suspend fun saveTags(article: Article, tagIds: Set<Int>, pendingTagNames: List<String> = emptyList()) {
-        val resolvedIds = resolveTagIds(pendingTagNames)
-        doSetTags(article, tagIds + resolvedIds)
+    suspend fun saveTags(
+        article: Article,
+        tagIds: Set<Int>,
+        pendingTagNames: List<String> = emptyList(),
+        newTagParentId: Int? = null,
+    ) {
+        val resolvedIds = resolveTagIds(pendingTagNames, newTagParentId)
+        // Erst Tags neu laden, damit doSetTags die neu angelegten Tag-Objekte kennt.
+        if (resolvedIds.isNotEmpty()) refreshTags()
+        doSetTags(article, withParentOf(tagIds + resolvedIds, newTagParentId.takeIf { resolvedIds.isNotEmpty() }))
         loadTags()
+    }
+
+    /**
+     * Benennt einen Datei-Eintrag um (Datei in Nextcloud und Titel des Eintrags). Liefert die
+     * Fehlermeldung für den Umbenennen-Dialog, `null` bei Erfolg (Äquivalent zu
+     * `renameFile(_:to:)` in ArticlesViewModel.swift). Kein Offline-Queueing.
+     */
+    suspend fun renameFile(article: Article, name: String): String? = try {
+        val updated = api.renameFile(article.id, RenameFileRequest(name))
+        applyListMembership(updated)
+        articleCacheService.upsert(updated)
+        null
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: HttpException) {
+        if (e.code() == 409) RENAME_ERROR_EXISTS else e.message ?: "Unbekannter Fehler"
+    } catch (e: Exception) {
+        if (isNetworkError(e)) "Keine Verbindung – bitte später erneut versuchen." else e.message ?: "Unbekannter Fehler"
     }
 
     // MARK: – Processing-Listener
@@ -644,7 +812,7 @@ class ArticlesViewModel @Inject constructor(
                 api.deleteArticle(article.id)
                 articleCacheService.remove(article.id)
                 imageCacheService.evict(article.id)
-                if (article.isPdf) pdfCacheService.remove(article.url)
+                if (article.isPdf) article.pdfSourceUrl?.let { pdfCacheService.remove(it) }
                 refreshCounts()
             } catch (e: Exception) {
                 if (isNetworkError(e)) {
@@ -750,7 +918,7 @@ class ArticlesViewModel @Inject constructor(
     }
 
     private fun shouldHide(article: Article): Boolean =
-        !_selectedFilter.value.matches(article, _selectedTagId.value, _showArchivedInTagView.value)
+        !_selectedFilter.value.matches(article, selectedTagScope, _showArchivedInTagView.value)
 
     /** Fügt [article] wieder ein, falls der aktive Filter es zeigen würde und es fehlt (Rollback nach echtem Fehler). */
     private fun reinsertIfMissing(article: Article) {
@@ -786,5 +954,8 @@ class ArticlesViewModel @Inject constructor(
     companion object {
         /** Artikel pro Server-Abruf (Erstladen und jedes Nachladen), wie `pageSize` in ArticlesViewModel.swift. */
         const val PAGE_SIZE = 50
+
+        /** 409 von `PUT api/articles/{id}/file-name` (Text wie `fileRename.errorExists` auf iOS). */
+        const val RENAME_ERROR_EXISTS = "Im Ordner gibt es schon eine Datei mit diesem Namen."
     }
 }

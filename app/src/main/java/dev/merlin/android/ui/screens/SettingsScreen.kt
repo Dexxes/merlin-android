@@ -48,6 +48,7 @@ import dev.merlin.android.BuildConfig
 import dev.merlin.android.R
 import dev.merlin.android.ui.components.LoginWebViewDialog
 import dev.merlin.android.models.ArticleFilter
+import dev.merlin.android.models.ContentGroup
 import dev.merlin.android.models.ProgressEdge
 import dev.merlin.android.network.CredentialsStore
 import dev.merlin.android.viewmodel.SettingsViewModel
@@ -259,7 +260,11 @@ fun SettingsScreen(
                     Text("${defaultFilter.group.label} · ${defaultFilter.label}")
                 }
                 DropdownMenu(expanded = defaultViewMenuExpanded, onDismissRequest = { defaultViewMenuExpanded = false }) {
-                    ArticleFilter.entries.filterNot { it.isContinue }.forEach { filter ->
+                    // Dateien nur mit merlin-nextcloud (der Standalone-Server kennt keine Datei-Einträge).
+                    ArticleFilter.entries
+                        .filterNot { it.isContinue }
+                        .filter { it.group != ContentGroup.FILES || backendKind == CredentialsStore.BackendKind.NEXTCLOUD }
+                        .forEach { filter ->
                         DropdownMenuItem(
                             text = { Text("${filter.group.label} · ${filter.label}") },
                             onClick = {

@@ -4,13 +4,14 @@ package dev.merlin.android.models
  * Oberste Inhaltskategorie eines Artikels, Äquivalent zu `ContentGroup` in
  * `ArticlesViewModel.swift`: "Video" und "Audio" sind eigene Kategorien, alles
  * andere (inkl. "Mixed") zählt zu den Seiten. Einträge aus „Merlin Dateien“
- * (`fileId` gesetzt) gehören zu keiner dieser drei Gruppen – den Dateien-Tab
- * gibt es auf Android noch nicht, daher hier kein `FILES`.
+ * (`fileId` gesetzt, nur merlin-nextcloud) stehen nur unter [FILES], auch ein
+ * hochgeladenes Video.
  */
 enum class ContentGroup {
     PAGES,
     VIDEOS,
     AUDIO,
+    FILES,
     ;
 
     /** Wert für den `contentType`-Parameter von `GET /api/articles`. */
@@ -19,6 +20,7 @@ enum class ContentGroup {
             PAGES -> "page"
             VIDEOS -> "video"
             AUDIO -> "audio"
+            FILES -> "file"
         }
 
     /** Tab-Beschriftung im Seitenmenü (siehe `ListFlyoutModifier.swift`). */
@@ -27,12 +29,12 @@ enum class ContentGroup {
             PAGES -> "Text"
             VIDEOS -> "Video"
             AUDIO -> "Audio"
+            FILES -> "Dateien"
         }
 
     companion object {
-        /** `null` für Datei-Einträge, die in keine der drei Gruppen fallen. */
-        fun of(article: Article): ContentGroup? = when {
-            article.fileId != null -> null
+        fun of(article: Article): ContentGroup = when {
+            article.fileId != null -> FILES
             article.category == "Video" -> VIDEOS
             article.category == "Audio" -> AUDIO
             else -> PAGES
@@ -41,8 +43,9 @@ enum class ContentGroup {
 }
 
 /**
- * Äquivalent zum `ArticleFilter`-Enum aus `ArticlesViewModel.swift`: drei Gruppen
- * (Text/Video/Audio), je mit Weiterlesen/Ungelesen/Favoriten/Archiv. Liegt in
+ * Äquivalent zum `ArticleFilter`-Enum aus `ArticlesViewModel.swift`: Text/Video/Audio
+ * je mit Weiterlesen/Ungelesen/Favoriten/Archiv, Dateien ohne „Weiter…“ (Bilder und
+ * Dateien haben keinen Lesefortschritt). Liegt in
  * `models/`, weil [dev.merlin.android.data.ArticleCacheService] den Filter für die
  * Offline-Abfragen braucht. Die Enum-Namen werden in DataStore gespeichert; alte
  * Werte (`ALL`, `FAVORITES`, …) übersetzt [fromStoredName].
@@ -60,6 +63,9 @@ enum class ArticleFilter(val group: ContentGroup, val kind: Kind) {
     AUDIO_UNREAD(ContentGroup.AUDIO, Kind.UNREAD),
     AUDIO_FAVORITES(ContentGroup.AUDIO, Kind.FAVORITES),
     AUDIO_ARCHIVE(ContentGroup.AUDIO, Kind.ARCHIVE),
+    FILES_UNREAD(ContentGroup.FILES, Kind.UNREAD),
+    FILES_FAVORITES(ContentGroup.FILES, Kind.FAVORITES),
+    FILES_ARCHIVE(ContentGroup.FILES, Kind.ARCHIVE),
     ;
 
     /** Unteransicht innerhalb einer Gruppe, unabhängig von Text/Video/Audio. */
@@ -77,8 +83,9 @@ enum class ArticleFilter(val group: ContentGroup, val kind: Kind) {
             VIDEOS_UNREAD -> "Ungesehen"
             AUDIO_CONTINUE -> "Weiterhören"
             AUDIO_UNREAD -> "Ungehört"
-            PAGES_FAVORITES, VIDEOS_FAVORITES, AUDIO_FAVORITES -> "Favoriten"
-            PAGES_ARCHIVE, VIDEOS_ARCHIVE, AUDIO_ARCHIVE -> "Archiv"
+            FILES_UNREAD -> "Nicht geöffnet"
+            PAGES_FAVORITES, VIDEOS_FAVORITES, AUDIO_FAVORITES, FILES_FAVORITES -> "Favoriten"
+            PAGES_ARCHIVE, VIDEOS_ARCHIVE, AUDIO_ARCHIVE, FILES_ARCHIVE -> "Archiv"
         }
 
     /**
@@ -91,6 +98,7 @@ enum class ArticleFilter(val group: ContentGroup, val kind: Kind) {
                 ContentGroup.PAGES -> "pages"
                 ContentGroup.VIDEOS -> "videos"
                 ContentGroup.AUDIO -> "audio"
+                ContentGroup.FILES -> "files"
             }
             val suffix = when (kind) {
                 Kind.CONTINUE -> "continue"
@@ -114,13 +122,14 @@ enum class ArticleFilter(val group: ContentGroup, val kind: Kind) {
     }
 
     /**
-     * Wie [matches], berücksichtigt aber die Einzel-Tag-Ansicht: ist [tagId] gesetzt,
-     * zählt der Filter selbst nicht, sondern nur der Tag und ob archivierte Artikel
-     * eingeblendet sind (Äquivalent zu `matches(_:tagIds:showArchivedForTag:)`).
+     * Wie [matches], berücksichtigt aber die Einzel-Tag-Ansicht: ist [tagScope] gesetzt
+     * (der gewählte Tag plus seine Unter-Tags, siehe [TagTree.scope]), zählt der Filter
+     * selbst nicht, sondern nur, ob der Artikel einen Tag daraus trägt und ob archivierte
+     * Artikel eingeblendet sind (Äquivalent zu `matches(_:tagIds:showArchivedForTag:)`).
      */
-    fun matches(article: Article, tagId: Int?, showArchivedForTag: Boolean): Boolean {
-        if (tagId == null) return matches(article)
-        if (article.tags.none { it.id == tagId }) return false
+    fun matches(article: Article, tagScope: Set<Int>?, showArchivedForTag: Boolean): Boolean {
+        if (tagScope == null) return matches(article)
+        if (article.tags.none { it.id in tagScope }) return false
         return showArchivedForTag || !article.isArchived
     }
 
@@ -134,9 +143,6 @@ enum class ArticleFilter(val group: ContentGroup, val kind: Kind) {
                 // Legacy-Werte aus der Zeit vor der Text/Video-Aufteilung.
                 "favorites" -> PAGES_FAVORITES
                 "video" -> VIDEOS_UNREAD
-                // Dateien gibt es auf Android (noch) nicht – passende Ansicht der Seiten nehmen.
-                "files-favorites" -> PAGES_FAVORITES
-                "files-archived" -> PAGES_ARCHIVE
                 else -> DEFAULT
             }
         }

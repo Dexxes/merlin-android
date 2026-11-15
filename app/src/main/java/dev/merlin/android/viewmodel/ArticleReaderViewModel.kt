@@ -23,11 +23,14 @@ import dev.merlin.android.models.ReaderFont
 import dev.merlin.android.models.ReaderTheme
 import dev.merlin.android.models.Reminder
 import dev.merlin.android.models.Tag
+import dev.merlin.android.models.TagTree
 import dev.merlin.android.network.ArticleShareResponse
 import dev.merlin.android.network.CreateArticleRequest
 import dev.merlin.android.network.CreateShareRequest
 import dev.merlin.android.network.CreateTagRequest
+import dev.merlin.android.network.CredentialsStore
 import dev.merlin.android.network.MerlinApi
+import dev.merlin.android.network.RenameFileRequest
 import dev.merlin.android.network.UpdateProgressRequest
 import java.io.IOException
 import javax.inject.Inject
@@ -69,7 +72,12 @@ class ArticleReaderViewModel @Inject constructor(
     val imageLoader: ImageLoader,
     /** App-überlebender Scope für das Speichern/Pushen der Scroll-Position – siehe [ApplicationScope]. */
     @ApplicationScope private val appScope: CoroutineScope,
+    private val credentialsStore: CredentialsStore,
 ) : ViewModel() {
+
+    /** Unter-Tags anlegen (verschachtelte Tags) gibt es nur mit merlin-nextcloud. */
+    val supportsNextcloudOnlyFeatures: Boolean
+        get() = credentialsStore.supportsNextcloudOnlyFeatures
 
     val articleId: Int = checkNotNull(savedStateHandle["articleId"]) { "articleId fehlt in SavedStateHandle" }
 
@@ -451,7 +459,7 @@ class ArticleReaderViewModel @Inject constructor(
             try {
                 api.deleteArticle(current.id)
                 articleCacheService.remove(current.id)
-                if (current.isPdf) pdfCacheService.remove(current.url)
+                if (current.isPdf) current.pdfSourceUrl?.let { pdfCacheService.remove(it) }
                 _deleted.value = true
             } catch (e: Exception) {
                 if (e is IOException) {
@@ -534,19 +542,51 @@ class ArticleReaderViewModel @Inject constructor(
      * [ArticlesViewModel.saveTags]: löst [pendingTagNames] zu IDs auf (legt neue Tags an,
      * dedupliziert gegen [allTags]) und ruft [setTags] mit der vollständigen Ziel-Menge.
      */
-    suspend fun saveTags(tagIds: Set<Int>, pendingTagNames: List<String> = emptyList()) {
-        val resolvedIds = resolveTagIds(pendingTagNames)
-        doSetTags(tagIds + resolvedIds)
+    suspend fun saveTags(
+        tagIds: Set<Int>,
+        pendingTagNames: List<String> = emptyList(),
+        /** Eltern-Tag für neu angelegte Tags; der Eltern-Tag (samt dessen Eltern) wird mit ausgewählt. */
+        newTagParentId: Int? = null,
+    ) {
+        val resolvedIds = resolveTagIds(pendingTagNames, newTagParentId)
+        var ids = tagIds + resolvedIds
+        if (newTagParentId != null && resolvedIds.isNotEmpty()) {
+            ids = TagTree(_allTags.value).selecting(newTagParentId, ids)
+        }
+        doSetTags(ids)
         loadTags()
     }
 
     /** Äquivalent zu `ArticlesViewModel.resolveTagIds` – gleiche Dedup-Logik gegen [allTags]. */
-    private suspend fun resolveTagIds(names: List<String>): List<Int> {
+    private suspend fun resolveTagIds(names: List<String>, parentId: Int? = null): List<Int> {
         if (names.isEmpty()) return emptyList()
         val knownTags = _allTags.value.ifEmpty { runCatching { api.listTags() }.getOrDefault(emptyList()) }
         return names.map { name ->
             knownTags.firstOrNull { it.name.equals(name, ignoreCase = true) }?.id
-                ?: api.createTag(CreateTagRequest(name = name)).id
+                ?: api.createTag(CreateTagRequest(name = name, parentId = parentId)).id
+        }
+    }
+
+    /**
+     * Benennt den Datei-Eintrag um (Datei in Nextcloud und Titel), Gegenstück zu
+     * [ArticlesViewModel.renameFile] für das Reader-Menü. Liefert die Fehlermeldung für den
+     * Dialog, `null` bei Erfolg; der aktualisierte Eintrag landet in [article] und im Cache.
+     */
+    suspend fun renameFile(name: String): String? {
+        val current = _article.value ?: return null
+        return try {
+            val updated = api.renameFile(current.id, RenameFileRequest(name))
+            _article.value = updated
+            articleCacheService.upsert(updated)
+            null
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: retrofit2.HttpException) {
+            if (e.code() == 409) ArticlesViewModel.RENAME_ERROR_EXISTS else e.message ?: "Unbekannter Fehler"
+        } catch (e: IOException) {
+            "Keine Verbindung – bitte später erneut versuchen."
+        } catch (e: Exception) {
+            e.message ?: "Unbekannter Fehler"
         }
     }
 

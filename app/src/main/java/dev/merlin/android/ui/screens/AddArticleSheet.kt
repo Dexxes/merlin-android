@@ -65,6 +65,8 @@ fun AddArticleSheet(
     viewModel: ArticlesViewModel = hiltViewModel(),
 ) {
     val allTags by viewModel.allTags.collectAsState()
+    val tree by viewModel.tagTree.collectAsState()
+    val canNestTags = viewModel.supportsNextcloudOnlyFeatures
     val sheetState = rememberModalBottomSheetState()
     val scope = rememberCoroutineScope()
 
@@ -72,6 +74,7 @@ fun AddArticleSheet(
     var selectedTagIds by remember { mutableStateOf(emptySet<Int>()) }
     var pendingTagNames by remember { mutableStateOf(emptyList<String>()) }
     var newTagText by remember { mutableStateOf("") }
+    var newTagParentId by remember { mutableStateOf<Int?>(null) }
     var isSaving by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
@@ -80,7 +83,7 @@ fun AddArticleSheet(
         if (name.isEmpty()) return
         val alreadyExisting = allTags.firstOrNull { it.name.equals(name, ignoreCase = true) }
         if (alreadyExisting != null) {
-            selectedTagIds = selectedTagIds + alreadyExisting.id
+            selectedTagIds = tree.selecting(alreadyExisting.id, selectedTagIds)
         } else if (name !in pendingTagNames) {
             pendingTagNames = pendingTagNames + name
         }
@@ -94,7 +97,7 @@ fun AddArticleSheet(
         errorMessage = null
         scope.launch {
             try {
-                viewModel.addArticle(trimmedUrl, selectedTagIds, pendingTagNames)
+                viewModel.addArticle(trimmedUrl, selectedTagIds, pendingTagNames, newTagParentId.takeIf { canNestTags })
                 onDismiss()
             } catch (e: Exception) {
                 errorMessage = e.message ?: "Unbekannter Fehler"
@@ -129,17 +132,12 @@ fun AddArticleSheet(
             )
 
             if (allTags.isNotEmpty()) {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    items(allTags, key = { it.id }) { tag ->
-                        FilterChip(
-                            selected = tag.id in selectedTagIds,
-                            onClick = {
-                                selectedTagIds = if (tag.id in selectedTagIds) selectedTagIds - tag.id else selectedTagIds + tag.id
-                            },
-                            label = { Text(tag.name) },
-                        )
-                    }
-                }
+                TagTreeSelectionList(
+                    tree = tree,
+                    selection = selectedTagIds,
+                    onSelectionChange = { selectedTagIds = it },
+                    enabled = !isSaving,
+                )
             }
 
             if (pendingTagNames.isNotEmpty()) {
@@ -175,6 +173,15 @@ fun AddArticleSheet(
                 IconButton(onClick = ::addPendingTag, enabled = newTagText.isNotBlank() && !isSaving) {
                     Icon(Icons.Filled.Add, contentDescription = "Tag hinzufügen")
                 }
+            }
+
+            if (canNestTags && allTags.isNotEmpty()) {
+                TagParentPicker(
+                    tree = tree,
+                    selection = newTagParentId,
+                    onSelect = { newTagParentId = it },
+                    enabled = !isSaving,
+                )
             }
 
             errorMessage?.let { message ->

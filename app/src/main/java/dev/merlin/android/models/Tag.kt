@@ -8,4 +8,9 @@ data class Tag(
     val id: Int,
     val name: String,
     val color: String? = null,
+    /**
+     * Eltern-Tag bei verschachtelten Tags; `null` = oberste Ebene. Nur merlin-nextcloud liefert
+     * das Feld, beim Standalone-Server sind daher alle Tags oberste Ebene (siehe [TagTree]).
+     */
+    val parentId: Int? = null,
 )

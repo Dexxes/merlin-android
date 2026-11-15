@@ -32,6 +32,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.OutlinedButton
@@ -64,6 +65,7 @@ import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.res.imageResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
@@ -72,6 +74,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import dev.merlin.android.R
 import dev.merlin.android.models.Article
 import dev.merlin.android.models.ArticleFilter
+import dev.merlin.android.models.Tag
 import dev.merlin.android.viewmodel.ArticlesViewModel
 import kotlinx.coroutines.launch
 
@@ -104,6 +107,8 @@ fun ArticleListScreen(
     val undoToast by viewModel.undoToast.collectAsState()
     val excludedTagIds by viewModel.excludedTagIds.collectAsState()
     val allTags by viewModel.allTags.collectAsState()
+    val tagTree by viewModel.tagTree.collectAsState()
+    val expandedTagIds by viewModel.expandedTagIds.collectAsState()
     val isCardView by viewModel.isCardView.collectAsState()
     val accentColorHex by viewModel.accentColorHex.collectAsState()
     val selectedTagId by viewModel.selectedTagId.collectAsState()
@@ -120,6 +125,13 @@ fun ArticleListScreen(
     var tagsArticleId by remember { mutableStateOf<Int?>(null) }
     var showAddSheet by remember { mutableStateOf(false) }
     var showTagFilterSheet by remember { mutableStateOf(false) }
+    /** Tag, dessen „Verschieben nach…“-Sheet bzw. Lösch-Bestätigung offen ist (langes Drücken im Seitenmenü). */
+    var tagToMove by remember { mutableStateOf<Tag?>(null) }
+    var tagToDelete by remember { mutableStateOf<Tag?>(null) }
+    var tagToRename by remember { mutableStateOf<Tag?>(null) }
+    /** Datei-Eintrag, dessen Umbenennen-Dialog offen ist. */
+    var renameArticleId by remember { mutableStateOf<Int?>(null) }
+    val supportsNextcloudOnly = viewModel.supportsNextcloudOnlyFeatures
 
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -171,6 +183,11 @@ fun ArticleListScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
+    // Beim Öffnen des Seitenmenüs bleibt der gewählte Tag sichtbar: seine Eltern-Tags aufklappen.
+    LaunchedEffect(drawerState.targetValue) {
+        if (drawerState.targetValue == DrawerValue.Open) viewModel.expandAncestorsOfSelectedTag()
+    }
+
     fun closeDrawer(then: () -> Unit = {}) {
         scope.launch {
             drawerState.close()
@@ -196,10 +213,17 @@ fun ArticleListScreen(
                 selectedFilter = selectedFilter,
                 selectedTagId = selectedTagId,
                 counts = counts,
-                allTags = allTags,
+                tagTree = tagTree,
+                expandedTagIds = expandedTagIds,
+                showFilesTab = supportsNextcloudOnly,
+                canMoveTags = supportsNextcloudOnly,
                 isCardView = isCardView,
                 onSelectFilter = { filter -> closeDrawer { viewModel.selectFilter(filter) } },
                 onSelectTag = { tagId -> closeDrawer { viewModel.selectTag(tagId) } },
+                onSetTagExpanded = viewModel::setTagExpanded,
+                onRenameTag = { tag -> tagToRename = tag },
+                onMoveTag = { tag -> tagToMove = tag },
+                onDeleteTag = { tag -> tagToDelete = tag },
                 onToggleCardView = { closeDrawer { viewModel.setIsCardView(!isCardView) } },
                 onRemindersClick = { closeDrawer(onRemindersClick) },
                 onSettingsClick = { closeDrawer(onSettingsClick) },
@@ -225,9 +249,26 @@ fun ArticleListScreen(
                                     contentDescription = null,
                                     modifier = Modifier.padding(start = 6.dp).size(18.dp),
                                 )
-                                Text(selectedTagName, modifier = Modifier.padding(start = 4.dp))
+                                // Einzeilig wie auf iOS: lange Tag-/Ansichtsnamen werden gekürzt statt umzubrechen.
+                                Text(
+                                    selectedTagName,
+                                    // Wie der kompakte Inline-Titel auf iOS: kleiner als titleLarge, damit
+                                    // auch „Nicht geöffnet“ zwischen Menü/Suche und Auge/Plus passt.
+                                    style = MaterialTheme.typography.titleMedium,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.padding(start = 4.dp).weight(1f, fill = false),
+                                )
                             } else {
-                                Text(selectedFilter.label, modifier = Modifier.padding(start = 6.dp))
+                                Text(
+                                    selectedFilter.label,
+                                    // Wie der kompakte Inline-Titel auf iOS: kleiner als titleLarge, damit
+                                    // auch „Nicht geöffnet“ zwischen Menü/Suche und Auge/Plus passt.
+                                    style = MaterialTheme.typography.titleMedium,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.padding(start = 6.dp).weight(1f, fill = false),
+                                )
                             }
                         }
                     },
@@ -378,6 +419,7 @@ fun ArticleListScreen(
                                                 onToggleArchive = { viewModel.toggleArchive(article) },
                                                 onDelete = { viewModel.delete(article) },
                                                 onEditTags = { tagsArticleId = article.id },
+                                                onRename = { renameArticleId = article.id },
                                                 progress = progressFor(article),
                                                 showFavoriteAction = showFavoriteAction,
                                                 showArchiveAction = !isArchiveView,
@@ -394,6 +436,7 @@ fun ArticleListScreen(
                                                     onToggleArchive = { viewModel.toggleArchive(article) },
                                                     onDelete = { viewModel.delete(article) },
                                                     onEditTags = { tagsArticleId = article.id },
+                                                    onRename = { renameArticleId = article.id },
                                                     activeSwipeKey = activeSwipeKey,
                                                     progress = progressFor(article),
                                                     showFavoriteAction = showFavoriteAction,
@@ -440,7 +483,8 @@ fun ArticleListScreen(
                 article = article,
                 allTags = allTags,
                 onDismiss = { tagsArticleId = null },
-                onSave = { selectedIds, pendingNames -> viewModel.saveTags(article, selectedIds, pendingNames) },
+                onSave = { selectedIds, pendingNames, parentId -> viewModel.saveTags(article, selectedIds, pendingNames, parentId) },
+                canNestTags = supportsNextcloudOnly,
             )
         } else {
             tagsArticleId = null
@@ -453,12 +497,64 @@ fun ArticleListScreen(
 
     if (showTagFilterSheet) {
         TagFilterSheet(
-            allTags = allTags,
+            tagTree = tagTree,
             excludedTagIds = excludedTagIds,
             onToggle = { tagId -> viewModel.toggleTagExclusion(tagId) },
             onClearAll = { viewModel.clearExcludedTags() },
             onDismiss = { showTagFilterSheet = false },
         )
+    }
+
+    tagToMove?.let { tag ->
+        MoveTagSheet(
+            tag = tag,
+            tree = tagTree,
+            onMove = { parentId ->
+                viewModel.moveTag(tag.id, parentId)
+                if (parentId != null) viewModel.setTagExpanded(parentId, true)
+            },
+            onDismiss = { tagToMove = null },
+        )
+    }
+
+    tagToRename?.let { tag ->
+        RenameTagDialog(
+            tag = tag,
+            onRename = { name -> viewModel.renameTag(tag, name) },
+            onDismiss = { tagToRename = null },
+        )
+    }
+
+    tagToDelete?.let { tag ->
+        AlertDialog(
+            onDismissRequest = { tagToDelete = null },
+            title = { Text("Tag löschen?") },
+            text = {
+                Text("„${tag.name}“ wird von allen Artikeln entfernt, Unter-Tags werden mitgelöscht. Die Artikel selbst bleiben erhalten.")
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    tagToDelete = null
+                    viewModel.deleteTag(tag)
+                }) { Text("Löschen", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { tagToDelete = null }) { Text("Abbrechen") }
+            },
+        )
+    }
+
+    renameArticleId?.let { articleId ->
+        val article = allLoaded.firstOrNull { it.id == articleId }
+        if (article != null) {
+            RenameFileDialog(
+                article = article,
+                onRename = { name -> viewModel.renameFile(article, name) },
+                onDismiss = { renameArticleId = null },
+            )
+        } else {
+            renameArticleId = null
+        }
     }
 }
 
@@ -479,9 +575,12 @@ private fun EmptyState(
             ArticleFilter.VIDEOS_UNREAD -> "Noch keine ungesehenen Videos. Füge einen YouTube- oder Video-Link hinzu, um ihn hier zu sehen."
             ArticleFilter.AUDIO_CONTINUE -> "Nichts zum Weiterhören. Angefangene Audios erscheinen hier."
             ArticleFilter.AUDIO_UNREAD -> "Noch keine ungehörten Audios. Füge einen Podcast- oder Audio-Link hinzu, um ihn hier zu finden."
-            ArticleFilter.PAGES_FAVORITES, ArticleFilter.VIDEOS_FAVORITES, ArticleFilter.AUDIO_FAVORITES ->
+            ArticleFilter.FILES_UNREAD -> "Noch keine Dateien. Hier erscheinen Bilder, PDFs und andere Dateien, die in Nextcloud unter „Merlin Dateien“ gespeichert wurden (z. B. über die iOS-App)."
+            ArticleFilter.PAGES_FAVORITES, ArticleFilter.VIDEOS_FAVORITES, ArticleFilter.AUDIO_FAVORITES,
+            ArticleFilter.FILES_FAVORITES ->
                 "Noch keine Favoriten. Markiere Artikel mit einem Stern, um sie hier zu finden."
-            ArticleFilter.PAGES_ARCHIVE, ArticleFilter.VIDEOS_ARCHIVE, ArticleFilter.AUDIO_ARCHIVE -> "Dein Archiv ist leer."
+            ArticleFilter.PAGES_ARCHIVE, ArticleFilter.VIDEOS_ARCHIVE, ArticleFilter.AUDIO_ARCHIVE,
+            ArticleFilter.FILES_ARCHIVE -> "Dein Archiv ist leer."
         }
     }
     Column(

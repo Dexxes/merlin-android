@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Nested tags (merlin-nextcloud): the side menu shows tags as a tree whose
+  parents expand and collapse (remembered across launches). Long-press a tag
+  for "Umbenennen…", "Verschieben nach…" (pick a new parent or the top
+  level; merlin-nextcloud) and "Tag löschen" (removes the tag and its sub-tags from all articles, articles are
+  kept). Opening a tag and hiding a tag include its sub-tags, also offline.
+  "Tags bearbeiten" and "Artikel hinzufügen" pick tags from the tree (a
+  sub-tag selects its parents) and can create a new tag below another one.
+  Not compiled or run on a device yet.
+- Files tab (merlin-nextcloud): entries from "Merlin Dateien" appear under a
+  new "Dateien" tab in the side menu with "Nicht geöffnet", favorites and
+  archive. File entries can be renamed from the long-press menu and the
+  reader menu ("Umbenennen…"); the extension stays and a taken name shows an
+  error. PDF files open from the signed link in the entry instead of the
+  Nextcloud Files URL. Not compiled or run on a device yet.
+
 ### Changed
 
 - PDF articles: a saved link to a PDF (server category `PDF`, or a URL ending

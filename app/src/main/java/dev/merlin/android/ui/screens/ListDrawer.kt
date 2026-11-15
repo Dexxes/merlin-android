@@ -1,9 +1,13 @@
 package dev.merlin.android.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -18,6 +22,8 @@ import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.HeadsetMic
@@ -29,7 +35,10 @@ import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.filled.Tag
+import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.Tag
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -54,12 +63,15 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.imageResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.merlin.android.R
 import dev.merlin.android.models.ArticleFilter
 import dev.merlin.android.models.ContentGroup
 import dev.merlin.android.models.Tag
+import dev.merlin.android.models.TagTree
 import dev.merlin.android.network.ArticleCounts
 
 /** Icon je Filter, Material-Gegenstück zu `ArticleFilter.systemImage` (Swift). */
@@ -71,8 +83,11 @@ val ArticleFilter.icon: ImageVector
         ArticleFilter.VIDEOS_UNREAD -> Icons.Filled.OndemandVideo
         ArticleFilter.AUDIO_CONTINUE -> Icons.Filled.HeadsetMic
         ArticleFilter.AUDIO_UNREAD -> Icons.Filled.Headphones
-        ArticleFilter.PAGES_FAVORITES, ArticleFilter.VIDEOS_FAVORITES, ArticleFilter.AUDIO_FAVORITES -> Icons.Filled.StarBorder
-        ArticleFilter.PAGES_ARCHIVE, ArticleFilter.VIDEOS_ARCHIVE, ArticleFilter.AUDIO_ARCHIVE -> Icons.Filled.Inventory2
+        ArticleFilter.FILES_UNREAD -> Icons.Outlined.Folder
+        ArticleFilter.PAGES_FAVORITES, ArticleFilter.VIDEOS_FAVORITES, ArticleFilter.AUDIO_FAVORITES,
+        ArticleFilter.FILES_FAVORITES -> Icons.Filled.StarBorder
+        ArticleFilter.PAGES_ARCHIVE, ArticleFilter.VIDEOS_ARCHIVE, ArticleFilter.AUDIO_ARCHIVE,
+        ArticleFilter.FILES_ARCHIVE -> Icons.Filled.Inventory2
     }
 
 /**
@@ -84,6 +99,7 @@ private fun filterLabel(filter: ArticleFilter, counts: ArticleCounts): String {
         ContentGroup.PAGES -> counts.pages
         ContentGroup.VIDEOS -> counts.videos
         ContentGroup.AUDIO -> counts.audio
+        ContentGroup.FILES -> counts.files
     }
     val count = when (filter.kind) {
         ArticleFilter.Kind.CONTINUE -> return filter.label
@@ -96,8 +112,9 @@ private fun filterLabel(filter: ArticleFilter, counts: ArticleCounts): String {
 
 /**
  * Seitenmenü der Artikelliste, Äquivalent zu `ListFlyoutModifier.swift`: oben Tabs für die
- * Medienart (Text/Video/Audio), darunter deren Ansichten mit Zählern, ausklappbare Tag-Liste,
- * Listen-/Kartenansicht, Erinnerungen und Einstellungen; unten das Merlin-Logo.
+ * Medienart (Text/Video/Audio, mit merlin-nextcloud auch Dateien), darunter deren Ansichten mit
+ * Zählern, ausklappbarer Tag-Baum (verschachtelte Tags, langes Drücken öffnet Verschieben/
+ * Löschen), Listen-/Kartenansicht, Erinnerungen und Einstellungen; unten das Merlin-Logo.
  *
  * Ein Tab-Wechsel lädt nichts, erst die Wahl einer Zeile (wie auf iOS). Der Tab steht beim
  * Öffnen auf der Gruppe des aktiven Filters ([initialGroup], vom Aufrufer bei jedem Öffnen neu
@@ -111,10 +128,20 @@ fun ListDrawerContent(
     selectedFilter: ArticleFilter,
     selectedTagId: Int?,
     counts: ArticleCounts,
-    allTags: List<Tag>,
+    tagTree: TagTree,
+    /** Aufgeklappte Eltern-Tags (persistiert, siehe `ArticlesViewModel.expandedTagIds`). */
+    expandedTagIds: Set<Int>,
+    /** Tab „Dateien“ zeigen (nur merlin-nextcloud). */
+    showFilesTab: Boolean,
+    /** „Verschieben nach…“ anbieten (verschachtelte Tags, nur merlin-nextcloud). */
+    canMoveTags: Boolean,
     isCardView: Boolean,
     onSelectFilter: (ArticleFilter) -> Unit,
     onSelectTag: (Int?) -> Unit,
+    onSetTagExpanded: (tagId: Int, expanded: Boolean) -> Unit,
+    onRenameTag: (Tag) -> Unit,
+    onMoveTag: (Tag) -> Unit,
+    onDeleteTag: (Tag) -> Unit,
     onToggleCardView: () -> Unit,
     onRemindersClick: () -> Unit,
     onSettingsClick: () -> Unit,
@@ -132,16 +159,21 @@ fun ListDrawerContent(
             SingleChoiceSegmentedButtonRow(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 6.dp),
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
             ) {
-                val groups = ContentGroup.entries
+                val groups = ContentGroup.entries.filter { it != ContentGroup.FILES || showFilesTab }
                 groups.forEachIndexed { index, group ->
                     SegmentedButton(
                         selected = menuGroup == group,
                         onClick = { menuGroup = group },
                         shape = SegmentedButtonDefaults.itemShape(index = index, count = groups.size),
                         icon = {},
-                    ) { Text(group.label) }
+                        // Vier Tabs (mit Dateien) passen in die 300 dp nur mit schmalem Innenabstand;
+                        // Beschriftung einzeilig, damit „Dateien“ nicht umbricht.
+                        contentPadding = PaddingValues(horizontal = 4.dp),
+                    ) {
+                        Text(group.label, maxLines = 1, softWrap = false, overflow = TextOverflow.Clip)
+                    }
                 }
             }
 
@@ -154,7 +186,7 @@ fun ListDrawerContent(
                 )
             }
 
-            if (allTags.isNotEmpty()) {
+            if (tagTree.tags.isNotEmpty()) {
                 DrawerDivider()
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -175,14 +207,18 @@ fun ListDrawerContent(
                 }
                 AnimatedVisibility(visible = tagsExpanded) {
                     Column {
-                        allTags.sortedBy { it.name.lowercase() }.forEach { tag ->
-                            val isSelected = tag.id == selectedTagId
-                            DrawerRow(
-                                icon = if (isSelected) Icons.Filled.Tag else Icons.Outlined.Tag,
-                                label = tag.name,
-                                selected = isSelected,
-                                indented = true,
-                                onClick = { onSelectTag(tag.id) },
+                        val collapsed = tagTree.tags.map { it.id }.filterTo(mutableSetOf()) { it !in expandedTagIds }
+                        tagTree.rows(collapsed).forEach { row ->
+                            TagTreeDrawerRow(
+                                row = row,
+                                selected = row.tag.id == selectedTagId,
+                                expanded = row.tag.id in expandedTagIds,
+                                canMove = canMoveTags,
+                                onClick = { onSelectTag(row.tag.id) },
+                                onToggleExpanded = { onSetTagExpanded(row.tag.id, row.tag.id !in expandedTagIds) },
+                                onRename = { onRenameTag(row.tag) },
+                                onMove = { onMoveTag(row.tag) },
+                                onDelete = { onDeleteTag(row.tag) },
                             )
                         }
                         if (selectedTagId != null) {
@@ -244,6 +280,98 @@ private fun DrawerRow(
         Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(24.dp))
         Spacer(Modifier.width(14.dp))
         Text(label, style = MaterialTheme.typography.bodyLarge, color = color, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+/**
+ * Eine Zeile im Tag-Baum, Äquivalent zu `tagRow(_:)` in `ListFlyoutModifier.swift`: Pfeil zum
+ * Auf-/Zuklappen (bei Tags ohne Kinder nur Platzhalter, damit Symbole und Namen untereinander
+ * stehen), eingerückt nach Tiefe. Langes Drücken öffnet das Kontextmenü (Umbenennen/Verschieben/Löschen).
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun TagTreeDrawerRow(
+    row: TagTree.Row,
+    selected: Boolean,
+    expanded: Boolean,
+    canMove: Boolean,
+    onClick: () -> Unit,
+    onToggleExpanded: () -> Unit,
+    onRename: () -> Unit,
+    onMove: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    var menuOpen by remember { mutableStateOf(false) }
+    val color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+    Box {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 12.dp + 20.dp * row.depth),
+        ) {
+            if (row.hasChildren) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(width = 28.dp, height = 48.dp)
+                        .clickable(onClick = onToggleExpanded)
+                        .semantics {
+                            contentDescription = if (expanded) "Unter-Tags einklappen" else "Unter-Tags ausklappen"
+                        },
+                ) {
+                    Icon(
+                        Icons.Filled.ChevronRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp).rotate(if (expanded) 90f else 0f),
+                    )
+                }
+            } else {
+                Spacer(Modifier.width(28.dp))
+            }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .weight(1f)
+                    .combinedClickable(onClick = onClick, onLongClick = { menuOpen = true })
+                    .padding(end = 20.dp, top = 14.dp, bottom = 14.dp),
+            ) {
+                Icon(
+                    if (selected) Icons.Filled.Tag else Icons.Outlined.Tag,
+                    contentDescription = null,
+                    tint = color,
+                    modifier = Modifier.size(24.dp),
+                )
+                Spacer(Modifier.width(14.dp))
+                Text(
+                    row.tag.name,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = color,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+            DropdownMenuItem(
+                text = { Text("Umbenennen…") },
+                leadingIcon = { Icon(Icons.Filled.Edit, contentDescription = null) },
+                onClick = { menuOpen = false; onRename() },
+            )
+            if (canMove) {
+                DropdownMenuItem(
+                    text = { Text("Verschieben nach…") },
+                    leadingIcon = { Icon(Icons.Outlined.Folder, contentDescription = null) },
+                    onClick = { menuOpen = false; onMove() },
+                )
+            }
+            DropdownMenuItem(
+                text = { Text("Tag löschen", color = MaterialTheme.colorScheme.error) },
+                leadingIcon = { Icon(Icons.Filled.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+                onClick = { menuOpen = false; onDelete() },
+            )
+        }
     }
 }
 

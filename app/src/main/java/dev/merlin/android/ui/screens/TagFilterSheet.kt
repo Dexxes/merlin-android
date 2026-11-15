@@ -26,8 +26,9 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.unit.dp
-import dev.merlin.android.models.Tag
+import dev.merlin.android.models.TagTree
 
 /**
  * Äquivalent zu `TagFilterSheet.swift`: Verwaltung ausgeblendeter Tags
@@ -39,19 +40,24 @@ import dev.merlin.android.models.Tag
  * Zustand (`eye` = sichtbar, `eye.slash` = ausgeblendet). „Alle einblenden“ (nur sichtbar,
  * wenn etwas ausgeblendet ist) entspricht `onClearAll`.
  *
+ * Tags stehen als eingerückter Baum (verschachtelte Tags). Ein ausgeblendeter Tag blendet auch
+ * seine Unter-Tags aus; diese sind deshalb abgeblendet, auch wenn sie selbst nicht ausgeblendet
+ * sind (wie `inheritedHiddenIds` in `TagFilterSheet.swift`).
+ *
  * Wie auf iOS schaltet ein Tap auf die ganze Zeile die Sichtbarkeit um. Die Auswahl eines
  * einzelnen Tags liegt im Seitenmenü ([ListDrawerContent]), nicht mehr hier.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TagFilterSheet(
-    allTags: List<Tag>,
+    tagTree: TagTree,
     excludedTagIds: Set<Int>,
     onToggle: (Int) -> Unit,
     onClearAll: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState()
+    val inheritedHidden = excludedTagIds.flatMapTo(mutableSetOf()) { tagTree.descendantIds(it) }
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
         Column(modifier = Modifier.padding(horizontal = 4.dp)) {
@@ -65,18 +71,21 @@ fun TagFilterSheet(
                 }
             }
 
-            if (allTags.isEmpty()) {
+            if (tagTree.tags.isEmpty()) {
                 EmptyTagFilterState()
             } else {
                 LazyColumn(contentPadding = PaddingValues(bottom = 8.dp)) {
-                    items(allTags, key = { it.id }) { tag ->
+                    items(tagTree.rows(), key = { it.tag.id }) { row ->
+                        val tag = row.tag
                         val isExcluded = tag.id in excludedTagIds
+                        val isInherited = !isExcluded && tag.id in inheritedHidden
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .alpha(if (isInherited) 0.45f else 1f)
                                 .clickable { onToggle(tag.id) }
-                                .padding(horizontal = 16.dp, vertical = 14.dp),
+                                .padding(start = 16.dp + 20.dp * row.depth, end = 16.dp, top = 14.dp, bottom = 14.dp),
                         ) {
                             Icon(
                                 imageVector = Icons.Filled.Tag,
@@ -90,9 +99,13 @@ fun TagFilterSheet(
                                 color = MaterialTheme.colorScheme.onSurface,
                             )
                             Icon(
-                                imageVector = if (isExcluded) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
-                                contentDescription = if (isExcluded) "Ausgeblendet" else "Eingeblendet",
-                                tint = if (isExcluded) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary,
+                                imageVector = if (isExcluded || isInherited) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                                contentDescription = when {
+                                    isExcluded -> "Ausgeblendet"
+                                    isInherited -> "Mit Eltern-Tag ausgeblendet"
+                                    else -> "Eingeblendet"
+                                },
+                                tint = if (isExcluded || isInherited) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary,
                             )
                         }
                         HorizontalDivider()

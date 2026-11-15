@@ -48,6 +48,7 @@ import androidx.compose.material.icons.filled.NotificationAdd
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Tag
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material3.AlertDialog
@@ -113,6 +114,7 @@ import dev.merlin.android.models.HighlightCreate
 import dev.merlin.android.models.ProgressEdge
 import dev.merlin.android.models.ReaderTheme
 import dev.merlin.android.ui.screens.EditTagsDialog
+import dev.merlin.android.ui.screens.RenameFileDialog
 import dev.merlin.android.viewmodel.ArticleReaderViewModel
 import kotlinx.coroutines.launch
 import kotlin.math.abs
@@ -224,6 +226,7 @@ fun ArticleReaderScreen(
     var showReminderSheet by remember { mutableStateOf(false) }
     var showReportSheet by remember { mutableStateOf(false) }
     var showTagsSheet by remember { mutableStateOf(false) }
+    var showRenameDialog by remember { mutableStateOf(false) }
     var showShareLinkSheet by remember { mutableStateOf(false) }
     val allTags by viewModel.allTags.collectAsState()
     var lightboxState by remember { mutableStateOf<LightboxState?>(null) }
@@ -392,6 +395,15 @@ fun ArticleReaderScreen(
                         },
                         modifier = Modifier.padding(horizontal = 12.dp),
                     )
+                    if (article?.fileId != null) {
+                        NavigationDrawerItem(
+                            label = { Text("Umbenennen…") },
+                            icon = { Icon(Icons.Filled.Edit, contentDescription = null) },
+                            selected = false,
+                            onClick = { scope.launch { drawerState.close() }; showRenameDialog = true },
+                            modifier = Modifier.padding(horizontal = 12.dp),
+                        )
+                    }
                     NavigationDrawerItem(
                         label = { Text("Erinnern…") },
                         icon = { Icon(Icons.Filled.NotificationAdd, contentDescription = null) },
@@ -512,11 +524,13 @@ fun ArticleReaderScreen(
                                             posterUrl = currentArticle.imageUrl,
                                         )
                                     }
-                                    if (currentArticle.isPdf) {
+                                    val pdfSource = currentArticle.pdfSourceUrl
+                                    if (currentArticle.isPdf && pdfSource != null) {
                                         // PDF-Artikel: der Server speichert nur die URL, die PDF wird hier von der Quelle
                                         // geladen und seitenweise gerendert (kein WebView, keine Highlights/Textauswahl).
+                                        // Bei Datei-Einträgen ist die Quelle der signierte Link aus dem Inhalt.
                                         PdfReaderView(
-                                            sourceUrl = currentArticle.url,
+                                            sourceUrl = pdfSource,
                                             loadPdf = { url -> viewModel.loadPdf(url) },
                                             discardPdf = { url -> viewModel.discardPdf(url) },
                                             initialScrollProgress = initialScrollProgress ?: 0f,
@@ -646,7 +660,18 @@ fun ArticleReaderScreen(
                 article = currentArticle,
                 allTags = allTags,
                 onDismiss = { showTagsSheet = false },
-                onSave = { selectedIds, pendingNames -> viewModel.saveTags(selectedIds, pendingNames) },
+                onSave = { selectedIds, pendingNames, parentId -> viewModel.saveTags(selectedIds, pendingNames, parentId) },
+                canNestTags = viewModel.supportsNextcloudOnlyFeatures,
+            )
+        }
+    }
+
+    if (showRenameDialog) {
+        article?.let { currentArticle ->
+            RenameFileDialog(
+                article = currentArticle,
+                onRename = { name -> viewModel.renameFile(name) },
+                onDismiss = { showRenameDialog = false },
             )
         }
     }

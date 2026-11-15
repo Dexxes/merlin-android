@@ -23,6 +23,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Lock
@@ -101,6 +102,8 @@ fun ArticleRow(
     showArchivedState: Boolean = true,
     /** Hintergrundfarbe hinter dem Logo-Platzhalter in [ArticleThumbnail] und Farbe des Fortschrittsrings. */
     accentColorHex: String = "#FF3B30",
+    /** „Umbenennen…“ im Kontextmenü, nur bei Datei-Einträgen (`fileId` gesetzt). */
+    onRename: (() -> Unit)? = null,
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
     val context = LocalContext.current
@@ -193,6 +196,7 @@ fun ArticleRow(
                 onToggleArchive = onToggleArchive,
                 onEditTags = onEditTags,
                 onDelete = onDelete,
+                onRename = onRename,
             )
         }
     }
@@ -219,6 +223,8 @@ fun ArticleGridCard(
     showArchiveAction: Boolean = true,
     showArchivedState: Boolean = true,
     accentColorHex: String = "#FF3B30",
+    /** „Umbenennen…“ im Kontextmenü, nur bei Datei-Einträgen (`fileId` gesetzt). */
+    onRename: (() -> Unit)? = null,
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
     val isMarkedArchived = showArchivedState && article.isArchived
@@ -298,6 +304,7 @@ fun ArticleGridCard(
             onToggleArchive = onToggleArchive,
             onEditTags = onEditTags,
             onDelete = onDelete,
+            onRename = onRename,
         )
     }
 }
@@ -380,6 +387,7 @@ private fun ArticleContextMenu(
     onToggleArchive: () -> Unit,
     onEditTags: () -> Unit,
     onDelete: () -> Unit,
+    onRename: (() -> Unit)?,
 ) {
     val context = LocalContext.current
     DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
@@ -395,6 +403,9 @@ private fun ArticleContextMenu(
         }
         HorizontalDivider()
         MenuItem("Tags bearbeiten", Icons.Filled.Tag) { onDismiss(); onEditTags() }
+        if (article.fileId != null && onRename != null) {
+            MenuItem("Umbenennen…", Icons.Filled.Edit) { onDismiss(); onRename() }
+        }
         HorizontalDivider()
         MenuItem("Link kopieren", Icons.Filled.Link) {
             onDismiss()
