@@ -10,6 +10,8 @@ import android.os.Looper
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.WebChromeClient
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
@@ -189,6 +191,10 @@ fun ReaderWebView(
                     "MerlinHighlightBridge",
                 )
                 webViewClient = object : WebViewClient() {
+                    // Liefert die im Erscheinungsbild gewählte installierte Schrift aus (siehe ReaderLocalFonts).
+                    override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? =
+                        ReaderLocalFonts.intercept(request.url) ?: super.shouldInterceptRequest(view, request)
+
                     override fun onPageFinished(view: WebView, url: String?) {
                         pageLoadedRef[0] = true
                         val script = highlightsScriptState.value
