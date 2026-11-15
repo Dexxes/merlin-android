@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -428,6 +429,13 @@ fun ArticleReaderScreen(
         CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
         Scaffold(
             containerColor = chromeColors.background,
+            // Keine zusätzlichen Insets: Merlin läuft (noch) nicht edge-to-edge, das Fenster liegt
+            // also bereits unterhalb der Statusleiste und oberhalb der Navigationsleiste. Compose
+            // meldet die System-Insets trotzdem, sodass `Scaffold` sie standardmäßig ein zweites
+            // Mal als Padding addiert hätte – sichtbar als leerer Streifen in Statusleistenhöhe
+            // über dem Artikel, seit die TopAppBar (die diese Insets vorher selbst geschluckt hat)
+            // entfallen ist. Beim Umstieg auf edge-to-edge (targetSdk 35) muss das wieder rein.
+            contentWindowInsets = WindowInsets(0, 0, 0, 0),
             // Bewusst keine TopAppBar mehr: kein Zurück-Button (System-Zurück genügt), kein
             // Favoriten-Stern (Favorisieren über das Seitenmenü) und das Menü sitzt rechts in der
             // [ReaderBottomBar]. Der Titel existiert nur im scrollenden Header
