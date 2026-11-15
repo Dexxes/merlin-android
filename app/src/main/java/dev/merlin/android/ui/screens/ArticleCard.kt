@@ -179,6 +179,7 @@ fun ArticleRow(
                         .size(width = 72.dp, height = 54.dp)
                         .alpha(if (isMarkedArchived) ARCHIVED_ALPHA else 1f),
                     accentColorHex = accentColorHex,
+                    isPdf = article.isPdf,
                 )
             }
 
@@ -247,6 +248,7 @@ fun ArticleGridCard(
                         .alpha(if (isMarkedArchived) ARCHIVED_ALPHA else 1f),
                     accentColorHex = accentColorHex,
                     cornerRadius = 0.dp,
+                    isPdf = article.isPdf,
                 )
                 if (isMarkedArchived) {
                     ArchivedBadge(modifier = Modifier.align(Alignment.TopStart).padding(6.dp))
