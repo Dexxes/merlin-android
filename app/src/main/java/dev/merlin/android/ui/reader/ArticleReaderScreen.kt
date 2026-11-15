@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -87,6 +88,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.luminance
@@ -634,7 +638,7 @@ fun ArticleReaderScreen(
     if (progressEdge != ProgressEdge.OFF) {
         ProgressBarOverlay(
             edge = progressEdge,
-            progress = scrollProgress,
+            progress = { scrollProgress },
             colorHex = accentColorHex,
             modifier = Modifier.fillMaxSize(),
         )
@@ -702,45 +706,34 @@ fun ArticleReaderScreen(
     } // Box (Modifier.fillMaxSize()) – siehe Kommentar an deren Öffnung weiter oben
 }
 
-/** Dünner Fortschrittsbalken entlang der per Einstellung gewählten Kante. */
+/**
+ * Dünner Fortschrittsbalken entlang der per Einstellung gewählten Kante.
+ *
+ * [progress] ist bewusst ein Lambda und wird erst in der Draw-Phase (`drawBehind`) gelesen: der
+ * Fortschritt ändert sich bei jedem Scroll-Event. Würde der Wert in einer Composition gelesen,
+ * müsste bei jedem Frame der ganze `ArticleReaderScreen` (Drawer, TopAppBar, Reader-Wrapper)
+ * neu komponiert werden – das war eine Hauptursache für ruckelndes Scrollen. So wird pro Frame
+ * nur dieser Balken neu gezeichnet.
+ */
 @Composable
-private fun ProgressBarOverlay(edge: ProgressEdge, progress: Float, colorHex: String, modifier: Modifier = Modifier) {
+private fun ProgressBarOverlay(edge: ProgressEdge, progress: () -> Float, colorHex: String, modifier: Modifier = Modifier) {
     val color = remember(colorHex) { runCatching { Color(colorHex.toColorInt()) }.getOrDefault(Color.Red) }
-    Box(modifier = modifier) {
-        when (edge) {
-            // Äquivalent zu `progressBar(in:)` unter iOS (ArticleReaderView.swift): oben verankert,
-            // wächst nach unten mit zunehmendem Scroll-Fortschritt (nicht von unten nach oben).
-            ProgressEdge.LEFT -> Box(
-                modifier = Modifier
-                    .fillMaxHeight(progress)
-                    .width(3.dp)
-                    .align(Alignment.TopStart)
-                    .background(color),
-            )
-            ProgressEdge.RIGHT -> Box(
-                modifier = Modifier
-                    .fillMaxHeight(progress)
-                    .width(3.dp)
-                    .align(Alignment.TopEnd)
-                    .background(color),
-            )
-            ProgressEdge.TOP -> Box(
-                modifier = Modifier
-                    .fillMaxWidth(progress)
-                    .height(3.dp)
-                    .align(Alignment.TopStart)
-                    .background(color),
-            )
-            ProgressEdge.BOTTOM -> Box(
-                modifier = Modifier
-                    .fillMaxWidth(progress)
-                    .height(3.dp)
-                    .align(Alignment.BottomStart)
-                    .background(color),
-            )
-            ProgressEdge.OFF -> {}
-        }
-    }
+    Spacer(
+        modifier = modifier.drawBehind {
+            val fraction = progress().coerceIn(0f, 1f)
+            if (fraction <= 0f) return@drawBehind
+            val thickness = 3.dp.toPx()
+            when (edge) {
+                // Äquivalent zu `progressBar(in:)` unter iOS (ArticleReaderView.swift): oben verankert,
+                // wächst nach unten mit zunehmendem Scroll-Fortschritt (nicht von unten nach oben).
+                ProgressEdge.LEFT -> drawRect(color, Offset.Zero, Size(thickness, size.height * fraction))
+                ProgressEdge.RIGHT -> drawRect(color, Offset(size.width - thickness, 0f), Size(thickness, size.height * fraction))
+                ProgressEdge.TOP -> drawRect(color, Offset.Zero, Size(size.width * fraction, thickness))
+                ProgressEdge.BOTTOM -> drawRect(color, Offset(0f, size.height - thickness), Size(size.width * fraction, thickness))
+                ProgressEdge.OFF -> {}
+            }
+        },
+    )
 }
 
 /**
