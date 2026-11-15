@@ -116,3 +116,68 @@ private fun fileBaseName(fileName: String): String {
     val ext = fileExtension(fileName)
     return if (ext.isEmpty()) fileName else fileName.dropLast(ext.length + 1)
 }
+
+/**
+ * „Tag umbenennen“ (langes Drücken auf einen Tag im Seitenmenü). [onRename] liefert eine
+ * Fehlermeldung (z. B. Name schon vergeben) oder `null` bei Erfolg; bei einem Fehler bleibt
+ * der Dialog offen.
+ */
+@Composable
+fun RenameTagDialog(
+    tag: dev.merlin.android.models.Tag,
+    onRename: suspend (name: String) -> String?,
+    onDismiss: () -> Unit,
+) {
+    val scope = rememberCoroutineScope()
+    var field by remember(tag.id) { mutableStateOf(TextFieldValue(tag.name, TextRange(0, tag.name.length))) }
+    var errorMessage by remember(tag.id) { mutableStateOf<String?>(null) }
+    var isSaving by remember { mutableStateOf(false) }
+
+    val newName = field.text.trim()
+    val canSave = newName.isNotEmpty() && newName != tag.name && !isSaving
+
+    fun save() {
+        if (!canSave) return
+        isSaving = true
+        errorMessage = null
+        scope.launch {
+            val error = onRename(newName)
+            isSaving = false
+            if (error == null) onDismiss() else errorMessage = error
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = { if (!isSaving) onDismiss() },
+        title = { Text("Tag umbenennen") },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = field,
+                    onValueChange = { field = it; errorMessage = null },
+                    placeholder = { Text("Name") },
+                    singleLine = true,
+                    enabled = !isSaving,
+                    isError = errorMessage != null,
+                    keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = { save() }),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                errorMessage?.let {
+                    Text(
+                        it,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = ::save, enabled = canSave) { Text("Umbenennen") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, enabled = !isSaving) { Text("Abbrechen") }
+        },
+    )
+}

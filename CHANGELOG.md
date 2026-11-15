@@ -11,8 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - Nested tags (merlin-nextcloud): the side menu shows tags as a tree whose
   parents expand and collapse (remembered across launches). Long-press a tag
-  for "Verschieben nach…" (pick a new parent or the top level) and "Tag
-  löschen" (removes the tag and its sub-tags from all articles, articles are
+  for "Umbenennen…", "Verschieben nach…" (pick a new parent or the top
+  level; merlin-nextcloud) and "Tag löschen" (removes the tag and its sub-tags from all articles, articles are
   kept). Opening a tag and hiding a tag include its sub-tags, also offline.
   "Tags bearbeiten" and "Artikel hinzufügen" pick tags from the tree (a
   sub-tag selects its parents) and can create a new tag below another one.

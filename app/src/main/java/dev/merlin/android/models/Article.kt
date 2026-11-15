@@ -150,7 +150,8 @@ data class Article(
             requiresLoginDomain == other.requiresLoginDomain &&
             isPaywalled == other.isPaywalled &&
             unsupportedSiteDomain == other.unsupportedSiteDomain &&
-            tags.map { it.id }.sorted() == other.tags.map { it.id }.sorted() &&
+            // Tag-Namen mit vergleichen, damit ein umbenannter Tag in Zeile/Karte neu gezeichnet wird.
+            tags.map { it.id to it.name }.sortedBy { it.first } == other.tags.map { it.id to it.name }.sortedBy { it.first } &&
             // Umbenennen eines Datei-Eintrags ändert den Titel (ob `updatedAt` mitzieht, ist nicht garantiert).
             title == other.title
     }

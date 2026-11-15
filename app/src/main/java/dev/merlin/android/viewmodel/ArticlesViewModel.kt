@@ -21,6 +21,7 @@ import dev.merlin.android.network.CredentialsStore
 import dev.merlin.android.network.MerlinApi
 import dev.merlin.android.network.MoveTagRequest
 import dev.merlin.android.network.RenameFileRequest
+import dev.merlin.android.network.RenameTagRequest
 import java.io.IOException
 import java.time.Instant
 import javax.inject.Inject
@@ -544,6 +545,36 @@ class ArticlesViewModel @Inject constructor(
             refreshTags()
             if (_selectedTagId.value != null) load()
         }
+    }
+
+    /**
+     * Benennt einen Tag um und übernimmt den neuen Namen lokal in Tag-Liste, geladene Artikel und
+     * Cache. Tag-Namen sind im ganzen Baum eindeutig: ein schon vorhandener Name wird vorab
+     * abgelehnt. Liefert die Fehlermeldung für den Dialog, `null` bei Erfolg. Kein Offline-Queueing.
+     */
+    suspend fun renameTag(tag: Tag, name: String): String? {
+        val newName = name.trim()
+        if (newName.isEmpty() || newName == tag.name) return null
+        if (_allTags.value.any { it.id != tag.id && it.name.equals(newName, ignoreCase = true) }) {
+            return "Es gibt schon einen Tag mit diesem Namen."
+        }
+        val renamed = try {
+            api.renameTag(tag.id, RenameTagRequest(newName))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            return if (isNetworkError(e)) "Keine Verbindung – bitte später erneut versuchen." else e.message ?: "Unbekannter Fehler"
+        }
+        val finalName = renamed.name.ifEmpty { newName }
+        _allTags.value = _allTags.value.map { if (it.id == tag.id) it.copy(name = finalName) else it }
+        val changed = mutableListOf<Article>()
+        _articles.value = _articles.value.map { article ->
+            if (article.tags.none { it.id == tag.id }) return@map article
+            article.copy(tags = article.tags.map { if (it.id == tag.id) it.copy(name = finalName) else it })
+                .also { changed += it }
+        }
+        articleCacheService.upsert(changed)
+        return null
     }
 
     /**

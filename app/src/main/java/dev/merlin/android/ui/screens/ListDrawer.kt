@@ -23,6 +23,7 @@ import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.HeadsetMic
@@ -138,6 +139,7 @@ fun ListDrawerContent(
     onSelectFilter: (ArticleFilter) -> Unit,
     onSelectTag: (Int?) -> Unit,
     onSetTagExpanded: (tagId: Int, expanded: Boolean) -> Unit,
+    onRenameTag: (Tag) -> Unit,
     onMoveTag: (Tag) -> Unit,
     onDeleteTag: (Tag) -> Unit,
     onToggleCardView: () -> Unit,
@@ -214,6 +216,7 @@ fun ListDrawerContent(
                                 canMove = canMoveTags,
                                 onClick = { onSelectTag(row.tag.id) },
                                 onToggleExpanded = { onSetTagExpanded(row.tag.id, row.tag.id !in expandedTagIds) },
+                                onRename = { onRenameTag(row.tag) },
                                 onMove = { onMoveTag(row.tag) },
                                 onDelete = { onDeleteTag(row.tag) },
                             )
@@ -283,7 +286,7 @@ private fun DrawerRow(
 /**
  * Eine Zeile im Tag-Baum, Äquivalent zu `tagRow(_:)` in `ListFlyoutModifier.swift`: Pfeil zum
  * Auf-/Zuklappen (bei Tags ohne Kinder nur Platzhalter, damit Symbole und Namen untereinander
- * stehen), eingerückt nach Tiefe. Langes Drücken öffnet das Kontextmenü (Verschieben/Löschen).
+ * stehen), eingerückt nach Tiefe. Langes Drücken öffnet das Kontextmenü (Umbenennen/Verschieben/Löschen).
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -294,6 +297,7 @@ private fun TagTreeDrawerRow(
     canMove: Boolean,
     onClick: () -> Unit,
     onToggleExpanded: () -> Unit,
+    onRename: () -> Unit,
     onMove: () -> Unit,
     onDelete: () -> Unit,
 ) {
@@ -350,6 +354,11 @@ private fun TagTreeDrawerRow(
             }
         }
         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+            DropdownMenuItem(
+                text = { Text("Umbenennen…") },
+                leadingIcon = { Icon(Icons.Filled.Edit, contentDescription = null) },
+                onClick = { menuOpen = false; onRename() },
+            )
             if (canMove) {
                 DropdownMenuItem(
                     text = { Text("Verschieben nach…") },

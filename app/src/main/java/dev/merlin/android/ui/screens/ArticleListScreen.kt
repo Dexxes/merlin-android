@@ -128,6 +128,7 @@ fun ArticleListScreen(
     /** Tag, dessen „Verschieben nach…“-Sheet bzw. Lösch-Bestätigung offen ist (langes Drücken im Seitenmenü). */
     var tagToMove by remember { mutableStateOf<Tag?>(null) }
     var tagToDelete by remember { mutableStateOf<Tag?>(null) }
+    var tagToRename by remember { mutableStateOf<Tag?>(null) }
     /** Datei-Eintrag, dessen Umbenennen-Dialog offen ist. */
     var renameArticleId by remember { mutableStateOf<Int?>(null) }
     val supportsNextcloudOnly = viewModel.supportsNextcloudOnlyFeatures
@@ -220,6 +221,7 @@ fun ArticleListScreen(
                 onSelectFilter = { filter -> closeDrawer { viewModel.selectFilter(filter) } },
                 onSelectTag = { tagId -> closeDrawer { viewModel.selectTag(tagId) } },
                 onSetTagExpanded = viewModel::setTagExpanded,
+                onRenameTag = { tag -> tagToRename = tag },
                 onMoveTag = { tag -> tagToMove = tag },
                 onDeleteTag = { tag -> tagToDelete = tag },
                 onToggleCardView = { closeDrawer { viewModel.setIsCardView(!isCardView) } },
@@ -512,6 +514,14 @@ fun ArticleListScreen(
                 if (parentId != null) viewModel.setTagExpanded(parentId, true)
             },
             onDismiss = { tagToMove = null },
+        )
+    }
+
+    tagToRename?.let { tag ->
+        RenameTagDialog(
+            tag = tag,
+            onRename = { name -> viewModel.renameTag(tag, name) },
+            onDismiss = { tagToRename = null },
         )
     }
 

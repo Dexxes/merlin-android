@@ -102,6 +102,13 @@ interface MerlinApi {
     @PUT("api/tags/{id}")
     suspend fun moveTag(@Path("id") id: Int, @Body body: MoveTagRequest): Tag
 
+    /**
+     * Benennt einen Tag um. Eigener Request statt [UpdateTagRequest], weil `encodeDefaults`
+     * sonst `"color": null` mitschicken und die Farbe löschen könnte.
+     */
+    @PUT("api/tags/{id}")
+    suspend fun renameTag(@Path("id") id: Int, @Body body: RenameTagRequest): Tag
+
     /** Löscht den Tag samt Unter-Tags; die Artikel bleiben, nur die Zuordnungen fallen weg. */
     @DELETE("api/tags/{id}")
     suspend fun deleteTag(@Path("id") id: Int): DeleteTagResponse
@@ -249,6 +256,9 @@ data class DeleteTagResponse(val success: Boolean = true, val deletedIds: List<I
 
 @Serializable
 data class RenameFileRequest(val name: String)
+
+@Serializable
+data class RenameTagRequest(val name: String)
 
 @Serializable
 data class UpdateTagRequest(val name: String? = null, val color: String? = null)
