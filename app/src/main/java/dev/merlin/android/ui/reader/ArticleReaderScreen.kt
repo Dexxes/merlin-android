@@ -120,6 +120,8 @@ import androidx.compose.ui.unit.dp
 import androidx.core.graphics.toColorInt
 import androidx.core.net.toUri
 import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -746,6 +748,29 @@ fun ArticleReaderScreen(
         !lifecycleState.isAtLeast(Lifecycle.State.RESUMED)
     LaunchedEffect(handsFreeShouldPause) {
         if (handsFreeShouldPause) autoScroll.pause()
+    }
+
+    // System-Navigationsleiste an die eigene Bottom bar koppeln: Sie verschwindet beim
+    // Runterscrollen zusammen mit der Leiste und kommt beim Hochscrollen mit ihr zurück. Ein Wisch
+    // vom unteren Rand zeigt sie solange kurz an. Beim Verlassen des Readers ist sie wieder da.
+    val readerBarVisible = showBottomBar || autoScroll.isActive
+    LaunchedEffect(readerBarVisible) {
+        if (view.isInEditMode) return@LaunchedEffect
+        val controller = WindowCompat.getInsetsController((view.context as Activity).window, view)
+        controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        if (readerBarVisible) {
+            controller.show(WindowInsetsCompat.Type.navigationBars())
+        } else {
+            controller.hide(WindowInsetsCompat.Type.navigationBars())
+        }
+    }
+    DisposableEffect(Unit) {
+        onDispose {
+            if (!view.isInEditMode) {
+                WindowCompat.getInsetsController((view.context as Activity).window, view)
+                    .show(WindowInsetsCompat.Type.navigationBars())
+            }
+        }
     }
 
     // Fortschrittsbalken als Geschwister-Overlay der Drawer/Scaffold-Hülle (siehe Kommentar an der
