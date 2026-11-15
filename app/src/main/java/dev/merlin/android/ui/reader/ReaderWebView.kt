@@ -306,6 +306,14 @@ private class FullScreenVideoChromeClient(
     private var customView: View? = null
     private var customViewCallback: CustomViewCallback? = null
 
+    /**
+     * Ohne `poster` (das Vorschaubild ist bei Inline-Videos ein CSS-Hintergrund, siehe
+     * `ReaderMediaRewriter.INLINE_MEDIA_JS`) malt die WebView sonst ein graues Standardbild über die
+     * Box. Ein 1×1 durchsichtiges Bitmap lässt den Hintergrund sichtbar.
+     */
+    override fun getDefaultVideoPoster(): android.graphics.Bitmap =
+        android.graphics.Bitmap.createBitmap(1, 1, android.graphics.Bitmap.Config.ARGB_8888)
+
     override fun onShowCustomView(view: View, callback: CustomViewCallback) {
         if (customView != null) {
             callback.onCustomViewHidden()
