@@ -10,6 +10,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -37,14 +38,14 @@ import dev.merlin.android.R
 
 /**
  * Äquivalent zu iOS' `SplashView` (`MerlinApp.swift`): weißer Grund, das Merlin-Logo in voller
- * Form (96 dp, pixelgenau ohne Interpolation – KEINE Kreismaske wie beim System-Splash), darunter
+ * Form (96 dp, pixelgenau ohne Interpolation, an derselben Stelle wie im System-Splash), darunter
  * ein Ladeindikator und ein von Anfang an reservierter Platz für die Frage
  * "Im Offlinemodus starten?", die nach einigen Sekunden ohne fertigen ersten Ladevorgang
  * eingeblendet wird (siehe [dev.merlin.android.MainActivity]).
  *
  * Die Farben sind bewusst fest (Weiß/Grau) statt aus dem MaterialTheme, wie auf iOS – der Splash
  * sieht unabhängig vom Erscheinungsbild gleich aus und schließt nahtlos an den System-Splash
- * (`Theme.Merlin.Starting`, gleiche Hintergrundfarbe) an.
+ * (`Theme.Merlin.Starting`, gleiche Hintergrundfarbe, gleiches Logo) an.
  */
 @Composable
 fun MerlinSplash(
@@ -65,42 +66,57 @@ fun MerlinSplash(
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {},
         contentAlignment = Alignment.Center,
     ) {
+        // Logo exakt mittig – an derselben Stelle und in derselben Größe wie im System-Splash
+        // (drawable/splash_icon.xml), damit der Übergang nicht springt. Spinner und Offline-Frage
+        // hängen darunter, statt wie bei iOS mit dem Logo zusammen zentriert zu werden.
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(24.dp),
+            modifier = Modifier.fillMaxSize(),
         ) {
+            Spacer(modifier = Modifier.weight(1f))
             Image(
                 bitmap = ImageBitmap.imageResource(R.drawable.merlin_logo),
                 contentDescription = null,
                 filterQuality = FilterQuality.None,
-                modifier = Modifier.size(96.dp),
+                modifier = Modifier.size(LOGO_SIZE),
             )
-            // Ladeindikator bleibt die ganze Splash-Zeit sichtbar (iOS: `ProgressView().controlSize(.large)`).
-            CircularProgressIndicator(color = Color.Gray)
-
-            // Immer Platz reservieren, damit Logo/Spinner nicht springen.
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(24.dp),
                 modifier = Modifier
-                    .padding(horizontal = 32.dp)
-                    .alpha(promptAlpha)
-                    .then(if (showOfflinePrompt) Modifier else Modifier.clearAndSetSemantics {}),
+                    .weight(1f)
+                    .padding(top = 24.dp),
             ) {
-                Text(
-                    text = stringResource(R.string.splash_slowConnection_message),
-                    color = Color.Gray,
-                    fontSize = 13.sp,
-                    textAlign = TextAlign.Center,
-                )
-                TextButton(onClick = onStartOffline, enabled = showOfflinePrompt) {
+                // Ladeindikator bleibt die ganze Splash-Zeit sichtbar (iOS: `ProgressView().controlSize(.large)`).
+                CircularProgressIndicator(color = Color.Gray)
+
+                // Immer Platz reservieren, damit nichts springt.
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier
+                        .padding(horizontal = 32.dp)
+                        .alpha(promptAlpha)
+                        .then(if (showOfflinePrompt) Modifier else Modifier.clearAndSetSemantics {}),
+                ) {
                     Text(
-                        text = stringResource(R.string.splash_slowConnection_offline),
+                        text = stringResource(R.string.splash_slowConnection_message),
+                        color = Color.Gray,
                         fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold,
+                        textAlign = TextAlign.Center,
                     )
+                    TextButton(onClick = onStartOffline, enabled = showOfflinePrompt) {
+                        Text(
+                            text = stringResource(R.string.splash_slowConnection_offline),
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
                 }
             }
         }
     }
 }
+
+/** Logo-Größe wie iOS' `SplashView` und wie `drawable/splash_icon.xml` (1/3 der 288-dp-Icon-Fläche des System-Splashs). */
+private val LOGO_SIZE = 96.dp

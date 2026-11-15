@@ -27,7 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Changed
 
 - Splash screen like on iOS: the logo now shows in full instead of being cut
-  to a circle, with a loading indicator below it. The splash stays until the
+  to a circle (it is drawn smaller so it fits inside the system's round icon
+  area), and a loading indicator appears below it. The splash stays until the
   server settings and the first article list have loaded. If that takes more
   than 3 seconds, it asks "Im Offlinemodus starten?" and "Offline starten"
   opens the cached articles right away. The splash is white in light and dark

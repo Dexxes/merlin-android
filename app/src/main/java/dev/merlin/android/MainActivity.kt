@@ -77,9 +77,9 @@ class MainActivity : ComponentActivity() {
         // Muss vor super.onCreate() laufen (siehe SplashScreen-API-Doku) – ersetzt das
         // Theme.Merlin.Starting-Fenster-Theme (AndroidManifest.xml) automatisch durch
         // Theme.Merlin, sobald der erste Compose-Frame gezeichnet ist.
-        // Der System-Splash zeigt nur die weiße Fläche (kein Icon, siehe themes.xml) und wird
+        // Der System-Splash zeigt das verkleinerte Logo (siehe themes.xml/splash_icon.xml) und wird
         // ohne eigene Ausblend-Animation entfernt – direkt dahinter liegt der Compose-Splash
-        // ([MerlinSplash]) mit identischem Hintergrund und dem vollständigen Logo.
+        // ([MerlinSplash]) mit identischem Hintergrund und Logo an gleicher Stelle.
         installSplashScreen().setOnExitAnimationListener { it.remove() }
         super.onCreate(savedInstanceState)
         handleIntent(intent)
