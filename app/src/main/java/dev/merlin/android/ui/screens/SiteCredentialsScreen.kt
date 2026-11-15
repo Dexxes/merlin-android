@@ -98,6 +98,7 @@ fun SiteCredentialsScreen(
                 },
             )
         },
+        bottomBar = { SourceCodeLink() },
     ) { padding ->
         Box(modifier = Modifier.padding(padding).fillMaxSize()) {
             when {
