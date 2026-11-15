@@ -7,7 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-### Added
+### Changed
+
+- Article list matches the iOS app: a side menu with Text/Video/Audio tabs,
+  each with Continue, Unread, Favorites and Archive views and their counts,
+  plus tags, list/card view, reminders and settings; a search button next to
+  the menu button shows the search field; older articles load while scrolling; rows and cards show reading
+  progress, a lock for paywalled articles and an "Archived" marker in mixed
+  lists; actions are on long press (and swipe in the list view) instead of the
+  star and ⋮ buttons; the default view syncs with the same values as iOS and
+  the web app
 
 - Support box in the reader: a note between two paragraphs ("Enjoying this
   article from …? Consider a subscription or a donation") linking to the

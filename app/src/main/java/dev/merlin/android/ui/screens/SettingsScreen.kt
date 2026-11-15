@@ -1,6 +1,9 @@
 package dev.merlin.android.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -80,7 +83,7 @@ fun SettingsScreen(
     val testResult by viewModel.testResult.collectAsState()
     val cacheCleared by viewModel.cacheCleared.collectAsState()
 
-    val defaultFilter by viewModel.preferencesStore.defaultFilter.collectAsState(initial = ArticleFilter.ALL)
+    val defaultFilter by viewModel.preferencesStore.defaultFilter.collectAsState(initial = ArticleFilter.DEFAULT)
     val progressEdge by viewModel.preferencesStore.progressEdge.collectAsState(initial = ProgressEdge.LEFT)
     val saveProgress by viewModel.preferencesStore.saveProgress.collectAsState(initial = true)
     val resumeOnOpen by viewModel.preferencesStore.resumeOnOpen.collectAsState(initial = true)
@@ -248,13 +251,23 @@ fun SettingsScreen(
             // MARK: – Präferenzen
             SectionHeader(stringResource(R.string.settings_preferences_sectionHeader))
             Text(stringResource(R.string.settings_preferences_defaultViewLabel), style = MaterialTheme.typography.labelLarge)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                ArticleFilter.entries.forEach { filter ->
-                    FilterChip(
-                        selected = filter == defaultFilter,
-                        onClick = { viewModel.setDefaultFilter(filter) },
-                        label = { Text(filter.label) },
-                    )
+            // Wie der Picker in SettingsView.swift: alle Ansichten außer Weiterlesen/-schauen/-hören
+            // (dynamische, oft leere Listen – als Startansicht ausgeschlossen), gruppiert nach Medienart.
+            Box {
+                var defaultViewMenuExpanded by remember { mutableStateOf(false) }
+                OutlinedButton(onClick = { defaultViewMenuExpanded = true }) {
+                    Text("${defaultFilter.group.label} · ${defaultFilter.label}")
+                }
+                DropdownMenu(expanded = defaultViewMenuExpanded, onDismissRequest = { defaultViewMenuExpanded = false }) {
+                    ArticleFilter.entries.filterNot { it.isContinue }.forEach { filter ->
+                        DropdownMenuItem(
+                            text = { Text("${filter.group.label} · ${filter.label}") },
+                            onClick = {
+                                defaultViewMenuExpanded = false
+                                viewModel.setDefaultFilter(filter)
+                            },
+                        )
+                    }
                 }
             }
             Text(

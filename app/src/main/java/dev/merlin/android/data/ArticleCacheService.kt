@@ -38,7 +38,7 @@ class ArticleCacheService @Inject constructor(
     /** Liefert gecachte Artikel passend zu [filter]/[tagId], nach vorheriger Eviction.
      * [showArchivedForTag] entscheidet nur bei gesetztem [tagId], ob archivierte
      * Artikel mitgezählt werden (Äquivalent zu iOS' `showArchivedForTag`, siehe
-     * `ArticleCacheService.swift`). */
+     * `ArticleCacheService.swift`). Sortierung wie `ArticlesViewModel.sortedForFilter`. */
     suspend fun loadFiltered(
         filter: ArticleFilter,
         tagId: Int?,
@@ -47,13 +47,24 @@ class ArticleCacheService @Inject constructor(
         evictExpiredInternal()
         val matching = articleDao.getAll()
             .mapNotNull { decode(it.json) }
-            .filter { matches(it, filter, tagId, showArchivedForTag) }
-        if (filter == ArticleFilter.FAVORITES) {
-            matching.sortedByDescending { it.favoritedAt ?: "" }
-        } else {
-            matching.sortedByDescending { it.createdAt }
+            .filter { filter.matches(it, tagId, showArchivedForTag) }
+        if (tagId != null) return@withLock matching.sortedByDescending { it.createdAt }
+        when (filter.kind) {
+            ArticleFilter.Kind.CONTINUE -> matching.sortedByDescending { it.scrollUpdatedAt }
+            ArticleFilter.Kind.FAVORITES -> matching.sortedByDescending { it.favoritedAt ?: "" }
+            ArticleFilter.Kind.ARCHIVE -> matching.sortedByDescending { it.archivedAt ?: "" }
+            ArticleFilter.Kind.UNREAD -> matching.sortedByDescending { it.createdAt }
         }
     }
+
+    /** Alle gecachten Artikel, unabhängig von Filter und Archiv-Status. */
+    suspend fun loadAllCached(): List<Article> = mutex.withLock {
+        evictExpiredInternal()
+        articleDao.getAll().mapNotNull { decode(it.json) }
+    }
+
+    /** Einzelner gecachter Artikel (Reader offline, Deep-Link). */
+    suspend fun article(id: Int): Article? = loadAllCached().firstOrNull { it.id == id }
 
     /**
      * Merged einen Batch von Artikeln in den Cache. Setzt `cachedAt` für jeden
@@ -98,25 +109,6 @@ class ArticleCacheService @Inject constructor(
             if (entity.cachedAt < cutoffMillis) entity.id else null
         }
         if (expiredIds.isNotEmpty()) articleDao.deleteByIds(expiredIds)
-    }
-
-    // MARK: – Filter-Replikation (spiegelt ArticlesViewModel.fetchForFilter)
-
-    private fun matches(article: Article, filter: ArticleFilter, tagId: Int?, showArchivedForTag: Boolean = false): Boolean {
-        if (tagId != null) {
-            if (article.tags.none { it.id == tagId }) return false
-            // Einzel-Tag-Ansicht ignoriert den aktiven Filter komplett (siehe
-            // `ArticlesViewModel.fetchForFilter`) – stattdessen entscheidet
-            // `showArchivedForTag`, ob archivierte Artikel mitgezählt werden.
-            return showArchivedForTag || !article.isArchived
-        }
-        return when (filter) {
-            ArticleFilter.ALL -> !article.isArchived
-            // Bewusst OHNE isArchived-Bedingung: Favoriten unabhängig vom Archiv-Status.
-            ArticleFilter.FAVORITES -> article.isFavorite
-            ArticleFilter.ARCHIVE -> article.isArchived
-            ArticleFilter.VIDEOS -> article.category == "Video" && !article.isArchived
-        }
     }
 
     private fun decode(value: String): Article? = runCatching { json.decodeFromString<Article>(value) }.getOrNull()

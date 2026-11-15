@@ -40,6 +40,8 @@ interface MerlinApi {
         @Query("isArchived") isArchived: Int? = null,
         @Query("tagId") tagId: Int? = null,
         @Query("category") category: String? = null,
+        /** Oberste Gruppe: page/video/audio/file (siehe [dev.merlin.android.models.ContentGroup.contentType]). */
+        @Query("contentType") contentType: String? = null,
         @Query("limit") limit: Int = 50,
         @Query("offset") offset: Int = 0,
     ): List<Article>
