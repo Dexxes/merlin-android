@@ -775,19 +775,25 @@ ps[idx].after(box);
 
     /**
      * JS-Laufzeit im WebView: XPath-Generierung/-Auflösung (`tag[n]`/`text()[n]`
-     * relativ zu `document.body`, wie im iOS-Original), Highlight-Erstellung
-     * über Text-Selektion, Restore in umgekehrter Dokumentreihenfolge (damit
-     * `Range.splitText` spätere Highlights nicht vor früheren XPaths
-     * invalidiert), Tap-Handling für bestehende Highlights (Löschen) und
-     * Bilder (Lightbox – aktuell nur Platzhalter-Stub, siehe `todo.md`).
+     * relativ zu `#merlin-content`, das entspricht dem `<body>` bei iOS und im Web-Reader; ältere
+     * Android-Markierungen ab `<body>` werden per Textvergleich noch gefunden), Markierungen in
+     * Erstellungsreihenfolge wie iOS, Tap-Handling für Markierungen und Bilder.
      */
     private const val READER_JS = """
 window.MerlinReader = (function() {
+  // XPaths zählen ab dem Artikelinhalt (#merlin-content), nicht ab <body>: bei iOS und im
+  // Web-Reader steht der Inhalt direkt im <body>, hier davor noch der Kopf. Nur so finden
+  // alle Apps dieselbe Stelle.
+  function contentRoot() {
+    return document.getElementById('merlin-content') || document.body;
+  }
+
   function getXPath(node) {
-    if (node === document.body) return '';
+    var root = contentRoot();
+    if (node === root) return '';
     var parts = [];
     var current = node;
-    while (current && current !== document.body) {
+    while (current && current !== root) {
       var parent = current.parentNode;
       if (!parent) break;
       var siblings = Array.prototype.filter.call(parent.childNodes, function(n) { return n.nodeType === current.nodeType && (current.nodeType !== 1 || n.tagName === current.tagName); });
@@ -802,9 +808,9 @@ window.MerlinReader = (function() {
     return parts.join('/');
   }
 
-  function resolveXPath(xpath) {
-    if (!xpath) return document.body;
-    var node = document.body;
+  function resolveXPath(xpath, base) {
+    var node = base || contentRoot();
+    if (!xpath) return node;
     var parts = xpath.split('/');
     for (var i = 0; i < parts.length; i++) {
       var m = parts[i].match(/^(.+)\[(\d+)\]$/);
@@ -873,14 +879,29 @@ window.MerlinReader = (function() {
 
   function restoreHighlight(h) {
     if (h.pdfPage != null) return;
-    var sn = resolveXPath(h.startXpath), en = resolveXPath(h.endXpath);
-    if (!sn || !en) return;
+    var r = rangeFor(h, contentRoot());
+    // Ältere Android-Versionen zählten ab <body>: dann passt der Text nicht, also dort versuchen.
+    if (!r || !sameText(r, h.highlightedText)) {
+      var legacy = rangeFor(h, document.body);
+      if (legacy && sameText(legacy, h.highlightedText)) r = legacy;
+    }
+    if (r && !r.collapsed) wrapRange(r, h);
+  }
+
+  function rangeFor(h, base) {
+    var sn = resolveXPath(h.startXpath, base), en = resolveXPath(h.endXpath, base);
+    if (!sn || !en) return null;
     try {
       var r = document.createRange();
       r.setStart(sn, h.startOffset);
       r.setEnd(en, h.endOffset);
-      if (!r.collapsed) wrapRange(r, h);
-    } catch (e) {}
+      return r;
+    } catch (e) { return null; }
+  }
+
+  function sameText(range, text) {
+    var norm = function(s) { return String(s || '').replace(/\s+/g, ' ').trim(); };
+    return !text || norm(range.toString()) === norm(text);
   }
 
   function unwrapAllMarks() {

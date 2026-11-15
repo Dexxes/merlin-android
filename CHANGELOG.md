@@ -35,8 +35,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - Highlights in text articles are applied by script instead of being baked into
   the HTML, so new highlights or comments no longer reload the page. Marks are
-  wrapped in creation order like on iOS; highlights created by older Android
-  builds may in rare cases not be found anymore.
+  wrapped in creation order like on iOS.
+- Highlight and comment positions (XPaths) now count from the article content
+  instead of `<body>`, like iOS and the web reader, so passages marked on
+  Android show up there too. Highlights saved by older Android builds are still
+  found by comparing their text.
 
 ### Added
 
