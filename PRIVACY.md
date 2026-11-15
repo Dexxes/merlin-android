@@ -2,7 +2,7 @@
 
 *English version below.*
 
-Stand: 14. November 2026
+Stand: 15. November 2026
 
 ## Kurz gesagt
 
@@ -44,6 +44,8 @@ Die Verbindung ist mit HTTPS verschlüsselt. Wie lange dein Server Daten speiche
 Einige Funktionen laden Inhalte direkt von anderen Anbietern. Diese sehen dabei deine IP-Adresse und die übliche technische Anfrage.
 
 - **Bilder in Artikeln:** Sie werden von den Websites geladen, aus denen die Artikel stammen.
+- **YouTube-Videos:** Das Vorschaubild kommt von `i.ytimg.com`, das Video selbst wird erst geladen, wenn du es antippst, und läuft dann über `youtube-nocookie.com`. Dabei gilt die Datenschutzerklärung von Google.
+- **Videos aus Mediatheken und in Artikeln:** Videos von ARD, ZDF, 3sat und Arte sowie Videos im Artikeltext werden direkt von den Servern der Anbieter gestreamt, sobald du sie abspielst.
 - **Melden von Artikeln:** Wenn du einen Artikel meldest, gehen Adresse und Kommentar an das Melde-Backend, das dein Server-Administrator eingerichtet hat.
 - **Anmeldung und Links:** Die Anmeldeseite deines Servers und angeklickte Links öffnet sich im Browser bzw. auf der jeweiligen Website.
 
@@ -73,7 +75,7 @@ Wenn sich die App ändert, wird diese Erklärung angepasst. Die jeweils aktuelle
 
 # Privacy Policy – Merlin for Android
 
-Last updated: November 14, 2026
+Last updated: November 15, 2026
 
 ## In short
 
@@ -115,6 +117,8 @@ The connection is encrypted with HTTPS. How long your server keeps data and how 
 Some features load content directly from other providers. They see your IP address and the usual technical request.
 
 - **Images in articles:** they are loaded from the websites the articles come from.
+- **YouTube videos:** the preview image comes from `i.ytimg.com`; the video itself loads only when you tap it and then plays through `youtube-nocookie.com`. Google's privacy policy applies.
+- **Videos from broadcaster media libraries and in articles:** videos from ARD, ZDF, 3sat and Arte, and videos inside article text, are streamed directly from the providers' servers once you play them.
 - **Site icons:** they come from DuckDuckGo (`icons.duckduckgo.com`). This sends the domain name of the saved article, for example `example.com`, but not the full address.
 - **Reporting articles:** if you report an article, its address and your comment go to the reporting backend your server administrator set up.
 - **Login and links:** your server's login page, links and "Open via archive.ph" open in the browser or on the respective website.
