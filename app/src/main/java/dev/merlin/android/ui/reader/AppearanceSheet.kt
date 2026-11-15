@@ -4,23 +4,26 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -29,6 +32,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -57,11 +61,17 @@ fun AppearanceSheet(
     val lineHeight by viewModel.lineHeight.collectAsState()
     val accentColorHex by viewModel.accentColorHex.collectAsState()
     val progressEdge by viewModel.progressEdge.collectAsState()
+    val handsFreeButton by viewModel.handsFreeButton.collectAsState()
     val scope = rememberCoroutineScope()
     val sheetState = rememberModalBottomSheetState()
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
-        Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) {
+        // Scrollbar, damit auf kleinen Displays nichts abgeschnitten wird (wie unter iOS).
+        Column(
+            modifier = Modifier
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp, vertical = 8.dp),
+        ) {
             Text("Erscheinungsbild", style = MaterialTheme.typography.titleMedium)
             Text(
                 "Theme",
@@ -140,26 +150,28 @@ fun AppearanceSheet(
                 ACCENT_COLORS.forEach { hex ->
                     val color = Color(android.graphics.Color.parseColor(hex))
                     val selected = hex.equals(accentColorHex, ignoreCase = true)
-                    Card(
-                        shape = CircleShape,
+                    // Die Farbe füllt den ganzen Kreis (nicht nur ein Kind-Element, das ohne
+                    // Häkchen keine Höhe hätte).
+                    Box(
+                        contentAlignment = Alignment.Center,
                         modifier = Modifier
                             .size(32.dp)
-                            .clickable { scope.launch { viewModel.preferencesStore.setAccentProgressColorHex(hex); viewModel.syncAppearanceToServer() } }
+                            .clip(CircleShape)
+                            .background(color)
                             .border(
                                 width = if (selected) 2.dp else 0.dp,
                                 color = MaterialTheme.colorScheme.onSurface,
                                 shape = CircleShape,
-                            ),
+                            )
+                            .clickable { scope.launch { viewModel.preferencesStore.setAccentProgressColorHex(hex); viewModel.syncAppearanceToServer() } },
                     ) {
-                        Column(modifier = Modifier.fillMaxWidth().background(color)) {
-                            if (selected) {
-                                Icon(
-                                    Icons.Filled.Check,
-                                    contentDescription = "Ausgewählt",
-                                    tint = Color.White,
-                                    modifier = Modifier.padding(6.dp),
-                                )
-                            }
+                        if (selected) {
+                            Icon(
+                                Icons.Filled.Check,
+                                contentDescription = "Ausgewählt",
+                                tint = Color.White,
+                                modifier = Modifier.size(18.dp),
+                            )
                         }
                     }
                 }
@@ -178,6 +190,28 @@ fun AppearanceSheet(
                         label = { Text(entry.edgeLabel()) },
                     )
                 }
+            }
+
+            // Freihand-Lesemodus: blendet den Button in der Bottom-Bar ein (Standard: an), wie
+            // `handsFreeRow` im iOS-Erscheinungsbild-Sheet. Nur lokal, nicht mit dem Server gesynct.
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Freihand-Lesemodus", style = MaterialTheme.typography.labelLarge)
+                    Text(
+                        "Zeigt in der unteren Leiste einen Button, der den Artikel von selbst scrollen lässt.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 2.dp),
+                    )
+                }
+                Switch(
+                    checked = handsFreeButton,
+                    onCheckedChange = { viewModel.setHandsFreeButton(it) },
+                )
             }
         }
     }

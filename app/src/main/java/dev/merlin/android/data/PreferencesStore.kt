@@ -49,6 +49,8 @@ class PreferencesStore @Inject constructor(
         val PROGRESS_EDGE = stringPreferencesKey("progress_edge")
         val LINE_HEIGHT = doublePreferencesKey("line_height")
         val ACCENT_PROGRESS_COLOR = stringPreferencesKey("accent_progress_color")
+        val READER_HANDS_FREE_BUTTON = booleanPreferencesKey("reader_hands_free_button")
+        val READER_HANDS_FREE_SPEED = doublePreferencesKey("reader_hands_free_speed")
         val SAVE_PROGRESS = booleanPreferencesKey("save_progress")
         val RESUME_ON_OPEN = booleanPreferencesKey("resume_on_open")
         val PREFETCH_WIFI_ONLY = booleanPreferencesKey("prefetch_images_wifi_only")
@@ -98,6 +100,19 @@ class PreferencesStore @Inject constructor(
 
     val accentProgressColorHex: Flow<String> = dataStore.data.map { it[Keys.ACCENT_PROGRESS_COLOR] ?: "#FF3B30" }
     suspend fun setAccentProgressColorHex(value: String) = dataStore.edit { it[Keys.ACCENT_PROGRESS_COLOR] = value }
+
+    // Freihand-Lesemodus (Äquivalent zu `readerHandsFreeButton`/`readerHandsFreeSpeed` in iOS'
+    // PreferencesStore.swift). Wie unter iOS nur lokal, nicht mit dem Server gesynct.
+    /** Button für den Freihand-Lesemodus in der Reader-Bottom-Bar einblenden (Standard: an). */
+    val readerHandsFreeButton: Flow<Boolean> = dataStore.data.map { it[Keys.READER_HANDS_FREE_BUTTON] ?: true }
+    suspend fun setReaderHandsFreeButton(value: Boolean) = dataStore.edit { it[Keys.READER_HANDS_FREE_BUTTON] = value }
+
+    /** Zuletzt gewählte Slider-Stellung 0…1 (siehe [dev.merlin.android.ui.reader.AutoScrollController.speedDpPerSecond]). */
+    val readerHandsFreeSpeed: Flow<Double> = dataStore.data.map {
+        (it[Keys.READER_HANDS_FREE_SPEED] ?: 0.42).coerceIn(0.0, 1.0)
+    }
+    suspend fun setReaderHandsFreeSpeed(value: Double) =
+        dataStore.edit { it[Keys.READER_HANDS_FREE_SPEED] = value.coerceIn(0.0, 1.0) }
 
     /** Default `true`: konservativ, vermeidet unerwarteten Datenverbrauch. */
     val saveProgress: Flow<Boolean> = dataStore.data.map { it[Keys.SAVE_PROGRESS] ?: true }

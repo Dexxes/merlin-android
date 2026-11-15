@@ -156,6 +156,21 @@ class ArticleReaderViewModel @Inject constructor(
     val progressEdge: StateFlow<ProgressEdge> = preferencesStore.progressEdge
         .stateIn(viewModelScope, SharingStarted.Eagerly, ProgressEdge.LEFT)
 
+    /** Freihand-Lesemodus: Button in der Bottom-Bar zeigen (Schalter im Erscheinungsbild-Sheet). */
+    val handsFreeButton: StateFlow<Boolean> = preferencesStore.readerHandsFreeButton
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
+
+    /** Zuletzt gewählte Slider-Stellung des Freihand-Lesemodus (0…1). */
+    suspend fun handsFreeSpeed(): Float = preferencesStore.readerHandsFreeSpeed.first().toFloat()
+
+    fun saveHandsFreeSpeed(value: Float) {
+        viewModelScope.launch { preferencesStore.setReaderHandsFreeSpeed(value.toDouble()) }
+    }
+
+    fun setHandsFreeButton(enabled: Boolean) {
+        viewModelScope.launch { preferencesStore.setReaderHandsFreeButton(enabled) }
+    }
+
     /** Fasst alle Appearance-Werte zusammen – ein Wechsel hier löst im Reader-Screen den vollen HTML-Rebuild aus. */
     val appearance: StateFlow<Appearance> = combine(
         readerTheme, readerFont, readerFontSize, lineHeight, accentColorHex,

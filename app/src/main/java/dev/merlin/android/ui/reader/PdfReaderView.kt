@@ -144,6 +144,8 @@ fun PdfReaderView(
     onScrollPositionChanged: (Float) -> Unit,
     onScrollProgress: (Float) -> Unit,
     onScrollMetrics: (offsetPx: Float, scrollableRangePx: Float) -> Unit,
+    // Freihand-Lesemodus: meldet die Seitenliste, sobald sie steht (null, wenn sie verschwindet).
+    onAutoScrollTarget: (AutoScrollTarget?) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var phase by remember(sourceUrl) { mutableStateOf<PdfPhase>(PdfPhase.Loading) }
@@ -210,6 +212,7 @@ fun PdfReaderView(
                 onScrollPositionChanged = onScrollPositionChanged,
                 onScrollProgress = onScrollProgress,
                 onScrollMetrics = onScrollMetrics,
+                onAutoScrollTarget = onAutoScrollTarget,
             )
         }
     }
@@ -243,6 +246,7 @@ private fun PdfPages(
     onScrollPositionChanged: (Float) -> Unit,
     onScrollProgress: (Float) -> Unit,
     onScrollMetrics: (Float, Float) -> Unit,
+    onAutoScrollTarget: (AutoScrollTarget?) -> Unit,
 ) {
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val density = LocalDensity.current
@@ -296,6 +300,10 @@ private fun PdfPages(
         }
         DisposableEffect(listState) {
             onDispose { if (restored) onScrollPositionChanged(progress()) }
+        }
+        DisposableEffect(listState, prefix) {
+            onAutoScrollTarget(LazyListAutoScrollTarget(listState) { offsetPx() })
+            onDispose { onAutoScrollTarget(null) }
         }
 
         LazyColumn(
