@@ -1,6 +1,7 @@
 package dev.merlin.android.ui.components
 
 import android.annotation.SuppressLint
+import android.content.pm.ApplicationInfo
 import android.webkit.CookieManager
 import android.webkit.WebStorage
 import android.webkit.WebView
@@ -18,6 +19,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import dev.merlin.android.BuildConfig
 import dev.merlin.android.R
 
 /**
@@ -62,6 +64,10 @@ fun LoginWebViewDialog(
                     .fillMaxSize(),
                 factory = { context ->
                     clearLoginWebSession()
+                    // In Debug-Builds (debuggable) per USB unter chrome://inspect sichtbar machen,
+                    // um die Login-Seite am PC untersuchen zu können. Release-Builds bleiben zu.
+                    val debuggable = context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
+                    if (BuildConfig.DEBUG || debuggable) WebView.setWebContentsDebuggingEnabled(true)
                     @SuppressLint("SetJavaScriptEnabled")
                     val webView = WebView(context).apply {
                         // Nextclouds Login-Seite ist eine JS-App – ohne JS/DOM-Storage bleibt sie leer.
