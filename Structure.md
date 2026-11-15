@@ -361,7 +361,7 @@ neue Zeile "Site-Zugangsdaten verwalten" in `SettingsScreen.kt`
 dafür zwei zusätzliche, vom Server gesetzte Felder: `requiresLoginDomain`
 (Paywall-Domain, wenn die Extraktion mangels gültiger Zugangsdaten
 gescheitert ist) und `requiresLoginPage` (nur gesetzt, wenn auch
-`requiresLoginDomain` gesetzt ist). `ArticleReaderScreen.kt` zeigt den Banner
+`requiresLoginDomain` gesetzt ist). `ArticleReaderScreen.kt` zeigt das Banner
 oben im Artikelbereich, solange `requiresLoginDomain` gesetzt und der Banner
 nicht lokal weggewischt ist (nicht-persistenter `remember`-State, pro
 `articleId` zurückgesetzt – Parität zu iOS' Session-Dismiss). "Verbinden"
