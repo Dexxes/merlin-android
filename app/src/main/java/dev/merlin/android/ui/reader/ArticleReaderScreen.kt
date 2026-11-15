@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -40,6 +41,12 @@ import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.automirrored.outlined.Comment
+import androidx.compose.material.icons.outlined.AddComment
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.History
@@ -59,6 +66,9 @@ import androidx.compose.material.icons.filled.Tag
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -110,6 +120,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.ImeAction
+import kotlinx.coroutines.delay
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -124,10 +140,12 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.currentStateAsState
 import dev.merlin.android.models.Article
 import dev.merlin.android.models.FileMetadataParser
+import dev.merlin.android.models.Highlight
 import dev.merlin.android.models.HighlightCreate
 import dev.merlin.android.models.ProgressEdge
 import dev.merlin.android.models.ReaderTheme
@@ -179,6 +197,7 @@ fun ArticleReaderScreen(
     val error by viewModel.error.collectAsState()
     val deleted by viewModel.deleted.collectAsState()
     val highlights by viewModel.highlights.collectAsState()
+    val commentState by viewModel.comments.state.collectAsState()
     val appearance by viewModel.appearance.collectAsState()
     val progressEdge by viewModel.progressEdge.collectAsState()
     val accentColorHex by viewModel.accentColorHex.collectAsState()
@@ -252,8 +271,18 @@ fun ArticleReaderScreen(
     var showShareLinkSheet by remember { mutableStateOf(false) }
     val allTags by viewModel.allTags.collectAsState()
     var lightboxState by remember { mutableStateOf<LightboxState?>(null) }
-    var pendingHighlightDeleteId by remember { mutableStateOf<Int?>(null) }
+    // Farbleiste: sichtbar bei einer Auswahl ([selectionRect]) oder einer angetippten Markierung
+    // ([tappedHighlightId], dann mit Kommentieren/Entfernen statt neu Markieren).
     var selectionRect by remember { mutableStateOf<ReaderJsBridge.SelectionRect?>(null) }
+    var tappedHighlightId by remember { mutableStateOf<Int?>(null) }
+    // Markierung mit Kommentaren: erst nach Rückfrage entfernen (wie iOS).
+    var highlightToDelete by remember { mutableStateOf<Highlight?>(null) }
+    var commentFocus by remember { mutableStateOf<CommentFocus?>(null) }
+    // Markieren, Kommentieren, Suchen: an die WebView des Text- bzw. PDF-Readers.
+    var documentActions by remember { mutableStateOf<ReaderDocumentActions?>(null) }
+    var showFind by remember { mutableStateOf(false) }
+    var findQuery by remember { mutableStateOf("") }
+    var findResult by remember { mutableStateOf<FindResult?>(null) }
     var infoPopover by remember { mutableStateOf<ReaderJsBridge.InfoPopover?>(null) }
     var scrollProgress by remember { mutableFloatStateOf(0f) }
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
@@ -320,6 +349,37 @@ fun ArticleReaderScreen(
     // Im Erscheinungsbild ausgeschaltet → Modus beenden.
     LaunchedEffect(handsFreeButton) {
         if (!handsFreeButton) autoScroll.stop()
+    }
+
+    // Kommentar-Kanal (nur merlin-nextcloud) nur offen halten, solange der Reader sichtbar ist.
+    val commentsLifecycle = LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(commentsLifecycle, viewModel) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_START -> viewModel.startComments()
+                Lifecycle.Event.ON_STOP -> viewModel.stopComments()
+                else -> Unit
+            }
+        }
+        commentsLifecycle.addObserver(observer)
+        onDispose {
+            commentsLifecycle.removeObserver(observer)
+            viewModel.stopComments()
+        }
+    }
+    LaunchedEffect(webViewRef) {
+        webViewRef?.let { webView -> documentActions = WebViewDocumentActions(webView) { findResult = it } }
+    }
+    // Suche: erst nach einer kurzen Tipp-Pause suchen (wie `scheduleFind` auf iOS).
+    LaunchedEffect(findQuery, showFind, documentActions) {
+        if (!showFind) return@LaunchedEffect
+        delay(300)
+        if (findQuery.isBlank()) {
+            documentActions?.clearFind()
+            findResult = null
+        } else {
+            documentActions?.find(findQuery)
+        }
     }
 
     // Meldet jede Artikeländerung (Favorit/Archiv/Tags) an die geteilte `ArticlesViewModel`-
@@ -450,6 +510,36 @@ fun ArticleReaderScreen(
                         },
                         modifier = Modifier.padding(horizontal = 12.dp),
                     )
+                    // Kommentare (nur merlin-nextcloud): alle Threads des Artikels, Zähler wie iOS.
+                    if (commentState.isAvailable) {
+                        val count = commentState.totalCount
+                        NavigationDrawerItem(
+                            label = { Text(if (count > 0) "Kommentare ($count)" else "Kommentare") },
+                            icon = { Icon(Icons.AutoMirrored.Outlined.Comment, contentDescription = null) },
+                            selected = false,
+                            onClick = {
+                                scope.launch { drawerState.close() }
+                                commentFocus = CommentFocus()
+                            },
+                            modifier = Modifier.padding(horizontal = 12.dp),
+                        )
+                    }
+                    // Suche im Artikel: Text-Artikel mit Inhalt oder PDF (wie `canFind` auf iOS).
+                    val canFind = article?.let { if (it.isPdf) it.pdfSourceUrl != null else !it.content.isNullOrEmpty() } == true
+                    if (canFind) {
+                        NavigationDrawerItem(
+                            label = { Text("Im Artikel suchen") },
+                            icon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                            selected = false,
+                            onClick = {
+                                scope.launch { drawerState.close() }
+                                selectionRect = null
+                                tappedHighlightId = null
+                                showFind = true
+                            },
+                            modifier = Modifier.padding(horizontal = 12.dp),
+                        )
+                    }
                     NavigationDrawerItem(
                         label = { Text(if (article?.isArchived == true) "Aus Archiv entfernen" else "Archivieren") },
                         icon = { Icon(if (article?.isArchived == true) Icons.Filled.Inventory2 else Icons.Filled.Archive, contentDescription = null) },
@@ -581,7 +671,14 @@ fun ArticleReaderScreen(
                                             awaitPointerEventScope {
                                                 while (true) {
                                                     val event = awaitPointerEvent(PointerEventPass.Initial)
-                                                    autoScroll.userTouching = event.changes.any { it.pressed }
+                                                    val pressed = event.changes.any { it.pressed }
+                                                    // Neuer Tipp schließt die Leiste einer angetippten Markierung;
+                                                    // trifft er wieder eine, öffnet ihr Klick sie gleich neu.
+                                                    if (pressed && !autoScroll.userTouching && tappedHighlightId != null) {
+                                                        tappedHighlightId = null
+                                                        selectionRect = null
+                                                    }
+                                                    autoScroll.userTouching = pressed
                                                 }
                                             }
                                         },
@@ -603,6 +700,7 @@ fun ArticleReaderScreen(
                                             discardPdf = { url -> viewModel.discardPdf(url) },
                                             initialScrollProgress = initialScrollProgress ?: 0f,
                                             foregroundColor = chromeColors.foreground,
+                                            backgroundColor = chromeColors.background,
                                             onOpenInBrowser = {
                                                 runCatching {
                                                     context.startActivity(
@@ -614,6 +712,32 @@ fun ArticleReaderScreen(
                                             onScrollProgress = { scrollProgress = it },
                                             onScrollMetrics = onReaderScrollMetrics,
                                             onAutoScrollTarget = { autoScroll.target = it },
+                                            highlights = highlights,
+                                            commentCounts = commentState.countsByHighlight,
+                                            onCreateHighlight = { payload -> viewModel.createHighlight(payload) },
+                                            onHighlightTap = { id, rect ->
+                                                tappedHighlightId = id
+                                                selectionRect = rect ?: ReaderJsBridge.SelectionRect(0f, 0f, 0f, 0f)
+                                            },
+                                            onOpenComments = { id, text ->
+                                                if (commentState.isAvailable) commentFocus = CommentFocus(highlightId = id, quote = text)
+                                            },
+                                            onCommentAnchor = { anchor ->
+                                                commentFocus = CommentFocus(quote = anchor.highlightedText, anchor = anchor)
+                                            },
+                                            onSelectionChanged = { rect ->
+                                                if (rect != null) {
+                                                    tappedHighlightId = null
+                                                    selectionRect = rect
+                                                } else if (tappedHighlightId == null) {
+                                                    selectionRect = null
+                                                }
+                                            },
+                                            onOpenLink = { url ->
+                                                runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri())) }
+                                            },
+                                            onFindResult = { findResult = it },
+                                            onDocumentActions = { documentActions = it },
                                             modifier = Modifier.fillMaxWidth().weight(1f),
                                         )
                                     } else {
@@ -623,9 +747,26 @@ fun ArticleReaderScreen(
                                             appearance = appearance,
                                             initialScrollProgress = initialScrollProgress ?: 0f,
                                             onCreateHighlight = { payload: HighlightCreate -> viewModel.createHighlight(payload) },
-                                            onHighlightTap = { id -> pendingHighlightDeleteId = id },
+                                            onHighlightTap = { id, rect ->
+                                                tappedHighlightId = id
+                                                selectionRect = rect ?: ReaderJsBridge.SelectionRect(0f, 0f, 0f, 0f)
+                                            },
                                             onImageTap = { index, imageUrls -> lightboxState = LightboxState(initialIndex = index, imageURLs = imageUrls) },
-                                            onSelectionChanged = { rect -> selectionRect = rect },
+                                            onSelectionChanged = { rect ->
+                                                if (rect != null) {
+                                                    tappedHighlightId = null
+                                                    selectionRect = rect
+                                                } else if (tappedHighlightId == null) {
+                                                    selectionRect = null
+                                                }
+                                            },
+                                            commentCounts = commentState.countsByHighlight,
+                                            onOpenComments = { id, text ->
+                                                if (commentState.isAvailable) commentFocus = CommentFocus(highlightId = id, quote = text)
+                                            },
+                                            onCommentAnchor = { anchor ->
+                                                commentFocus = CommentFocus(quote = anchor.highlightedText, anchor = anchor)
+                                            },
                                             onInfoPopover = { popover -> infoPopover = popover },
                                             onScrollPositionChanged = { progress -> viewModel.saveScrollProgress(progress) },
                                             onWebViewReady = { webViewRef = it },
@@ -657,15 +798,58 @@ fun ArticleReaderScreen(
                                 }
 
                                 selectionRect?.let {
+                                    val tapped = tappedHighlightId?.let { id -> highlights.firstOrNull { it.id == id } }
+                                    fun closeToolbar() {
+                                        selectionRect = null
+                                        tappedHighlightId = null
+                                    }
                                     HighlightColorToolbar(
+                                        // Gast-Markierungen und Kommentarstellen haben keine eigene Farbe zum Ändern.
+                                        showColors = tapped == null || (!tapped.isGuest && !tapped.isComment),
+                                        selectedColor = tapped?.color,
                                         onColorSelected = { color ->
-                                            webViewRef?.evaluateJavascript(
-                                                "MerlinReader.createHighlightFromSelection('$color');",
-                                                null,
-                                            )
-                                            selectionRect = null
+                                            if (tapped != null) viewModel.recolorHighlight(tapped, color) else documentActions?.mark(color)
+                                            closeToolbar()
+                                        },
+                                        onComment = if (commentState.isAvailable) {
+                                            {
+                                                if (tapped != null) {
+                                                    commentFocus = CommentFocus(highlightId = tapped.id, quote = tapped.highlightedText)
+                                                } else {
+                                                    documentActions?.comment()
+                                                }
+                                                closeToolbar()
+                                            }
+                                        } else {
+                                            null
+                                        },
+                                        onDelete = tapped?.let { highlight ->
+                                            {
+                                                if ((commentState.countsByHighlight[highlight.id] ?: 0) > 0) {
+                                                    highlightToDelete = highlight
+                                                } else {
+                                                    viewModel.deleteHighlight(highlight)
+                                                }
+                                                closeToolbar()
+                                            }
                                         },
                                         modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 24.dp),
+                                    )
+                                }
+
+                                if (showFind) {
+                                    FindBar(
+                                        query = findQuery,
+                                        onQueryChange = { findQuery = it },
+                                        result = findResult,
+                                        onStep = { forward -> documentActions?.findStep(forward) },
+                                        onClose = {
+                                            showFind = false
+                                            findQuery = ""
+                                            findResult = null
+                                            documentActions?.clearFind()
+                                        },
+                                        modifier = Modifier.align(Alignment.TopCenter),
                                     )
                                 }
 
@@ -744,7 +928,7 @@ fun ArticleReaderScreen(
     val handsFreeShouldPause = selectionRect != null || infoPopover != null ||
         drawerState.targetValue == DrawerValue.Open || showAppearanceSheet || showReminderSheet ||
         showReportSheet || showTagsSheet || showRenameDialog || showShareLinkSheet ||
-        lightboxState != null || pendingHighlightDeleteId != null ||
+        lightboxState != null || highlightToDelete != null || commentFocus != null ||
         !lifecycleState.isAtLeast(Lifecycle.State.RESUMED)
     LaunchedEffect(handsFreeShouldPause) {
         if (handsFreeShouldPause) autoScroll.pause()
@@ -826,25 +1010,47 @@ fun ArticleReaderScreen(
     }
 
     if (showShareLinkSheet) {
-        ShareLinkSheet(onDismiss = { showShareLinkSheet = false }, viewModel = viewModel)
+        ShareLinkSheet(
+            onDismiss = {
+                showShareLinkSheet = false
+                // Der Kanal wurde evtl. geschlossen, weil es keinen Link gab.
+                viewModel.comments.reconnect()
+            },
+            viewModel = viewModel,
+            commentsAvailable = commentState.isAvailable,
+        )
+    }
+
+    commentFocus?.let { focus ->
+        CommentsSheet(
+            store = viewModel.comments,
+            state = commentState,
+            initialFocus = focus,
+            onShowInText = { id ->
+                commentFocus = null
+                documentActions?.reveal(id)
+            },
+            onDismiss = { commentFocus = null },
+        )
     }
 
     lightboxState?.let { lbState ->
         ImageLightboxScreen(state = lbState, onDismiss = { lightboxState = null }, viewModel = viewModel)
     }
 
-    pendingHighlightDeleteId?.let { id ->
+    highlightToDelete?.let { highlight ->
         AlertDialog(
-            onDismissRequest = { pendingHighlightDeleteId = null },
-            title = { Text("Highlight entfernen?") },
+            onDismissRequest = { highlightToDelete = null },
+            title = { Text("Markierung mit Kommentaren entfernen?") },
+            text = { Text("Die Kommentare bleiben mit der zitierten Textstelle erhalten.") },
             confirmButton = {
                 TextButton(onClick = {
-                    highlights.firstOrNull { it.id == id }?.let { viewModel.deleteHighlight(it) }
-                    pendingHighlightDeleteId = null
-                }) { Text("Entfernen") }
+                    viewModel.deleteHighlight(highlight)
+                    highlightToDelete = null
+                }) { Text("Markierung entfernen", color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = {
-                TextButton(onClick = { pendingHighlightDeleteId = null }) { Text("Abbrechen") }
+                TextButton(onClick = { highlightToDelete = null }) { Text("Abbrechen") }
             },
         )
     }
@@ -1168,21 +1374,109 @@ private fun InfoPopoverOverlay(popover: ReaderJsBridge.InfoPopover, onDismiss: (
     }
 }
 
+/**
+ * Farbleiste über einer Auswahl bzw. einer angetippten Markierung – Äquivalent zu
+ * `HighlightToolbarView` in `ArticleReaderView.swift`: fünf Farben, dahinter „Kommentieren“
+ * (nur merlin-nextcloud) und an einer Markierung „Entfernen“.
+ */
 @Composable
-private fun HighlightColorToolbar(onColorSelected: (String) -> Unit, modifier: Modifier = Modifier) {
+private fun HighlightColorToolbar(
+    showColors: Boolean,
+    selectedColor: String?,
+    onColorSelected: (String) -> Unit,
+    onComment: (() -> Unit)?,
+    onDelete: (() -> Unit)?,
+    modifier: Modifier = Modifier,
+) {
     Row(
         modifier = modifier
             .background(MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(24.dp))
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+            .padding(horizontal = 12.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        ReaderHtmlBuilder.HIGHLIGHT_COLORS.forEach { (name, hex) ->
-            Box(
-                modifier = Modifier
-                    .size(28.dp)
-                    .background(Color(hex.toColorInt()), shape = CircleShape)
-                    .clickable { onColorSelected(name) },
+        if (showColors) {
+            ReaderHtmlBuilder.HIGHLIGHT_COLORS.forEach { (name, hex) ->
+                Box(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .background(Color(hex.toColorInt()), shape = CircleShape)
+                        .then(
+                            if (name == selectedColor) {
+                                Modifier.border(2.dp, MaterialTheme.colorScheme.onSurfaceVariant, CircleShape)
+                            } else {
+                                Modifier
+                            },
+                        )
+                        .clickable { onColorSelected(name) },
+                )
+            }
+        }
+        if (showColors && (onComment != null || onDelete != null)) {
+            VerticalDivider(modifier = Modifier.height(24.dp))
+        }
+        if (onComment != null) {
+            IconButton(onClick = onComment, modifier = Modifier.size(36.dp)) {
+                Icon(Icons.Outlined.AddComment, contentDescription = "Kommentieren")
+            }
+        }
+        if (onDelete != null) {
+            IconButton(onClick = onDelete, modifier = Modifier.size(36.dp)) {
+                Icon(Icons.Outlined.Delete, contentDescription = "Markierung entfernen")
+            }
+        }
+    }
+}
+
+/**
+ * Suchleiste oben im Reader – Äquivalent zur Suchleiste in `ArticleReaderView.swift`: Suchfeld,
+ * „x von y“, vorheriger/nächster Treffer und Fertig.
+ */
+@Composable
+private fun FindBar(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    result: FindResult?,
+    onStep: (forward: Boolean) -> Unit,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
+    Surface(
+        tonalElevation = 3.dp,
+        shadowElevation = 3.dp,
+        modifier = modifier.fillMaxWidth(),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+        ) {
+            OutlinedTextField(
+                value = query,
+                onValueChange = onQueryChange,
+                placeholder = { Text("Im Artikel suchen") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(onSearch = { onStep(true) }),
+                modifier = Modifier.weight(1f).focusRequester(focus),
             )
+            val label = when {
+                query.isBlank() || result == null -> ""
+                result.count > 0 -> "${result.index + 1} von ${result.count}"
+                else -> "Keine Treffer"
+            }
+            if (label.isNotEmpty()) {
+                Text(label, style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(horizontal = 6.dp))
+            }
+            val hasMatches = (result?.count ?: 0) > 0
+            IconButton(onClick = { onStep(false) }, enabled = hasMatches) {
+                Icon(Icons.Filled.KeyboardArrowUp, contentDescription = "Vorheriger Treffer")
+            }
+            IconButton(onClick = { onStep(true) }, enabled = hasMatches) {
+                Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "Nächster Treffer")
+            }
+            TextButton(onClick = onClose) { Text("Fertig") }
         }
     }
 }

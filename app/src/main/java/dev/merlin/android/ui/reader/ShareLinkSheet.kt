@@ -67,6 +67,8 @@ import java.util.TimeZone
 fun ShareLinkSheet(
     onDismiss: () -> Unit,
     viewModel: ArticleReaderViewModel,
+    // Server kennt Kommentare (merlin-nextcloud): Schalter für Gast-Beiträge zeigen.
+    commentsAvailable: Boolean = false,
 ) {
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
@@ -82,6 +84,7 @@ fun ShareLinkSheet(
     var createExpiryEnabled by remember { mutableStateOf(false) }
     var createExpiryMillis by remember { mutableStateOf<Long?>(null) }
     var showCreateExpiryPicker by remember { mutableStateOf(false) }
+    var createAllowComments by remember { mutableStateOf(true) }
 
     var editingPassword by remember { mutableStateOf(false) }
     var newPassword by remember { mutableStateOf("") }
@@ -151,6 +154,10 @@ fun ShareLinkSheet(
                     }
                 }
 
+                if (commentsAvailable) {
+                    AllowCommentsRow(checked = createAllowComments, enabled = true, onCheckedChange = { createAllowComments = it })
+                }
+
                 Row(
                     horizontalArrangement = Arrangement.End,
                     modifier = Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 16.dp),
@@ -162,6 +169,7 @@ fun ShareLinkSheet(
                             viewModel.createShare(
                                 password = if (createPasswordEnabled) createPassword else null,
                                 expiresAt = if (createExpiryEnabled) createExpiryMillis?.let { isoDateFormatter.format(Date(it)) } else null,
+                                allowComments = if (commentsAvailable) createAllowComments else null,
                             )
                         }) { Text("Öffentlichen Link erstellen") }
                     }
@@ -257,6 +265,12 @@ fun ShareLinkSheet(
                     }
                 }
 
+                // Nur Server mit Kommentaren liefern `allowComments` (wie iOS).
+                share.allowComments?.let { allow ->
+                    Divider(modifier = Modifier.padding(vertical = 12.dp))
+                    AllowCommentsRow(checked = allow, enabled = !busy, onCheckedChange = { viewModel.setShareAllowComments(it) })
+                }
+
                 Divider(modifier = Modifier.padding(vertical = 12.dp))
 
                 Row(
@@ -350,4 +364,21 @@ private fun startOfTodayUtcMillis(): Long {
     cal.set(local.get(java.util.Calendar.YEAR), local.get(java.util.Calendar.MONTH), local.get(java.util.Calendar.DAY_OF_MONTH), 0, 0, 0)
     cal.set(java.util.Calendar.MILLISECOND, 0)
     return cal.timeInMillis
+}
+
+/** Schalter „Besucher dürfen markieren und kommentieren“ mit Erklärung zur Namenswahl (wie iOS). */
+@Composable
+private fun AllowCommentsRow(checked: Boolean, enabled: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            Text("Besucher dürfen markieren und kommentieren", modifier = Modifier.weight(1f))
+            Switch(checked = checked, enabled = enabled, onCheckedChange = onCheckedChange)
+        }
+        Text(
+            "Besucher wählen einen Namen. Wer denselben Namen nutzt, kann alles bearbeiten und löschen, was darunter geschrieben wurde.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 2.dp),
+        )
+    }
 }
