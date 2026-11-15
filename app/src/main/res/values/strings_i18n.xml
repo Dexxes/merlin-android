@@ -175,6 +175,8 @@
     <string name="report_successMessage">"Thanks – the article has been reported."</string>
     <string name="report_title">"Report Article"</string>
     <string name="settings_about_commitLabel">"Commit"</string>
+    <string name="settings_about_contactDeveloperLabel">"Contact Developer"</string>
+    <string name="settings_about_privacyLabel">"Privacy Policy"</string>
     <string name="settings_about_sectionHeader">"About"</string>
     <string name="settings_about_sourceCodeLabel">"Source code"</string>
     <string name="settings_about_versionLabel">"Version"</string>

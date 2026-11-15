@@ -24,6 +24,14 @@ import dev.merlin.android.viewmodel.ArticleReaderViewModel
  */
 object ReaderHtmlBuilder {
 
+    /** Papierstruktur sichtbar: Schalter an und Theme hell bzw. Sepia (Dunkel bleibt reines Schwarz). */
+    fun showsPaperTexture(appearance: ArticleReaderViewModel.Appearance, isSystemDark: Boolean): Boolean =
+        appearance.paperTexture && when (appearance.theme) {
+            ReaderTheme.DARK -> false
+            ReaderTheme.AUTO -> !isSystemDark
+            ReaderTheme.LIGHT, ReaderTheme.SEPIA -> true
+        }
+
     /** Eine Zelle der Info-Card (`buildHeaderHtml`); `tapKind` != null macht sie per `READER_JS` antippbar. */
     private data class InfoCell(
         val label: String,
@@ -57,6 +65,9 @@ object ReaderHtmlBuilder {
         isSystemDark: Boolean,
         // Texte der Support-Infobox; null (oder fehlendes `article.supportBox`) = keine Box.
         supportBoxTexts: SupportBoxTexts? = null,
+        // Seite ohne eigenen Hintergrund: die Papierstruktur liegt in Compose hinter der
+        // durchsichtigen WebView (siehe `PaperBackground.kt`), wie unter iOS.
+        transparentBackground: Boolean = false,
     ): String {
         // Reihenfolge wie im iOS-Template (`buildReaderHTML` in ArticleReaderView.swift):
         // Titelbild-Entfernung bei ARD/ZDF/3sat/Arte → Aufmacher-Video → YouTube-Karten.
@@ -70,7 +81,7 @@ object ReaderHtmlBuilder {
             ),
         )
         val (_, fg, mutedFg) = themeColors(appearance.theme, isSystemDark)
-        val css = buildCss(appearance, isSystemDark)
+        val css = buildCss(appearance, isSystemDark, transparentBackground)
         val headerHtml = buildHeaderHtml(article, fg, mutedFg, appearance.accentColorHex)
         val footerHtml = buildFooterHtml(article)
         val highlightsJson = encodeHighlightsForJs(highlights)
@@ -275,8 +286,14 @@ object ReaderHtmlBuilder {
         "rgba(${android.graphics.Color.red(color)},${android.graphics.Color.green(color)},${android.graphics.Color.blue(color)},$alpha)"
     }.getOrDefault("rgba(142,142,147,$alpha)")
 
-    private fun buildCss(appearance: ArticleReaderViewModel.Appearance, isSystemDark: Boolean): String {
+    private fun buildCss(
+        appearance: ArticleReaderViewModel.Appearance,
+        isSystemDark: Boolean,
+        transparentBackground: Boolean,
+    ): String {
         val (bg, fg, mutedFg) = themeColors(appearance.theme, isSystemDark)
+        // Papierstruktur: Hintergrund durchsichtig, die Fläche dahinter zeichnet Compose.
+        val paperCss = if (transparentBackground) "html, body { background-color: transparent; }" else ""
         return """
             html, body {
               margin: 0; padding: 0;
@@ -287,6 +304,7 @@ object ReaderHtmlBuilder {
               line-height: ${appearance.lineHeight};
               -webkit-text-size-adjust: 100%;
             }
+            $paperCss
             #merlin-header { padding: 16px 20px 8px; }
             .merlin-header-site { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
             .merlin-header-accent { width: 18px; height: 3px; border-radius: 2px; background: ${appearance.accentColorHex}; flex-shrink: 0; }
@@ -380,6 +398,24 @@ object ReaderHtmlBuilder {
               min-height: 80px; color: $fg; opacity: 0.6; font-size: 0.85em;
             }
             ${ReaderMediaRewriter.CSS}
+            /* Metadaten unter Dateien aus „Merlin Dateien“ (MerlinFileService::metadataHtml):
+               <section class="merlin-file-metadata"><h2>…</h2><details open><summary>…</summary>
+               <table><tr><th>…</th><td>…</td></tr>…</table></details>…</section>. Wie im
+               iOS-Reader-CSS (ArticleReaderView.swift); Gruppen per Tipp auf- und zuklappbar. */
+            .merlin-file-metadata { margin-top: 2.5em; font-size: 0.8em; }
+            .merlin-file-metadata h2 { font-size: 1.3em; margin: 0 0 0.5em; }
+            .merlin-file-metadata details { margin: 0.75em 0; }
+            .merlin-file-metadata summary { font-weight: 600; cursor: pointer; }
+            .merlin-file-metadata table {
+              width: 100%; border-collapse: collapse; table-layout: fixed; margin-top: 0.5em;
+            }
+            .merlin-file-metadata th {
+              width: 38%; font-weight: 500; text-align: left; color: $mutedFg;
+            }
+            .merlin-file-metadata th, .merlin-file-metadata td {
+              padding: 5px 8px; vertical-align: top; overflow-wrap: anywhere;
+              border: 1px solid rgba(127,127,127,0.25);
+            }
             .merlin-footer-byline {
               margin-top: 32px; padding-top: 16px;
               border-top: 1px solid rgba(127,127,127,0.25);

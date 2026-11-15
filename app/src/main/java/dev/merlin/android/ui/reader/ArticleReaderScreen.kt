@@ -56,6 +56,7 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Tag
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -124,9 +125,11 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.currentStateAsState
 import dev.merlin.android.models.Article
+import dev.merlin.android.models.FileMetadataParser
 import dev.merlin.android.models.HighlightCreate
 import dev.merlin.android.models.ProgressEdge
 import dev.merlin.android.models.ReaderTheme
+import dev.merlin.android.share.rememberArticleSharer
 import dev.merlin.android.ui.screens.EditTagsDialog
 import dev.merlin.android.ui.screens.RenameFileDialog
 import dev.merlin.android.viewmodel.ArticleReaderViewModel
@@ -234,6 +237,11 @@ fun ArticleReaderScreen(
     // siehe ArticleReaderViewModel). `null` = noch nicht ermittelt → Ladeindikator.
     val initialScrollProgress by viewModel.initialScrollProgress.collectAsState()
     var showAppearanceSheet by remember { mutableStateOf(false) }
+    var showFileMetadata by remember { mutableStateOf(false) }
+    val shareArticle = rememberArticleSharer()
+    val pdfFileMetadata = remember(article?.id, article?.content) {
+        article?.takeIf { it.fileId != null && it.isPdf }?.content?.let(FileMetadataParser::parse)
+    }
     var showReminderSheet by remember { mutableStateOf(false) }
     var showReportSheet by remember { mutableStateOf(false) }
     var showTagsSheet by remember { mutableStateOf(false) }
@@ -255,6 +263,11 @@ fun ArticleReaderScreen(
     // ist nah am Artikelende (dort soll sie sichtbar bleiben, damit man archivieren/weiterspringen
     // kann). Scrollen nach oben (oder Stillstand) zeigt sie immer.
     var lastScrollOffsetPx by remember(viewModel.articleId) { mutableFloatStateOf(0f) }
+    // Papierstruktur hinter der durchsichtigen WebView (nur Hell/Sepia, Schalter im
+    // Erscheinungsbild-Sheet); `paperScrollPx` verschiebt die Fasern mit dem Text.
+    val showsPaper = ReaderHtmlBuilder.showsPaperTexture(appearance, isSystemInDarkTheme())
+    val paperTile = rememberPaperTile()
+    var paperScrollPx by remember(viewModel.articleId) { mutableFloatStateOf(0f) }
     var scrollingDown by remember(viewModel.articleId) { mutableStateOf(false) }
     var showBottomBar by remember(viewModel.articleId) { mutableStateOf(true) }
     val density = LocalDensity.current
@@ -339,21 +352,31 @@ fun ArticleReaderScreen(
                             modifier = Modifier.padding(horizontal = 12.dp),
                         )
                     }
+                    // Datei-Einträge teilen die Datei selbst, alles andere den Link (FileShareService).
                     NavigationDrawerItem(
                         label = { Text("Teilen") },
                         icon = { Icon(Icons.Filled.Share, contentDescription = null) },
                         selected = false,
                         onClick = {
                             scope.launch { drawerState.close() }
-                            val url = article?.url ?: return@NavigationDrawerItem
-                            val intent = Intent(Intent.ACTION_SEND).apply {
-                                type = "text/plain"
-                                putExtra(Intent.EXTRA_TEXT, url)
-                            }
-                            context.startActivity(Intent.createChooser(intent, "Artikel teilen"))
+                            article?.let(shareArticle)
                         },
                         modifier = Modifier.padding(horizontal = 12.dp),
                     )
+                    // Metadaten von PDF-Datei-Einträgen: die WebView zeigt den Abschnitt bei allen
+                    // anderen Einträgen unter dem Inhalt, der native PDF-Reader nicht (wie iOS).
+                    pdfFileMetadata?.let { metadata ->
+                        NavigationDrawerItem(
+                            label = { Text(metadata.title.ifEmpty { "Metadaten" }) },
+                            icon = { Icon(Icons.Outlined.Info, contentDescription = null) },
+                            selected = false,
+                            onClick = {
+                                scope.launch { drawerState.close() }
+                                showFileMetadata = true
+                            },
+                            modifier = Modifier.padding(horizontal = 12.dp),
+                        )
+                    }
                     NavigationDrawerItem(
                         label = { Text("Im Browser öffnen") },
                         icon = { Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null) },
@@ -581,8 +604,19 @@ fun ArticleReaderScreen(
                                             onScrollPositionChanged = { progress -> viewModel.saveScrollProgress(progress) },
                                             onWebViewReady = { webViewRef = it },
                                             onScrollProgress = { scrollProgress = it },
-                                            onScrollMetrics = onReaderScrollMetrics,
-                                            modifier = Modifier.fillMaxWidth().weight(1f),
+                                            onScrollMetrics = { offset, range ->
+                                                paperScrollPx = offset
+                                                onReaderScrollMetrics(offset, range)
+                                            },
+                                            transparentBackground = showsPaper,
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .weight(1f)
+                                                .paperBackground(
+                                                    color = chromeColors.background,
+                                                    tile = paperTile.takeIf { showsPaper },
+                                                    scrollOffsetPx = { paperScrollPx },
+                                                ),
                                         )
                                     }
                                 }
@@ -690,6 +724,10 @@ fun ArticleReaderScreen(
             colorHex = accentColorHex,
             modifier = Modifier.fillMaxSize(),
         )
+    }
+
+    if (showFileMetadata) {
+        pdfFileMetadata?.let { FileMetadataSheet(metadata = it, onDismiss = { showFileMetadata = false }) }
     }
 
     if (showAppearanceSheet) {

@@ -3,6 +3,7 @@ package dev.merlin.android.ui.reader
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -62,6 +63,8 @@ fun AppearanceSheet(
     val accentColorHex by viewModel.accentColorHex.collectAsState()
     val progressEdge by viewModel.progressEdge.collectAsState()
     val handsFreeButton by viewModel.handsFreeButton.collectAsState()
+    val paperTexture by viewModel.paperTexture.collectAsState()
+    val isSystemDark = isSystemInDarkTheme()
     val scope = rememberCoroutineScope()
     val sheetState = rememberModalBottomSheetState()
 
@@ -190,6 +193,35 @@ fun AppearanceSheet(
                         label = { Text(entry.edgeLabel()) },
                     )
                 }
+            }
+
+            // Papierstruktur als Reader-Hintergrund (Standard: an), wie `paperTextureRow` im
+            // iOS-Erscheinungsbild-Sheet. Wirkt nur in Hell/Sepia, im Dunkel-Theme daher ausgegraut.
+            // Nur lokal, nicht mit dem Server gesynct.
+            val paperApplies = theme != ReaderTheme.DARK && !(theme == ReaderTheme.AUTO && isSystemDark)
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "Papierstruktur",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = if (paperApplies) Color.Unspecified else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(
+                        "Leichte Papierfasern im Hintergrund. Nur bei Hell und Sepia, Dunkel bleibt reines Schwarz.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 2.dp),
+                    )
+                }
+                Switch(
+                    checked = paperTexture,
+                    onCheckedChange = { viewModel.setPaperTexture(it) },
+                    enabled = paperApplies,
+                )
             }
 
             // Freihand-Lesemodus: blendet den Button in der Bottom-Bar ein (Standard: an), wie

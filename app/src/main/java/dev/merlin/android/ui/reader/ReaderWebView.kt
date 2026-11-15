@@ -82,6 +82,9 @@ fun ReaderWebView(
     // 4pt Delta-Schwelle, 40pt Mindest-Offset) gerechnet. `scrollableRangePx` kann 0 sein, wenn
     // der Inhalt kürzer als der Viewport ist.
     onScrollMetrics: (offsetPx: Float, scrollableRangePx: Float) -> Unit = { _, _ -> },
+    // Papierstruktur: die Seite bekommt keinen eigenen Hintergrund, der Aufrufer zeichnet ihn
+    // dahinter (siehe `paperBackground` in PaperBackground.kt).
+    transparentBackground: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     val webViewRef = remember { arrayOfNulls<ScrollRangeWebView>(1) }
@@ -113,8 +116,8 @@ fun ReaderWebView(
             )
         }
     }
-    val html = remember(article.id, highlights, appearance, isSystemDark, supportBox, supportBoxTexts) {
-        ReaderHtmlBuilder.build(article, highlights, appearance, isSystemDark, supportBoxTexts)
+    val html = remember(article.id, highlights, appearance, isSystemDark, supportBox, supportBoxTexts, transparentBackground) {
+        ReaderHtmlBuilder.build(article, highlights, appearance, isSystemDark, supportBoxTexts, transparentBackground)
     }
     // Breite des linken Streifens, den wir vom System-Edge-Swipe-Zurück ausnehmen wollen –
     // siehe Kommentar bei `update` unten.
@@ -133,6 +136,9 @@ fun ReaderWebView(
         modifier = modifier.fillMaxSize(),
         factory = { ctx ->
             ScrollRangeWebView(ctx).apply {
+                // Durchsichtig, damit die Papierstruktur dahinter durchscheint; ohne sie malt die
+                // Seite ihre Theme-Farbe selbst, dahinter liegt dieselbe Farbe aus Compose.
+                setBackgroundColor(android.graphics.Color.TRANSPARENT)
                 settings.javaScriptEnabled = true
                 settings.domStorageEnabled = true
                 settings.loadWithOverviewMode = true

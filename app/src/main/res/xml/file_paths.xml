@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Für den FileProvider freigegebene Ordner: nur die zum Teilen geladenen Dateien
+     (FileShareService.DOWNLOADS_FOLDER im Cache). -->
+<paths>
+    <cache-path name="share-out" path="merlin-share-out/" />
+</paths>

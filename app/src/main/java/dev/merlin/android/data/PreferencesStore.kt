@@ -50,6 +50,7 @@ class PreferencesStore @Inject constructor(
         val LINE_HEIGHT = doublePreferencesKey("line_height")
         val ACCENT_PROGRESS_COLOR = stringPreferencesKey("accent_progress_color")
         val READER_HANDS_FREE_BUTTON = booleanPreferencesKey("reader_hands_free_button")
+        val READER_PAPER_TEXTURE = booleanPreferencesKey("reader_paper_texture")
         val READER_HANDS_FREE_SPEED = doublePreferencesKey("reader_hands_free_speed")
         val SAVE_PROGRESS = booleanPreferencesKey("save_progress")
         val RESUME_ON_OPEN = booleanPreferencesKey("resume_on_open")
@@ -106,6 +107,14 @@ class PreferencesStore @Inject constructor(
     /** Button für den Freihand-Lesemodus in der Reader-Bottom-Bar einblenden (Standard: an). */
     val readerHandsFreeButton: Flow<Boolean> = dataStore.data.map { it[Keys.READER_HANDS_FREE_BUTTON] ?: true }
     suspend fun setReaderHandsFreeButton(value: Boolean) = dataStore.edit { it[Keys.READER_HANDS_FREE_BUTTON] = value }
+
+    /**
+     * Papierstruktur als Reader-Hintergrund (`reader_paper_texture` in SETTINGS.md, Standard: an).
+     * Wirkt nur in Hell/Sepia, Dunkel bleibt reines Schwarz. Wie unter iOS
+     * (`readerPaperTexture` in PreferencesStore.swift) nur lokal, nicht mit dem Server gesynct.
+     */
+    val readerPaperTexture: Flow<Boolean> = dataStore.data.map { it[Keys.READER_PAPER_TEXTURE] ?: true }
+    suspend fun setReaderPaperTexture(value: Boolean) = dataStore.edit { it[Keys.READER_PAPER_TEXTURE] = value }
 
     /** Zuletzt gewählte Slider-Stellung 0…1 (siehe [dev.merlin.android.ui.reader.AutoScrollController.speedDpPerSecond]). */
     val readerHandsFreeSpeed: Flow<Double> = dataStore.data.map {

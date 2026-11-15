@@ -9,6 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- File metadata below file entries (merlin-nextcloud only): the "Metadaten"
+  section the server puts below the content (file, EXIF/GPS, IPTC, XMP, ID3,
+  QuickTime/MP4, PDF info) is now styled in the reader like on iOS, with
+  collapsible groups. PDF entries, which render natively, open it from the
+  reader menu as a sheet. Not compiled or run on a device yet.
+- File entries share the file itself instead of the link (rows, cards,
+  context menu and reader menu): the file is downloaded through the signed
+  link from the metadata section with a "Datei wird geladen …" dialog
+  (cancellable) and handed to the share sheet under its entry name, so
+  Telegram, Signal, Gallery or Files get the real photo, video or PDF. Not
+  compiled or run on a device yet.
+- Paper texture as reader background like on iOS: the same tile (as black
+  with alpha, which equals multiplying) is drawn in Compose behind the now
+  transparent reader WebView over the light or sepia background and scrolls with the text;
+  dark stays pure black. Switch "Papierstruktur" in the appearance sheet, on
+  by default, local only. Not compiled or run on a device yet.
+- Sepia: side menu, cards, dropdown menus and sheets use sepia tones instead
+  of the light default surface colors.
+- Settings → About links the privacy policy (PRIVACY.md) and offers "Entwickler
+  kontaktieren", which opens a mail to the developer like on iOS.
 - Share sheet like on iOS: a bottom sheet over the dimmed sharing app with the
   Merlin logo and a status line, tags as an indented tree (selecting a sub-tag
   selects its parents, deselecting a tag deselects its sub-tags), "Neuer Tag"

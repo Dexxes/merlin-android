@@ -61,6 +61,7 @@ import androidx.compose.ui.unit.dp
 import coil.ImageLoader
 import dev.merlin.android.models.Article
 import dev.merlin.android.models.Tag
+import dev.merlin.android.share.rememberArticleSharer
 import dev.merlin.android.ui.components.SwipeAction
 import dev.merlin.android.ui.components.SwipeActionsRow
 
@@ -107,14 +108,14 @@ fun ArticleRow(
     onRename: (() -> Unit)? = null,
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
-    val context = LocalContext.current
+    val shareArticle = rememberArticleSharer()
     val isMarkedArchived = showArchivedState && article.isArchived
     val accent = remember(accentColorHex) { parseAccent(accentColorHex) }
 
     SwipeActionsRow(
         swipeKey = article.id,
         activeSwipeKey = activeSwipeKey,
-        leadingAction = buildShareAction(article, context),
+        leadingAction = buildShareAction(onShare = { shareArticle(article) }),
         trailingActions = buildTrailingActions(article, showFavoriteAction, showArchiveAction, onToggleArchive, onToggleFavorite, onDelete),
         modifier = modifier.fillMaxWidth(),
     ) {
@@ -400,6 +401,7 @@ private fun ArticleContextMenu(
     onRename: (() -> Unit)?,
 ) {
     val context = LocalContext.current
+    val shareArticle = rememberArticleSharer()
     DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
         if (article.isFavorite) {
             MenuItem("Aus Favoriten entfernen", Icons.Filled.StarBorder) { onDismiss(); onToggleFavorite() }
@@ -422,7 +424,7 @@ private fun ArticleContextMenu(
             val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
             clipboard.setPrimaryClip(android.content.ClipData.newPlainText(article.displayTitle, article.url))
         }
-        MenuItem("Teilen", Icons.Filled.Share) { onDismiss(); shareArticle(article, context) }
+        MenuItem("Teilen", Icons.Filled.Share) { onDismiss(); shareArticle(article) }
         HorizontalDivider()
         DropdownMenuItem(
             text = { Text("Löschen", color = MaterialTheme.colorScheme.error) },
@@ -477,23 +479,16 @@ private fun buildTrailingActions(
     }
 }
 
-/** Leading-Swipe-Aktion „Teilen“ der Listenansicht. */
-private fun buildShareAction(article: Article, context: android.content.Context): SwipeAction = SwipeAction(
+/**
+ * Leading-Swipe-Aktion „Teilen“ der Listenansicht. Datei-Einträge teilen die Datei selbst,
+ * alles andere den Link (siehe [rememberArticleSharer], Äquivalent zu `ArticleShareLink`).
+ */
+private fun buildShareAction(onShare: () -> Unit): SwipeAction = SwipeAction(
     icon = Icons.Filled.Share,
     label = "Teilen",
     color = Color(0xFF1976D2),
-    onClick = { shareArticle(article, context) },
+    onClick = onShare,
 )
-
-/** System-Teilen-Dialog mit der Artikel-URL (Äquivalent zu `ArticleShareLink`). */
-private fun shareArticle(article: Article, context: android.content.Context) {
-    val sendIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
-        type = "text/plain"
-        putExtra(android.content.Intent.EXTRA_TEXT, article.url)
-        putExtra(android.content.Intent.EXTRA_SUBJECT, article.displayTitle)
-    }
-    context.startActivity(android.content.Intent.createChooser(sendIntent, null))
-}
 
 @Composable
 private fun TagChip(tag: Tag) {
