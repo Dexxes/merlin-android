@@ -230,7 +230,19 @@ object ReaderMediaRewriter {
     media.preload='none';
     media.setAttribute('playsinline','');
     var poster=figure.querySelector('img');
-    if(kind==='video'&&poster&&(poster.currentSrc||poster.src))media.poster=poster.currentSrc||poster.src;
+    if(kind==='video'&&poster&&(poster.currentSrc||poster.src)){
+      media.poster=poster.currentSrc||poster.src;
+      // Android-WebView rechnet die Höhe vor dem Laden mit 16:9 und malt ein abweichendes Poster
+      // linksbündig ohne schwarzen Hintergrund – beim Aufmacher bleibt rechts ein Rand. Die Box
+      // bekommt deshalb das Seitenverhältnis des Posters (wie WebKit unter iOS); mit den
+      // Videodaten übernimmt wieder das Video selbst.
+      var probe=new Image();
+      probe.onload=function(){
+        if(probe.naturalWidth&&probe.naturalHeight&&media.readyState<1)media.style.aspectRatio=probe.naturalWidth+' / '+probe.naturalHeight;
+      };
+      probe.src=media.poster;
+      media.addEventListener('loadedmetadata',function(){media.style.aspectRatio='';},{once:true});
+    }
     media.src=src;
 
     var player=document.createElement('merlin-inline-player');

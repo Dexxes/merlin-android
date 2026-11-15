@@ -46,6 +46,7 @@ class PreferencesStore @Inject constructor(
         val READER_FONT_SIZE = intPreferencesKey("reader_font_size")
         val READER_THEME = stringPreferencesKey("reader_theme")
         val READER_FONT = stringPreferencesKey("reader_font")
+        val READER_CUSTOM_FONT_FAMILY = stringPreferencesKey("reader_custom_font_family")
         val PROGRESS_EDGE = stringPreferencesKey("progress_edge")
         val LINE_HEIGHT = doublePreferencesKey("line_height")
         val ACCENT_PROGRESS_COLOR = stringPreferencesKey("accent_progress_color")
@@ -90,6 +91,18 @@ class PreferencesStore @Inject constructor(
         prefs[Keys.READER_FONT]?.let { runCatching { ReaderFont.valueOf(it) }.getOrNull() } ?: ReaderFont.SYSTEM
     }
     suspend fun setReaderFont(value: ReaderFont) = dataStore.edit { it[Keys.READER_FONT] = value.name }
+
+    /**
+     * Auf dem Gerät installierte Schriftfamilie (siehe `InstalledFonts`), die die Voreinstellung
+     * [readerFont] für den Artikeltext überschreibt; `null` = Voreinstellung nutzen.
+     * Bewusst nur lokal und NICHT mit dem Server gesynct: welche Schriften installiert sind, ist
+     * gerätespezifisch (iOS kennt z. B. kein "Noto Serif"). Zum Server geht weiter nur die
+     * Voreinstellung, die zugleich als CSS-Fallback dient.
+     */
+    val readerCustomFontFamily: Flow<String?> = dataStore.data.map { it[Keys.READER_CUSTOM_FONT_FAMILY] }
+    suspend fun setReaderCustomFontFamily(value: String?) = dataStore.edit {
+        if (value.isNullOrBlank()) it.remove(Keys.READER_CUSTOM_FONT_FAMILY) else it[Keys.READER_CUSTOM_FONT_FAMILY] = value
+    }
 
     val progressEdge: Flow<ProgressEdge> = dataStore.data.map { prefs ->
         prefs[Keys.PROGRESS_EDGE]?.let { runCatching { ProgressEdge.valueOf(it) }.getOrNull() } ?: ProgressEdge.LEFT

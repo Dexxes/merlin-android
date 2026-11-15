@@ -331,6 +331,9 @@ fun ArticleReaderScreen(
     // Höhe der gerade sichtbaren Bottom- bzw. Lesemodus-Leiste (0, solange sie ausgeblendet ist):
     // die Farbleiste sitzt darüber statt darunter.
     var bottomBarHeightPx by remember { mutableIntStateOf(0) }
+    // Zuletzt gemessene Höhe der eingeblendeten Leiste (ausgeblendet misst `AnimatedVisibility` 0).
+    // Der Artikeltext reserviert sie unten als Abstand, siehe `--merlin-bottom-bar` in ReaderHtmlBuilder.
+    var readerBarReservedPx by remember { mutableIntStateOf(0) }
     val density = LocalDensity.current
     val deltaThresholdPx = with(density) { 4.dp.toPx() }
     val downThresholdPx = with(density) { 40.dp.toPx() }
@@ -372,6 +375,17 @@ fun ArticleReaderScreen(
             commentsLifecycle.removeObserver(observer)
             viewModel.stopComments()
         }
+    }
+    // Höhe der Bottom-Bar an den Artikeltext weitergeben (CSS-px entsprechen dp). Nach einem Neuladen
+    // greift bis zur nächsten Messung der CSS-Standardwert, der der festen Leistenhöhe entspricht.
+    LaunchedEffect(webViewRef, readerBarReservedPx) {
+        val webView = webViewRef ?: return@LaunchedEffect
+        if (readerBarReservedPx <= 0) return@LaunchedEffect
+        val cssPx = readerBarReservedPx / density.density
+        webView.evaluateJavascript(
+            "document.documentElement.style.setProperty('--merlin-bottom-bar', '${cssPx}px')",
+            null,
+        )
     }
     LaunchedEffect(webViewRef) {
         webViewRef?.let { webView -> documentActions = WebViewDocumentActions(webView) { findResult = it } }
@@ -890,7 +904,10 @@ fun ArticleReaderScreen(
                                     exit = slideOutVertically(animationSpec = tween(200)) { it } + fadeOut(tween(200)),
                                     modifier = Modifier
                                         .align(Alignment.BottomCenter)
-                                        .onSizeChanged { bottomBarHeightPx = it.height },
+                                        .onSizeChanged {
+                                            bottomBarHeightPx = it.height
+                                            if (it.height > 0) readerBarReservedPx = it.height
+                                        },
                                 ) {
                                     if (autoScroll.isActive) {
                                         HandsFreeBar(

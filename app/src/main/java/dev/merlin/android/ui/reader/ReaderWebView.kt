@@ -195,9 +195,14 @@ fun ReaderWebView(
                     "MerlinHighlightBridge",
                 )
                 webViewClient = object : WebViewClient() {
+                    // Installierte Schrift aus dem Erscheinungsbild (siehe ReaderLocalFonts) und
+                    // Titelbild ohne durchsichtigen Rand (siehe HeroImageTrimmer).
                     override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
-                        if (request.method != "GET" || request.url.toString() !in heroUrlsState.value) return null
-                        return HeroImageTrimmer.load(request)
+                        ReaderLocalFonts.intercept(request.url)?.let { return it }
+                        if (request.method == "GET" && request.url.toString() in heroUrlsState.value) {
+                            HeroImageTrimmer.load(request)?.let { return it }
+                        }
+                        return super.shouldInterceptRequest(view, request)
                     }
 
                     override fun onPageFinished(view: WebView, url: String?) {

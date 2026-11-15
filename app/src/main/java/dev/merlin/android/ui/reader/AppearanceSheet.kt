@@ -18,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -30,6 +31,9 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -58,6 +62,8 @@ fun AppearanceSheet(
 ) {
     val theme by viewModel.readerTheme.collectAsState()
     val font by viewModel.readerFont.collectAsState()
+    val customFontFamily by viewModel.readerCustomFontFamily.collectAsState()
+    var showFontPicker by remember { mutableStateOf(false) }
     val fontSize by viewModel.readerFontSize.collectAsState()
     val lineHeight by viewModel.lineHeight.collectAsState()
     val accentColorHex by viewModel.accentColorHex.collectAsState()
@@ -67,6 +73,18 @@ fun AppearanceSheet(
     val isSystemDark = isSystemInDarkTheme()
     val scope = rememberCoroutineScope()
     val sheetState = rememberModalBottomSheetState()
+
+    if (showFontPicker) {
+        InstalledFontPickerDialog(
+            selected = customFontFamily,
+            loadFamilies = { viewModel.installedFontFamilies() },
+            onSelect = { family ->
+                viewModel.selectInstalledFont(family)
+                showFontPicker = false
+            },
+            onDismiss = { showFontPicker = false },
+        )
+    }
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
         // Scrollbar, damit auf kleinen Displays nichts abgeschnitten wird (wie unter iOS).
@@ -107,11 +125,32 @@ fun AppearanceSheet(
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 ReaderFont.entries.forEach { entry ->
                     FilterChip(
-                        selected = entry == font,
-                        onClick = { scope.launch { viewModel.preferencesStore.setReaderFont(entry); viewModel.syncAppearanceToServer() } },
+                        // Ist eine installierte Schrift gewählt, ist keine Voreinstellung aktiv markiert.
+                        selected = entry == font && customFontFamily == null,
+                        onClick = { viewModel.selectPresetFont(entry) },
                         label = { Text(entry.fontLabel()) },
                     )
                 }
+            }
+            // Freie Wahl aus allen installierten Schriften (Gegenstück zur iOS-Schriftliste).
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp)
+                    .clip(MaterialTheme.shapes.small)
+                    .clickable { showFontPicker = true }
+                    .padding(vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Installierte Schrift", style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        customFontFamily ?: "Keine – Voreinstellung oben",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (customFontFamily != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Schrift auswählen")
             }
 
             Text(
