@@ -183,6 +183,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Title images that are screenshots with a transparent border and drop shadow
+  (PNG/WebP) now really fill the width: the reader loads the title image itself
+  and trims fully transparent edges (at most 15 % per side, so cut-out logos
+  stay as they are). Before, the accent color showed through the border and the
+  image looked like a card with a margin. Not compiled or run on a device yet.
 - The list now loads with the saved default view on launch, and switches to
   the server's default view once the server settings arrive (as on iOS).
   Before, the first load always used the built-in default.

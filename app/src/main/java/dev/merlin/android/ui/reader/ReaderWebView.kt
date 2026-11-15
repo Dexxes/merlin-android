@@ -10,6 +10,8 @@ import android.os.Looper
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.WebChromeClient
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
@@ -136,6 +138,10 @@ fun ReaderWebView(
         ReaderHtmlBuilder.highlightsScript(highlights, commentCounts)
     }
     val highlightsScriptState = rememberUpdatedState(highlightsScript)
+    // Titelbild-URLs: diese Bilder lädt der Reader selbst und schneidet durchsichtige Ränder ab
+    // (siehe [HeroImageTrimmer]), damit das Titelbild wirklich randlos erscheint.
+    val heroUrls = remember(html, article.url) { HeroImageTrimmer.heroUrls(html, article.url) }
+    val heroUrlsState = rememberUpdatedState(heroUrls)
     val pageLoadedRef = remember { booleanArrayOf(false) }
     val lastAppliedScriptRef = remember { arrayOfNulls<String>(1) }
     // Breite des linken Streifens, den wir vom System-Edge-Swipe-Zurück ausnehmen wollen –
@@ -189,6 +195,11 @@ fun ReaderWebView(
                     "MerlinHighlightBridge",
                 )
                 webViewClient = object : WebViewClient() {
+                    override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
+                        if (request.method != "GET" || request.url.toString() !in heroUrlsState.value) return null
+                        return HeroImageTrimmer.load(request)
+                    }
+
                     override fun onPageFinished(view: WebView, url: String?) {
                         pageLoadedRef[0] = true
                         val script = highlightsScriptState.value
