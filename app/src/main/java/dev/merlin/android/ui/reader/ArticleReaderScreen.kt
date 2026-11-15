@@ -501,44 +501,56 @@ fun ArticleReaderScreen(
                                     }
                                     lastScrollOffsetPx = newOffset
                                 }
-                                if (currentArticle.isPdf) {
-                                    // PDF-Artikel: der Server speichert nur die URL, die PDF wird hier von der Quelle
-                                    // geladen und seitenweise gerendert (kein WebView, keine Highlights/Textauswahl).
-                                    PdfReaderView(
-                                        sourceUrl = currentArticle.url,
-                                        loadPdf = { url -> viewModel.loadPdf(url) },
-                                        discardPdf = { url -> viewModel.discardPdf(url) },
-                                        initialScrollProgress = initialScrollProgress ?: 0f,
-                                        foregroundColor = chromeColors.foreground,
-                                        onOpenInBrowser = {
-                                            runCatching {
-                                                context.startActivity(
-                                                    Intent(Intent.ACTION_VIEW, currentArticle.url.toUri()),
-                                                )
-                                            }
-                                        },
-                                        onScrollPositionChanged = { progress -> viewModel.saveScrollProgress(progress) },
-                                        onScrollProgress = { scrollProgress = it },
-                                        onScrollMetrics = onReaderScrollMetrics,
-                                        modifier = Modifier.fillMaxSize(),
-                                    )
-                                } else {
-                                    ReaderWebView(
-                                        article = currentArticle,
-                                        highlights = highlights,
-                                        appearance = appearance,
-                                        initialScrollProgress = initialScrollProgress ?: 0f,
-                                        onCreateHighlight = { payload: HighlightCreate -> viewModel.createHighlight(payload) },
-                                        onHighlightTap = { id -> pendingHighlightDeleteId = id },
-                                        onImageTap = { index, imageUrls -> lightboxState = LightboxState(initialIndex = index, imageURLs = imageUrls) },
-                                        onSelectionChanged = { rect -> selectionRect = rect },
-                                        onInfoPopover = { popover -> infoPopover = popover },
-                                        onScrollPositionChanged = { progress -> viewModel.saveScrollProgress(progress) },
-                                        onWebViewReady = { webViewRef = it },
-                                        onScrollProgress = { scrollProgress = it },
-                                        onScrollMetrics = onReaderScrollMetrics,
-                                        modifier = Modifier.fillMaxSize(),
-                                    )
+                                // Video-Karte + Reader werden vertikal gestapelt (eigene innere `Column`), die
+                                // restlichen Geschwister unten (Highlight-Toolbar, Info-Popover, Bottom-Bar)
+                                // bleiben direkte Kinder der äußeren `Box`, da sie `Modifier.align(...)`
+                                // benötigen (nur in `BoxScope` verfügbar).
+                                Column(modifier = Modifier.fillMaxSize()) {
+                                    if (NativeVideoHost.matches(currentArticle.url)) {
+                                        NativeVideoPlayerCard(
+                                            articleId = currentArticle.id,
+                                            posterUrl = currentArticle.imageUrl,
+                                        )
+                                    }
+                                    if (currentArticle.isPdf) {
+                                        // PDF-Artikel: der Server speichert nur die URL, die PDF wird hier von der Quelle
+                                        // geladen und seitenweise gerendert (kein WebView, keine Highlights/Textauswahl).
+                                        PdfReaderView(
+                                            sourceUrl = currentArticle.url,
+                                            loadPdf = { url -> viewModel.loadPdf(url) },
+                                            discardPdf = { url -> viewModel.discardPdf(url) },
+                                            initialScrollProgress = initialScrollProgress ?: 0f,
+                                            foregroundColor = chromeColors.foreground,
+                                            onOpenInBrowser = {
+                                                runCatching {
+                                                    context.startActivity(
+                                                        Intent(Intent.ACTION_VIEW, currentArticle.url.toUri()),
+                                                    )
+                                                }
+                                            },
+                                            onScrollPositionChanged = { progress -> viewModel.saveScrollProgress(progress) },
+                                            onScrollProgress = { scrollProgress = it },
+                                            onScrollMetrics = onReaderScrollMetrics,
+                                            modifier = Modifier.fillMaxWidth().weight(1f),
+                                        )
+                                    } else {
+                                        ReaderWebView(
+                                            article = currentArticle,
+                                            highlights = highlights,
+                                            appearance = appearance,
+                                            initialScrollProgress = initialScrollProgress ?: 0f,
+                                            onCreateHighlight = { payload: HighlightCreate -> viewModel.createHighlight(payload) },
+                                            onHighlightTap = { id -> pendingHighlightDeleteId = id },
+                                            onImageTap = { index, imageUrls -> lightboxState = LightboxState(initialIndex = index, imageURLs = imageUrls) },
+                                            onSelectionChanged = { rect -> selectionRect = rect },
+                                            onInfoPopover = { popover -> infoPopover = popover },
+                                            onScrollPositionChanged = { progress -> viewModel.saveScrollProgress(progress) },
+                                            onWebViewReady = { webViewRef = it },
+                                            onScrollProgress = { scrollProgress = it },
+                                            onScrollMetrics = onReaderScrollMetrics,
+                                            modifier = Modifier.fillMaxWidth().weight(1f),
+                                        )
+                                    }
                                 }
 
                                 selectionRect?.let {
