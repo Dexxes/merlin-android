@@ -401,7 +401,11 @@ object ReaderHtmlBuilder {
             .merlin-poster-meta.merlin-poster-meta--truncated .merlin-poster-dot-author { visibility: visible; }
             /* Tonstufen Akzent → Hintergrund, wenn kein Titelbild die Fläche fortsetzt. */
             .merlin-poster-steps { height: ${stepsHeight}px; background: $stepsGradient; }
-            #merlin-content { padding: 16px 20px 48px; }
+            /* Unten liegt die Bottom-Bar (bzw. Freihand-Leiste) als Overlay über der WebView und
+               blendet am Artikelende immer ein: Ihre Höhe kommt als --merlin-bottom-bar aus
+               ArticleReaderScreen (CSS-px = dp), 54px ist die feste Leistenhöhe bis dahin. Ohne
+               diesen Abstand war die Quellenangabe am Ende halb verdeckt. */
+            #merlin-content { padding: 16px 20px calc(40px + var(--merlin-bottom-bar, 54px)); }
             .merlin-leads-hero #merlin-content { padding-top: 0; }
             /* Erstes Element direkt unter dem Header bekommt keinen eigenen Top-Margin. */
             #merlin-content > *:first-child { margin-top: 0; }
