@@ -25,6 +25,8 @@ class ReaderJsBridge(
     private val onInfoPopover: (InfoPopover) -> Unit,
     /** Öffnet einen Link der Support-Infobox im externen Browser (siehe `ReaderHtmlBuilder.buildSupportBoxScript`). */
     private val onOpenExternalLink: (String) -> Unit = {},
+    /** Unterkante der Akzentfläche des Plakat-Headers in CSS-px ab Seitenanfang (siehe `layoutPoster` in `READER_JS`). */
+    private val onPosterBottom: (Float) -> Unit = {},
 ) {
     @Serializable
     data class SelectionRect(val x: Float, val y: Float, val width: Float, val height: Float)
@@ -86,5 +88,11 @@ class ReaderJsBridge(
     fun onInfoPopover(payloadJson: String) {
         val payload = runCatching { json.decodeFromString<InfoPopover>(payloadJson) }.getOrNull() ?: return
         mainHandler.post { onInfoPopover.invoke(payload) }
+    }
+
+    @JavascriptInterface
+    fun onPosterBottom(cssPx: Float) {
+        if (cssPx.isNaN() || cssPx < 0f) return
+        mainHandler.post { onPosterBottom.invoke(cssPx) }
     }
 }
