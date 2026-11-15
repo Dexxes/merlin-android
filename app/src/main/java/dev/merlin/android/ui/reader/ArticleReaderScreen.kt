@@ -34,8 +34,6 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.Delete
@@ -71,7 +69,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.VerticalDivider
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -141,24 +138,21 @@ import kotlin.math.roundToInt
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ArticleReaderScreen(
+    // Kein sichtbarer Zurück-Button mehr (weder oben links noch in der Bottom-Bar): Zurück läuft
+    // über die System-Zurück-Geste/-Taste (NavHost → `popBackStack`) sowie über "Archivieren und
+    // zurück" und das Löschen eines Artikels.
     onBack: () -> Unit,
-    // Äquivalent zum optionalen `onNavigateNext`-Closure unter iOS (ArticleReaderView.swift): der Reader
-    // selbst kennt keine Artikelliste/Index – der Aufrufer (hier `MainActivity`) berechnet den
-    // nächsten Artikel aus seiner eigenen gefilterten Liste und übergibt nur die Sprung-Aktion.
-    // `null` bedeutet "kein nächster Artikel vorhanden" → Button 3 wird deaktiviert/abgedunkelt.
-    onNavigateNext: (() -> Unit)? = null,
     // Unterschied zu iOS: dort teilen sich Liste und Reader dieselbe `ArticlesViewModel`-
     // Instanz, hier nicht (siehe Architektur-Hinweis in Structure.md). Damit archivierte/
     // favorisierte/getaggte/gelöschte Artikel beim Zurücknavigieren sofort aus der Liste
     // verschwinden (statt erst beim nächsten `load()`), meldet der Reader jede Änderung über
     // diese beiden Callbacks an den Aufrufer zurück (`MainActivity` verdrahtet sie auf die
-    // geteilte `ArticlesViewModel`-Instanz der "list"-Route, dieselbe, die auch `onNavigateNext`
-    // berechnet).
+    // geteilte `ArticlesViewModel`-Instanz der "list"-Route).
     onArticleChanged: (Article) -> Unit = {},
     onArticleDeleted: (Int) -> Unit = {},
     // Äquivalent zur iOS-Navigation aus dem Paywall-Banner zu `SiteCredentialsView`: der Reader
     // kennt keine eigene Navigationsroute für `SiteCredentialsScreen`, daher reicht `MainActivity`
-    // hier nur die Sprung-Aktion durch (gleiches Muster wie `onNavigateNext`).
+    // hier nur die Sprung-Aktion durch.
     onNavigateToSiteCredentials: (domain: String) -> Unit = {},
     viewModel: ArticleReaderViewModel = hiltViewModel(),
 ) {
@@ -240,7 +234,7 @@ fun ArticleReaderScreen(
     var scrollProgress by remember { mutableFloatStateOf(0f) }
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
     // Nicht-persistenter Dismiss-State für PaywallWarningBanner (siehe dortiger Kommentar) –
-    // pro Artikel zurückgesetzt, damit ein Wechsel zu `nextArticleId` den Banner wieder zeigt.
+    // pro Artikel zurückgesetzt, damit ein Wechsel zu einem anderen Artikel den Banner wieder zeigt.
     var paywallBannerDismissed by remember(viewModel.articleId) { mutableStateOf(false) }
 
     // Bottom-Bar-Sichtbarkeit – Äquivalent zum `onScrollGeometryChange`-Paar unter iOS in
@@ -439,23 +433,12 @@ fun ArticleReaderScreen(
             containerColor = chromeColors.background,
             topBar = {
                 TopAppBar(
-                    // Titellos – 1:1 wie iOS (kein fixer Titel-Balken, nur Back/Favorit/Menü).
-                    // Der Titel existiert nur noch einmal: im scrollenden Header
-                    // (siehe ReaderHtmlBuilder.buildHeaderHtml), nicht mehr zusätzlich hier.
+                    // Titellos (kein fixer Titel-Balken, nur das Menü). Der Titel existiert nur
+                    // einmal: im scrollenden Header (siehe ReaderHtmlBuilder.buildHeaderHtml).
+                    // Bewusst kein Zurück-Button oben links (System-Zurück genügt) und kein
+                    // Favoriten-Stern oben rechts – Favorisieren bleibt über das Seitenmenü möglich.
                     title = {},
-                    navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Zurück")
-                        }
-                    },
                     actions = {
-                        IconButton(onClick = { viewModel.toggleFavorite() }) {
-                            Icon(
-                                if (article?.isFavorite == true) Icons.Filled.Star else Icons.Outlined.Star,
-                                contentDescription = "Favorit",
-                                tint = if (article?.isFavorite == true) Color(0xFFFFC107) else chromeColors.foreground,
-                            )
-                        }
                         IconButton(onClick = { scope.launch { drawerState.open() } }) {
                             Icon(Icons.Filled.Menu, contentDescription = "Menü")
                         }
@@ -610,15 +593,9 @@ fun ArticleReaderScreen(
                                     modifier = Modifier.align(Alignment.BottomCenter),
                                 ) {
                                     ReaderBottomBar(
-                                        canGoNext = onNavigateNext != null,
-                                        onBack = onBack,
                                         onArchiveAndBack = {
                                             if (!currentArticle.isArchived) viewModel.toggleArchive()
                                             onBack()
-                                        },
-                                        onArchiveAndNext = {
-                                            if (!currentArticle.isArchived) viewModel.toggleArchive()
-                                            onNavigateNext?.invoke()
                                         },
                                         chromeColors = chromeColors,
                                     )
@@ -737,17 +714,14 @@ private fun ProgressBarOverlay(edge: ProgressEdge, progress: () -> Float, colorH
 }
 
 /**
- * Äquivalent zur iOS-`bottomBar` (ArticleReaderView.swift, Ende des Readers): 3 gleich breite,
- * reine Icon-Buttons (zurück, archivieren und zurück, archivieren und weiter), getrennt durch
- * Haarlinien, 54dp hoch, Hintergrund leicht transparent mit oberer Haarlinie. Buttons 2/3
- * archivieren nur einseitig (nie un-archivieren), exakt wie im iOS-Original.
+ * Reader-Bottom-Bar (abgeleitet von der iOS-`bottomBar` in ArticleReaderView.swift): nur noch ein
+ * Icon-Button "Archivieren und zurück" über die volle Breite, 54dp hoch, Hintergrund leicht
+ * transparent mit oberer Haarlinie. Der frühere Zurück-Button und "Archivieren und weiter" wurden
+ * entfernt. Archiviert nur einseitig (nie un-archivieren), wie im iOS-Original.
  */
 @Composable
 private fun ReaderBottomBar(
-    canGoNext: Boolean,
-    onBack: () -> Unit,
     onArchiveAndBack: () -> Unit,
-    onArchiveAndNext: () -> Unit,
     chromeColors: ReaderChromeColors,
     modifier: Modifier = Modifier,
 ) {
@@ -763,29 +737,9 @@ private fun ReaderBottomBar(
                 .background(chromeColors.elevatedBackground.copy(alpha = 0.97f)),
         ) {
             BottomBarButton(
-                icon = Icons.AutoMirrored.Filled.ArrowBack,
-                contentDescription = "Zurück",
-                onClick = onBack,
-                chromeColors = chromeColors,
-                modifier = Modifier.weight(1f),
-            )
-            VerticalDivider(thickness = 0.5.dp, color = chromeColors.separator)
-            BottomBarButton(
                 icon = Icons.Filled.Archive,
                 contentDescription = "Archivieren und zurück",
                 onClick = onArchiveAndBack,
-                chromeColors = chromeColors,
-                modifier = Modifier.weight(1f),
-            )
-            VerticalDivider(thickness = 0.5.dp, color = chromeColors.separator)
-            BottomBarButton(
-                icon = Icons.Filled.Archive,
-                secondaryIcon = Icons.AutoMirrored.Filled.ArrowForward,
-                contentDescription = "Archivieren und nächster Artikel",
-                onClick = onArchiveAndNext,
-                // Wie `.disabled(onNavigateNext == nil)` unter iOS plus 25-%-Abdunkelung: ohne nächsten
-                // Artikel ist der Button sichtbar, aber inaktiv und abgedunkelt.
-                enabled = canGoNext,
                 chromeColors = chromeColors,
                 modifier = Modifier.weight(1f),
             )
@@ -800,30 +754,15 @@ private fun BottomBarButton(
     onClick: () -> Unit,
     chromeColors: ReaderChromeColors,
     modifier: Modifier = Modifier,
-    secondaryIcon: ImageVector? = null,
-    enabled: Boolean = true,
 ) {
-    val contentColor = if (enabled) {
-        chromeColors.foreground
-    } else {
-        chromeColors.foreground.copy(alpha = 0.25f)
-    }
     Row(
         modifier = modifier
             .fillMaxHeight()
-            .clickable(enabled = enabled, onClick = onClick),
+            .clickable(onClick = onClick),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(icon, contentDescription = contentDescription, tint = contentColor)
-        if (secondaryIcon != null) {
-            Icon(
-                secondaryIcon,
-                contentDescription = null,
-                tint = contentColor,
-                modifier = Modifier.size(16.dp),
-            )
-        }
+        Icon(icon, contentDescription = contentDescription, tint = chromeColors.foreground)
     }
 }
 

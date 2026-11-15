@@ -155,39 +155,21 @@ class MainActivity : ComponentActivity() {
                                     route = "reader/{articleId}",
                                     arguments = listOf(navArgument("articleId") { type = NavType.IntType }),
                                 ) { backStackEntry ->
-                                    // Äquivalent zu iOS' `nextArticle(after:)`-Closure (ArticleListView.swift):
-                                    // der Reader selbst hat keine Artikelliste, daher holen wir hier dieselbe
+                                    // Der Reader selbst hat keine Artikelliste, daher holen wir hier dieselbe
                                     // `ArticlesViewModel`-Instanz, die auf "list" lebt (bleibt im Back-Stack,
-                                    // da "reader/{articleId}" nur darüber gepusht wird, nicht ersetzt), und
-                                    // berechnen den nächsten Artikel anhand des Index in `filteredArticles`.
-                                    val articleId = backStackEntry.arguments?.getInt("articleId") ?: -1
+                                    // da "reader/{articleId}" nur darüber gepusht wird, nicht ersetzt), um
+                                    // Änderungen aus dem Reader sofort in der Liste widerzuspiegeln.
                                     // Auf `backStackEntry` gekeyt gemerkt: `getBackStackEntry` darf nicht
                                     // bei jeder Recomposition neu aufgerufen werden (Compose-Lint) – pro
                                     // Reader-Eintrag genügt eine stabile Referenz auf den "list"-Eintrag.
                                     val listEntry = remember(backStackEntry) { navController.getBackStackEntry("list") }
                                     val articlesViewModel: ArticlesViewModel = hiltViewModel(listEntry)
-                                    val filteredArticles by articlesViewModel.filteredArticles.collectAsState()
-                                    val nextArticleId = remember(articleId, filteredArticles) {
-                                        val index = filteredArticles.indexOfFirst { it.id == articleId }
-                                        if (index in 0 until filteredArticles.size - 1) filteredArticles[index + 1].id else null
-                                    }
                                     ArticleReaderScreen(
                                         onBack = { navController.popBackStack() },
                                         // Hält die Liste auf dem Laufenden, wenn im Reader archiviert/favorisiert/
-                                        // getaggt/gelöscht wird (siehe Parameter-Kommentar in ArticleReaderScreen.kt) –
-                                        // dieselbe `articlesViewModel`-Instanz, die oben schon für `nextArticleId` genutzt wird.
+                                        // getaggt/gelöscht wird (siehe Parameter-Kommentar in ArticleReaderScreen.kt).
                                         onArticleChanged = articlesViewModel::applyExternalUpdate,
                                         onArticleDeleted = articlesViewModel::removeExternally,
-                                        onNavigateNext = nextArticleId?.let { nextId ->
-                                            {
-                                                // Ersetzt den aktuellen Reader-Eintrag statt ihn zu stapeln –
-                                                // Äquivalent zu iOS' In-Place-Wechsel von `selectedArticle`
-                                                // (kein wachsender Back-Stack pro "Weiter"-Tap).
-                                                navController.navigate("reader/$nextId") {
-                                                    popUpTo("reader/{articleId}") { inclusive = true }
-                                                }
-                                            }
-                                        },
                                         onNavigateToSiteCredentials = { domain ->
                                             navController.navigate("site-credentials?domain=$domain")
                                         },
