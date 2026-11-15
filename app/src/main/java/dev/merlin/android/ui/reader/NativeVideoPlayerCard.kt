@@ -50,13 +50,13 @@ import dev.merlin.android.network.VideoStreamVariant
 import dev.merlin.android.viewmodel.ArticleReaderViewModel
 
 /**
- * ARD-, ZDF- und Arte-Mediathek-Artikel können vom Server (siehe `VideoStreamResolverService` in
+ * ARD-, ZDF-, 3sat- und Arte-Mediathek-Artikel können vom Server (siehe `VideoStreamResolverService` in
  * merlin-nextcloud/merlin-server) in eine direkt abspielbare HLS-Stream-URL aufgelöst werden.
  * Dieser Host-Check entscheidet, ob es sich überhaupt lohnt, den `/video-stream`-Endpunkt für
  * einen Artikel anzufragen. Äquivalent zu `NativeVideoHost` in `NativeVideoPlayerView.swift`.
  */
 object NativeVideoHost {
-    private val hosts = listOf("ardmediathek.de", "zdf.de", "arte.tv")
+    private val hosts = listOf("ardmediathek.de", "zdf.de", "3sat.de", "arte.tv")
 
     fun matches(urlString: String): Boolean {
         val host = runCatching { Uri.parse(urlString)?.host }.getOrNull()?.lowercase() ?: return false
@@ -65,11 +65,12 @@ object NativeVideoHost {
 }
 
 /**
- * Lädt und spielt den nativen ARD/ZDF/Arte-Stream für einen Artikel ab. Fragt den
- * `/video-stream`-Endpunkt nur einmal pro Artikel ab ([LaunchedEffect] auf `articleId`) und
- * bleibt unsichtbar (`variants.isEmpty()`), wenn kein Stream verfügbar ist (z. B. Sendung nicht
- * mehr online) – analog zu `VideoPlayer.vue`, das bei `available == false` ebenfalls nichts
- * rendert, und zu `NativeVideoPlayerCard` in `NativeVideoPlayerView.swift`.
+ * Lädt und spielt den nativen ARD/ZDF/3sat/Arte-Stream für einen Artikel ab. Fragt den
+ * `/video-stream`-Endpunkt nur einmal pro Artikel ab ([LaunchedEffect] auf `articleId`). Ist (noch)
+ * kein Stream verfügbar (z. B. Sendung nicht mehr online oder wegen Jugendschutz erst abends
+ * abrufbar), bleibt wie in `NativeVideoPlayerCard` (`NativeVideoPlayerView.swift`) das Titelbild
+ * ohne Play-Symbol stehen: der Reader blendet es bei Mediathek-Artikeln im Text aus
+ * (`ReaderHtmlBuilder.stripHeroImageIfShownAsVideoCover`), ohne Player fehlte es sonst ganz.
  *
  * **Architekturabweichung von iOS:** dort sitzt die Karte als scrollendes Element *innerhalb* der
  * äußeren `ScrollView`, direkt über dem `ArticleWebView`. Der Android-Reader rendert Header +
@@ -128,7 +129,23 @@ fun NativeVideoPlayerCard(
         }
     }
 
-    if (variants.isEmpty()) return
+    if (variants.isEmpty()) {
+        if (posterUrl != null) {
+            AsyncImage(
+                model = posterUrl,
+                imageLoader = viewModel.imageLoader,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = modifier
+                    .padding(horizontal = 20.dp)
+                    .padding(top = 8.dp)
+                    .fillMaxWidth()
+                    .aspectRatio(16f / 9f)
+                    .clip(RoundedCornerShape(10.dp)),
+            )
+        }
+        return
+    }
 
     Column(
         modifier = modifier

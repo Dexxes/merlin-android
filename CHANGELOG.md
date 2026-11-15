@@ -47,9 +47,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Reader with adjustable appearance (theme, font, size, line height, accent
   color, progress bar edge), text highlighting, image lightbox, and article
   reporting
-- Native ARD/ZDF/Arte-Mediathek video playback in the reader (Media3/
-  ExoPlayer), resolving the `/video-stream` endpoint with variant and
-  subtitle-track selection, matching the iOS implementation
+- Video playback in the reader for every video source the iOS app supports:
+  native ARD Mediathek/ZDF/3sat/Arte playback (Media3/ExoPlayer), resolving
+  the `/video-stream` endpoint with variant and subtitle-track selection (the
+  cover image stays when no stream is available); YouTube embeds as a tappable
+  preview card that starts the youtube-nocookie player in place; videos inside
+  the article text (`figure.merlin-inline-media`, e.g. rbb24.de) and lead
+  videos from the media marker (e.g. tagesschau.de) as an inline HTML5 player
+  on the cover image, with fullscreen support. Not compiled or run on a
+  device yet.
 - Reminders for articles via `AlarmManager`, with a dedicated overview screen
 - Cross-device reading-position sync with last-write-wins conflict resolution
 - Share-to-Merlin support via the Android share sheet (`ShareActivity`)

@@ -7,13 +7,21 @@ import android.net.Uri
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.view.View
+import android.view.ViewGroup
+import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.FrameLayout
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -112,6 +120,15 @@ fun ReaderWebView(
     // siehe Kommentar bei `update` unten.
     val gestureExclusionWidthPx = with(LocalDensity.current) { 32.dp.roundToPx() }
 
+    // Vollbild für Videos in der WebView (Inline-Videos `<merlin-inline-player>`, YouTube-
+    // `<iframe>`, siehe [ReaderMediaRewriter]): ohne eigenen `WebChromeClient` tut der
+    // Vollbild-Knopf der Player in `android.webkit.WebView` schlicht nichts.
+    var isVideoFullScreen by remember { mutableStateOf(false) }
+    val chromeClient = remember {
+        FullScreenVideoChromeClient(onFullScreenChanged = { isVideoFullScreen = it })
+    }
+    BackHandler(enabled = isVideoFullScreen) { chromeClient.onHideCustomView() }
+
     AndroidView(
         modifier = modifier.fillMaxSize(),
         factory = { ctx ->
@@ -120,6 +137,13 @@ fun ReaderWebView(
                 settings.domStorageEnabled = true
                 settings.loadWithOverviewMode = true
                 settings.useWideViewPort = true
+                // Ein Tap auf die YouTube-Karte (siehe `ReaderMediaRewriter.YOUTUBE_JS`) setzt den
+                // Player erst danach per JS ein – die Nutzergeste liegt damit im Elternframe, nicht im
+                // `<iframe>`. Mit dem Default (`true`) würde `autoplay=1` dort ignoriert und man müsste
+                // ein zweites Mal tippen. Inline-Videos setzen kein `autoplay`, starten also weiterhin
+                // erst auf Tap.
+                settings.mediaPlaybackRequiresUserGesture = false
+                webChromeClient = chromeClient
                 addJavascriptInterface(
                     ReaderJsBridge(
                         onCreateHighlight = onCreateHighlight,
@@ -179,6 +203,7 @@ fun ReaderWebView(
     // für die geräteübergreifende Sync nutzlos.
     DisposableEffect(Unit) {
         onDispose {
+            chromeClient.onHideCustomView()
             val webView = webViewRef[0] ?: return@onDispose
             // Quick-Close-Guard (siehe restoreAppliedRef oben): ohne angewendeten
             // Restore lieber gar nicht speichern – die bestehende Position bleibt gültig.
@@ -215,4 +240,52 @@ private fun restoreScrollWithRetry(webView: ScrollRangeWebView, fraction: Float,
     Handler(Looper.getMainLooper()).postDelayed({
         restoreScrollWithRetry(webView, fraction, attemptsLeft - 1, onApplied)
     }, 250)
+}
+
+/**
+ * Zeigt die Vollbild-Ansicht eines HTML5-Videos (`onShowCustomView`) als schwarze, bildschirm-
+ * füllende View über dem Fenster der Activity – Äquivalent zum nativen Vollbild von `WKWebView`
+ * mit `allowsInlineMediaPlayback` im iOS-Reader. Zurück (über den [BackHandler] im Aufrufer) oder
+ * der Vollbild-Knopf des Players beenden sie wieder.
+ */
+private class FullScreenVideoChromeClient(
+    private val onFullScreenChanged: (Boolean) -> Unit,
+) : WebChromeClient() {
+    private var customView: View? = null
+    private var customViewCallback: CustomViewCallback? = null
+
+    override fun onShowCustomView(view: View, callback: CustomViewCallback) {
+        if (customView != null) {
+            callback.onCustomViewHidden()
+            return
+        }
+        val decor = view.context.findActivity()?.window?.decorView as? ViewGroup
+        if (decor == null) {
+            callback.onCustomViewHidden()
+            return
+        }
+        view.setBackgroundColor(android.graphics.Color.BLACK)
+        decor.addView(
+            view,
+            FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT),
+        )
+        customView = view
+        customViewCallback = callback
+        onFullScreenChanged(true)
+    }
+
+    override fun onHideCustomView() {
+        val view = customView ?: return
+        (view.parent as? ViewGroup)?.removeView(view)
+        customView = null
+        customViewCallback?.onCustomViewHidden()
+        customViewCallback = null
+        onFullScreenChanged(false)
+    }
+}
+
+private tailrec fun android.content.Context.findActivity(): android.app.Activity? = when (this) {
+    is android.app.Activity -> this
+    is android.content.ContextWrapper -> baseContext.findActivity()
+    else -> null
 }

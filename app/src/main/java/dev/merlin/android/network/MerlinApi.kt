@@ -96,7 +96,7 @@ interface MerlinApi {
     suspend fun removeTagFromArticle(@Path("articleId") articleId: Int, @Path("tagId") tagId: Int): SuccessResponse
 
     /**
-     * Löst die native HLS-Stream-URL für ARD/ZDF/Arte-Artikel auf (siehe
+     * Löst die native HLS-Stream-URL für ARD/ZDF/3sat/Arte-Artikel auf (siehe
      * `VideoStreamResolverService`/`VideoStreamController` in beiden Backends – identischer
      * Pfad und identisches Antwortformat auf Nextcloud und merlin-server, nur das
      * API-Präfix unterscheidet sich, siehe [BaseUrlInterceptor]). Äquivalent zu
@@ -301,7 +301,7 @@ data class Settings(
     val reportBackendUrl: String = "",
 )
 
-// MARK: – Native video (ARD/ZDF/Arte direct-stream playback)
+// MARK: – Native video (ARD/ZDF/3sat/Arte direct-stream playback)
 
 /**
  * Eine abspielbare Variante aus `GET /articles/{id}/video-stream` (z. B. eine Sprachfassung oder
@@ -318,7 +318,7 @@ data class VideoStreamVariant(
 
 /**
  * Antwort des Stream-Resolvers. `available == false`, wenn die Artikel-URL zwar von
- * `ardmediathek.de`/`zdf.de`/`arte.tv` stammt, sich aber kein Stream auflösen ließ. Äquivalent zu
+ * `ardmediathek.de`/`zdf.de`/`3sat.de`/`arte.tv` stammt, sich aber kein Stream auflösen ließ. Äquivalent zu
  * `MerlinAPI.VideoStreamResponse` in `MerlinAPI.swift`.
  */
 @Serializable

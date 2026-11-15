@@ -58,9 +58,16 @@ object ReaderHtmlBuilder {
         // Texte der Support-Infobox; null (oder fehlendes `article.supportBox`) = keine Box.
         supportBoxTexts: SupportBoxTexts? = null,
     ): String {
-        val bodyHtml = stripHeroImageIfShownAsVideoCover(
-            article.content ?: "<p>${escapeHtml(article.excerpt ?: "")}</p>",
-            article.url,
+        // Reihenfolge wie im iOS-Template (`buildReaderHTML` in ArticleReaderView.swift):
+        // Titelbild-Entfernung bei ARD/ZDF/3sat/Arte → Aufmacher-Video → YouTube-Karten.
+        val bodyHtml = ReaderMediaRewriter.rewriteYouTubeEmbeds(
+            promoteHeroVideo(
+                stripHeroImageIfShownAsVideoCover(
+                    article.content ?: "<p>${escapeHtml(article.excerpt ?: "")}</p>",
+                    article.url,
+                ),
+                article,
+            ),
         )
         val (_, fg, mutedFg) = themeColors(appearance.theme, isSystemDark)
         val css = buildCss(appearance, isSystemDark)
@@ -85,6 +92,8 @@ object ReaderHtmlBuilder {
               $headerHtml
               <div id="merlin-content">$bodyHtml$footerHtml</div>
               <script>$READER_JS</script>
+              <script>${ReaderMediaRewriter.YOUTUBE_JS}</script>
+              <script>${ReaderMediaRewriter.INLINE_MEDIA_JS}</script>
               <script>window.__MERLIN_INIT_HIGHLIGHTS__ = $highlightsJson; MerlinReader.restoreHighlights(window.__MERLIN_INIT_HIGHLIGHTS__);</script>
               $supportBoxScript
             </body>
@@ -93,7 +102,7 @@ object ReaderHtmlBuilder {
     }
 
     /**
-     * Entfernt das erste Bild aus dem gerenderten Artikeltext, wenn ARD/ZDF/Arte bereits als
+     * Entfernt das erste Bild aus dem gerenderten Artikeltext, wenn ARD/ZDF/3sat/Arte bereits als
      * Player-Cover dasselbe Titelbild zeigt (siehe [NativeVideoPlayerCard]) - sonst erscheint es
      * doppelt: einmal als Cover, einmal im Text darunter. Äquivalent zu
      * `stripHeroImageIfShownAsVideoCover` in `ArticleReaderView.swift`.
@@ -101,12 +110,22 @@ object ReaderHtmlBuilder {
      * Matched absichtlich NICHT über die exakte Bild-URL: ARD liefert für dasselbe Foto im
      * Artikeltext oft eine andere Auflösungs-/Query-Variante als für das separat gespeicherte
      * Teaser-Bild (`article.imageUrl`), ein URL-Abgleich schlug deshalb in der Praxis fehl. Das
-     * erste Bild im Text ist bei gescrapten ARD/ZDF/Arte-Seiten zuverlässig genau das Titelbild.
+     * erste Bild im Text ist bei gescrapten ARD/ZDF/3sat/Arte-Seiten zuverlässig genau das Titelbild.
      */
     private fun stripHeroImageIfShownAsVideoCover(content: String, articleUrl: String): String {
         if (!NativeVideoHost.matches(articleUrl)) return content
         val match = firstImageOrFigureRegex.find(content) ?: return content
         return content.removeRange(match.range)
+    }
+
+    /**
+     * Aufmacher-Video eines Textartikels, siehe [ReaderMediaRewriter.promoteHeroVideo]. ARD/ZDF/
+     * 3sat/Arte haben ihren eigenen nativen Player ([NativeVideoPlayerCard]), PDFs laufen gar
+     * nicht durch die WebView – Äquivalent zu `promoteHeroVideo(in:)` in `ArticleReaderView.swift`.
+     */
+    private fun promoteHeroVideo(content: String, article: Article): String {
+        if (NativeVideoHost.matches(article.url) || article.isPdf) return content
+        return ReaderMediaRewriter.promoteHeroVideo(content)
     }
 
     private val firstImageOrFigureRegex = Regex(
@@ -360,6 +379,7 @@ object ReaderHtmlBuilder {
               background: rgba(127,127,127,0.15); border-radius: 8px;
               min-height: 80px; color: $fg; opacity: 0.6; font-size: 0.85em;
             }
+            ${ReaderMediaRewriter.CSS}
             .merlin-footer-byline {
               margin-top: 32px; padding-top: 16px;
               border-top: 1px solid rgba(127,127,127,0.25);
@@ -696,8 +716,11 @@ window.MerlinReader = (function() {
     var img = ev.target.closest && ev.target.closest('img');
     if (img) {
       // Das Icon der Support-Infobox ist kein Artikelbild: kein Lightbox-Tap, nicht in der Bildliste.
-      if (img.closest('merlin-support-box')) return;
-      var imgs = Array.prototype.slice.call(document.querySelectorAll('img')).filter(function(i) { return !i.closest('merlin-support-box'); });
+      // Ebenso kein Artikelbild: Thumbnail einer YouTube-Karte (eigener Tap in YOUTUBE_JS) und das
+      // ausgeblendete Vorschaubild eines Inline-Videos, über dem bereits der Player liegt.
+      var notLightbox = 'merlin-support-box,.merlin-yt-embed,.merlin-inline-media--playable';
+      if (img.closest(notLightbox)) return;
+      var imgs = Array.prototype.slice.call(document.querySelectorAll('img')).filter(function(i) { return !i.closest(notLightbox); });
       var index = imgs.indexOf(img);
       var srcs = imgs.map(function(i) { return i.src; });
       MerlinHighlightBridge.onImageTap(JSON.stringify({ index: index, srcs: srcs }));
@@ -733,6 +756,8 @@ window.MerlinReader = (function() {
     if (el && el.tagName === 'IMG') {
       // Kaputtes Support-Box-Icon einfach weglassen statt "Bild nicht verfügbar" zu zeigen.
       if (el.closest('merlin-support-box')) { el.remove(); return; }
+      // YouTube-Karte ohne Thumbnail: schwarze Fläche + Play-Button reichen.
+      if (el.closest('.merlin-yt-embed')) { el.remove(); return; }
       var placeholder = document.createElement('div');
       placeholder.className = 'merlin-img-error';
       placeholder.textContent = 'Bild nicht verfügbar';
