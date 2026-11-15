@@ -55,6 +55,7 @@ class PreferencesStore @Inject constructor(
         val EXCLUDED_TAG_IDS = stringPreferencesKey("excluded_tag_ids")
         val REPORT_BACKEND_URL = stringPreferencesKey("report_backend_url")
         val CACHE_RETENTION_DAYS = intPreferencesKey("cache_retention_days")
+        val NEEDS_SETTINGS_SYNC = booleanPreferencesKey("needs_settings_sync")
     }
 
     private fun positionKey(articleId: Int) = doublePreferencesKey("pos_$articleId")
@@ -65,7 +66,7 @@ class PreferencesStore @Inject constructor(
     // MARK: – App-Einstellungen (reaktiv für Compose via collectAsState)
 
     val defaultFilter: Flow<ArticleFilter> = dataStore.data.map { prefs ->
-        prefs[Keys.DEFAULT_FILTER]?.let { runCatching { ArticleFilter.valueOf(it) }.getOrNull() } ?: ArticleFilter.ALL
+        ArticleFilter.fromStoredName(prefs[Keys.DEFAULT_FILTER])
     }
     suspend fun setDefaultFilter(value: ArticleFilter) = dataStore.edit { it[Keys.DEFAULT_FILTER] = value.name }
 
@@ -147,6 +148,22 @@ class PreferencesStore @Inject constructor(
     /** Fortschritt 0–1 (für Card-Anzeige UND Wiederherstellung der Leseposition). */
     suspend fun savedScrollProgress(articleId: Int): Float = dataStore.data.first()[progressKey(articleId)]?.toFloat() ?: 0f
 
+    /**
+     * Alle lokal gespeicherten Fortschritte als `articleId → (Fraktion, Zeitstempel)`, reaktiv –
+     * Äquivalent zu iOS' `articleProgressDidUpdate`-Notification, über die Zeile/Karte ihren
+     * Lesefortschritt neu laden, sobald der Reader schreibt.
+     */
+    val scrollProgressById: Flow<Map<Int, Pair<Float, Long>>> = dataStore.data.map { prefs ->
+        val map = prefs.asMap()
+        map.keys.mapNotNull { key ->
+            val id = key.name.removePrefix("pct_").takeIf { key.name.startsWith("pct_") }?.toIntOrNull()
+                ?: return@mapNotNull null
+            val pct = (map[key] as? Double)?.toFloat() ?: return@mapNotNull null
+            val ts = prefs[progressTsKey(id)] ?: 0L
+            id to (pct to ts)
+        }.toMap()
+    }
+
     /** Epoch-Millis des letzten lokalen Progress-Writes (0 = noch nie auf diesem Gerät gespeichert). */
     suspend fun savedScrollTimestamp(articleId: Int): Long = dataStore.data.first()[progressTsKey(articleId)] ?: 0L
 
@@ -164,6 +181,15 @@ class PreferencesStore @Inject constructor(
     }
 
     // MARK: – Server-Sync
+
+    /**
+     * Merkt sich, dass ein `updateSettings`-Push wegen fehlender Verbindung fehlgeschlagen ist
+     * und noch aussteht – gelesen/geschrieben von [SettingsSyncQueue]. Persistiert (statt
+     * In-Memory), damit ein Prozess-Tod zwischen Fehlschlag und WorkManager-Retry das Flag nicht
+     * verliert.
+     */
+    suspend fun needsSettingsSync(): Boolean = dataStore.data.first()[Keys.NEEDS_SETTINGS_SYNC] ?: false
+    suspend fun setNeedsSettingsSync(value: Boolean) = dataStore.edit { it[Keys.NEEDS_SETTINGS_SYNC] = value }
 
     /** Wendet ein vom Server geladenes Settings-Objekt an (Server gewinnt). */
     suspend fun loadFromServer(settings: Settings) {
@@ -189,7 +215,7 @@ class PreferencesStore @Inject constructor(
         val theme = prefs[Keys.READER_THEME]?.let { runCatching { ReaderTheme.valueOf(it) }.getOrNull() } ?: ReaderTheme.AUTO
         val font = prefs[Keys.READER_FONT]?.let { runCatching { ReaderFont.valueOf(it) }.getOrNull() } ?: ReaderFont.SYSTEM
         val edge = prefs[Keys.PROGRESS_EDGE]?.let { runCatching { ProgressEdge.valueOf(it) }.getOrNull() } ?: ProgressEdge.LEFT
-        val filter = prefs[Keys.DEFAULT_FILTER]?.let { runCatching { ArticleFilter.valueOf(it) }.getOrNull() } ?: ArticleFilter.ALL
+        val filter = ArticleFilter.fromStoredName(prefs[Keys.DEFAULT_FILTER])
         return Settings(
             theme = theme.serverValue,
             fontSize = (prefs[Keys.READER_FONT_SIZE] ?: 17).toString(),

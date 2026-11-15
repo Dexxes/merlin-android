@@ -3,6 +3,7 @@ package dev.merlin.android.ui.reader
 import dev.merlin.android.models.Article
 import dev.merlin.android.models.Highlight
 import dev.merlin.android.models.ReaderTheme
+import dev.merlin.android.models.SupportBox
 import dev.merlin.android.viewmodel.ArticleReaderViewModel
 
 /**
@@ -32,6 +33,21 @@ object ReaderHtmlBuilder {
         val popoverValue: String? = null,
     )
 
+    /**
+     * Vorab aufgelöste Texte der Support-Infobox. Der Builder ist ein `object` ohne Context (kein
+     * `stringResource`), der Aufrufer ([ReaderWebView]) löst sie deshalb über Android-Ressourcen auf.
+     * `both`/`subscribeOnly`/`donateOnly` enthalten die Platzhalter `{subscribe}`/`{donate}` (der
+     * Aufrufer setzt sie beim Formatieren selbst ein); [title] ist bereits mit dem Seitennamen befüllt.
+     */
+    data class SupportBoxTexts(
+        val title: String,
+        val both: String,
+        val subscribeOnly: String,
+        val donateOnly: String,
+        val subscribeLabel: String,
+        val donateLabel: String,
+    )
+
     fun build(
         article: Article,
         highlights: List<Highlight>,
@@ -39,6 +55,8 @@ object ReaderHtmlBuilder {
         // System-Dark-Mode-Signal von außen (Compose `isSystemInDarkTheme()`) – die WebView selbst
         // kennt den App-weiten Dark-Mode-Status nicht, siehe `buildCss`-Kommentar zu AUTO.
         isSystemDark: Boolean,
+        // Texte der Support-Infobox; null (oder fehlendes `article.supportBox`) = keine Box.
+        supportBoxTexts: SupportBoxTexts? = null,
     ): String {
         val bodyHtml = stripHeroImageIfShownAsVideoCover(
             article.content ?: "<p>${escapeHtml(article.excerpt ?: "")}</p>",
@@ -49,6 +67,11 @@ object ReaderHtmlBuilder {
         val headerHtml = buildHeaderHtml(article, fg, mutedFg, appearance.accentColorHex)
         val footerHtml = buildFooterHtml(article)
         val highlightsJson = encodeHighlightsForJs(highlights)
+        // Erst NACH dem Wiederherstellen der Highlights einfügen (siehe `buildSupportBoxScript`).
+        val supportBoxScript = article.supportBox
+            ?.let { box -> supportBoxTexts?.let { buildSupportBoxScript(box, it, article.id) } }
+            ?.let { "<script>$it</script>" }
+            .orEmpty()
 
         return """
             <!DOCTYPE html>
@@ -63,6 +86,7 @@ object ReaderHtmlBuilder {
               <div id="merlin-content">$bodyHtml$footerHtml</div>
               <script>$READER_JS</script>
               <script>window.__MERLIN_INIT_HIGHLIGHTS__ = $highlightsJson; MerlinReader.restoreHighlights(window.__MERLIN_INIT_HIGHLIGHTS__);</script>
+              $supportBoxScript
             </body>
             </html>
         """.trimIndent()
@@ -300,10 +324,35 @@ object ReaderHtmlBuilder {
               }
             }
             blockquote {
-              margin: 1em 0; padding-left: 1em;
-              border-left: 3px solid ${appearance.accentColorHex};
-              opacity: 0.85;
+              margin: 1.5em 0; padding: 0;
+              text-align: center;
+              font-family: ${dev.merlin.android.models.ReaderFont.SERIF.cssValue};
+              font-size: 1.3em;
+              font-style: italic;
+              line-height: 1.45;
+              color: ${appearance.accentColorHex};
             }
+            blockquote p { margin: 0 0 0.4em; }
+            blockquote cite, blockquote footer {
+              display: block;
+              font-family: ${dev.merlin.android.models.ReaderFont.SYSTEM.cssValue};
+              font-size: 0.6em;
+              font-style: normal;
+              text-align: center !important;
+              margin-top: 0.3em;
+              color: ${appearance.accentColorHex};
+            }
+            /* Some sources place the attribution in a paragraph right after the
+               blockquote (e.g. <blockquote>…</blockquote><p><cite>Name</cite></p>)
+               instead of nesting it inside the blockquote itself. */
+            blockquote + p {
+              display: block;
+              text-align: center !important;
+              font-family: ${dev.merlin.android.models.ReaderFont.SYSTEM.cssValue};
+              font-size: 0.85em;
+              color: ${appearance.accentColorHex};
+            }
+            blockquote + p cite, blockquote + p cite * { font-style: normal; }
             pre, code { font-family: ${dev.merlin.android.models.ReaderFont.MONO.cssValue}; }
             .merlin-highlight { border-radius: 2px; padding: 0 1px; cursor: pointer; }
             .merlin-img-error {
@@ -316,7 +365,112 @@ object ReaderHtmlBuilder {
               border-top: 1px solid rgba(127,127,127,0.25);
               font-size: 0.9em; font-style: italic; color: $mutedFg;
             }
+            /* Instagram-/X-/Bluesky-Embeds (siehe ContentExtractorService.php,
+               isAllowedWidgetScriptSrc()) rendern sich nach dem Laden ihres
+               Widget-Skripts selbst neu - der generische blockquote-Style oben
+               (Akzent-Randlinie, gedimmt) würde nur bis zum Laden sichtbar sein
+               und dann falsch wirken, deshalb hier zurückgesetzt. */
+            blockquote.instagram-media, blockquote.twitter-tweet, blockquote.bluesky-embed {
+              margin: 1em 0; padding-left: 0; border-left: none; opacity: 1; color: $fg;
+            }
+            /* Mastodon-Post-Karte (siehe MastodonPostResolverService/
+               buildMastodonThreadHtml()): kein Drittanbieter-Widget wie
+               Instagram/X/Bluesky (föderiert, kein zentraler Embed-Host),
+               sondern eigenes, statisches Markup - braucht deshalb echtes
+               Styling statt nur eines Platzhalter-Resets. */
+            .merlin-mastodon-post {
+              display: block; border: 1px solid rgba(127,127,127,0.25);
+              border-radius: 8px; padding: 12px 16px; margin: 1em 0; color: $fg;
+            }
+            .merlin-mastodon-post + .merlin-mastodon-post { margin-top: 8px; }
+            .merlin-mastodon-post__header {
+              display: flex; align-items: center; gap: 10px;
+              text-decoration: none; color: $fg; margin-bottom: 10px;
+            }
+            .merlin-mastodon-post__avatar {
+              width: 40px; height: 40px; border-radius: 50%;
+              object-fit: cover; flex-shrink: 0; margin: 0;
+            }
+            .merlin-mastodon-post__author {
+              display: flex; flex-direction: column; line-height: 1.3; min-width: 0;
+            }
+            .merlin-mastodon-post__name {
+              font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+            }
+            .merlin-mastodon-post__handle {
+              color: $mutedFg; font-size: 0.9em; overflow: hidden;
+              text-overflow: ellipsis; white-space: nowrap;
+            }
+            .merlin-mastodon-post__content p { margin: 0.5em 0; }
+            .merlin-mastodon-post__content p:first-child { margin-top: 0; }
+            .merlin-mastodon-post__content p:last-child { margin-bottom: 0; }
+            .merlin-mastodon-post__media {
+              display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+              gap: 6px; margin-top: 10px;
+            }
+            .merlin-mastodon-post__media-item {
+              width: 100%; height: 140px; object-fit: cover; border-radius: 6px; margin: 0;
+            }
         """.trimIndent()
+    }
+
+    /** Nur absolute http(s)-URLs; landet in einem `href`/`src`. */
+    private fun safeHttpUrl(value: String?): String? {
+        if (value.isNullOrBlank()) return null
+        val uri = runCatching { java.net.URI(value.trim()) }.getOrNull() ?: return null
+        val scheme = uri.scheme?.lowercase()
+        return if ((scheme == "http" || scheme == "https") && !uri.host.isNullOrEmpty()) uri.toString() else null
+    }
+
+    /**
+     * JSON-String-Literal, sicher zum Einbetten in ein inline `<script>`: zusätzlich zum üblichen
+     * Escaping werden `<`, `>`, `&` (sonst bricht ein Seitenname wie `</script>` aus dem Script-Block
+     * aus) sowie U+2028/U+2029 (in älteren JS-Engines Zeilenumbrüche) als \uXXXX geschrieben.
+     */
+    private fun jsonForScript(value: String): String {
+        val sb = StringBuilder("\"")
+        for (c in value) {
+            when {
+                c == '\\' -> sb.append("\\\\")
+                c == '"' -> sb.append("\\\"")
+                c == '<' || c == '>' || c == '&' || c == '\u2028' || c == '\u2029' || c < ' ' ->
+                    sb.append("\\u").append(String.format("%04x", c.code))
+                else -> sb.append(c)
+            }
+        }
+        return sb.append('"').toString()
+    }
+
+    /**
+     * JS für die Support-Infobox ("Dir gefällt der Artikel von …? Überlege ein Abo abzuschließen
+     * oder zu spenden"), Äquivalent zu `supportBoxScript(for:seed:)` in `ArticleReaderView.swift`
+     * (iOS): nach einem pseudo-zufälligen Top-Level-`<p>` (Seed = Artikel-ID, damit die Position
+     * stabil bleibt), nur ab 4 Absätzen. Als eigenes Element `<merlin-support-box>` gesetzt: der
+     * XPath-Zähler der Highlights (`getXPath`) zählt Geschwister je Tag-Name, ein unbekannter Tag
+     * verschiebt daher keinen Index des Artikeltextes und Highlights lösen weiter
+     * plattformübergreifend gleich auf. Links öffnen über die Bridge im externen Browser (ein
+     * normaler Klick würde die WebView selbst wegnavigieren und den Artikel ersetzen); das Icon
+     * ist vom Lightbox-Tap und vom "Bild nicht verfügbar"-Platzhalter ausgenommen (`READER_JS`).
+     */
+    private fun buildSupportBoxScript(box: SupportBox, texts: SupportBoxTexts, articleId: Int): String? {
+        val subscribeUrl = safeHttpUrl(box.subscribeUrl)
+        val donationsUrl = safeHttpUrl(box.donationsUrl)
+        val template = when {
+            subscribeUrl != null && donationsUrl != null -> texts.both
+            subscribeUrl != null -> texts.subscribeOnly
+            donationsUrl != null -> texts.donateOnly
+            else -> return null
+        }
+        val accent = if (Regex("^#[0-9a-fA-F]{6}$").matches(box.accentColor)) box.accentColor else "#FF3B30"
+        val links = buildList {
+            if (subscribeUrl != null) add("\"subscribe\":{\"href\":${jsonForScript(subscribeUrl)},\"label\":${jsonForScript(texts.subscribeLabel)}}")
+            if (donationsUrl != null) add("\"donate\":{\"href\":${jsonForScript(donationsUrl)},\"label\":${jsonForScript(texts.donateLabel)}}")
+        }.joinToString(",")
+        val icon = safeHttpUrl(box.iconUrl)?.let { jsonForScript(it) } ?: "null"
+        val config = "{\"seed\":${jsonForScript(articleId.toString())},\"accent\":${jsonForScript(accent)}," +
+            "\"title\":${jsonForScript(texts.title)},\"template\":${jsonForScript(template)}," +
+            "\"links\":{$links},\"iconUrl\":$icon}"
+        return "(function(cfg){" + SUPPORT_BOX_JS + "})($config);"
     }
 
     /** Highlight-Farbpalette – fix im Client, identisch zu iOS. */
@@ -347,6 +501,71 @@ object ReaderHtmlBuilder {
 
     /** Wie [escapeHtml], zusätzlich Anführungszeichen-sicher für die Verwendung in `data-*`-Attributwerten. */
     private fun escapeHtmlAttr(value: String): String = escapeHtml(value).replace("\"", "&quot;")
+
+    /**
+     * Rumpf der Support-Infobox-Funktion (`cfg` = {seed, accent, title, template, links, iconUrl}, siehe
+     * [buildSupportBoxScript]). Bewusst ohne Dollarzeichen: das ist ein Kotlin-Raw-String. Alles wird per
+     * `textContent`/DOM gebaut, nie per `innerHTML`.
+     */
+    private const val SUPPORT_BOX_JS = """
+var old = document.querySelector('merlin-support-box'); if (old) old.remove();
+// Readability liefert den Text meist in einem äußeren <div>/<article>: Container mit den meisten
+// direkten <p>-Kindern wählen (ggf. <body>), nicht in Zitaten/Listen/Figures/Infoboxen.
+var ps = [];
+var cs = [document.body].concat(Array.prototype.slice.call(document.body.querySelectorAll('div,section,article,main')));
+cs.forEach(function(c) {
+  if (c !== document.body && c.closest('blockquote,figure,ul,ol,table,aside,.merlin-infobox,merlin-support-box')) return;
+  var list = Array.prototype.filter.call(c.children, function(e) { return e.tagName === 'P' && e.textContent.trim() !== ''; });
+  if (list.length > ps.length) ps = list;
+});
+if (ps.length < 4) return;
+var h = 0x811c9dc5 >>> 0, s = cfg.seed;
+for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); }
+var idx = 1 + ((h >>> 0) % (ps.length - 2));
+var box = document.createElement('merlin-support-box');
+box.setAttribute('role', 'note');
+box.style.cssText = 'display:flex;align-items:stretch;gap:0.9em;margin:1.5em 0;padding:0.85em 1em;border-left:4px solid ' + cfg.accent + ';border-radius:0 8px 8px 0;background:rgba(128,128,128,0.1);background:color-mix(in srgb,' + cfg.accent + ' 12%,transparent);font-size:0.93em;line-height:1.6;-webkit-user-select:none;user-select:none;';
+// Zwei Spalten: links das Icon der Seite über die volle Höhe der Box (fehlt es, entfällt die Spalte),
+// rechts Titel und Satz.
+if (cfg.iconUrl) {
+  var img = document.createElement('img');
+  img.alt = '';
+  img.referrerPolicy = 'no-referrer';
+  // Inline-Stil schlägt die globalen img-Regeln (auch die Querformat-Regel mit negativen Rändern und
+  // calc-Breite); align-self:stretch + height:auto macht die Spalte so hoch wie die Box.
+  img.style.cssText = 'display:block;flex:none;align-self:stretch;width:2.5em;height:auto;max-width:2.5em;min-height:0;margin:0;padding:0.3em;box-sizing:border-box;object-fit:contain;border-radius:6px;';
+  img.addEventListener('error', function() { img.remove(); });
+  img.src = cfg.iconUrl;
+  box.appendChild(img);
+}
+var body = document.createElement('div');
+// Text vertikal zentriert (Flex-Spalte), ohne Absatzabstände - wie merlin-nextcloud/iOS.
+body.style.cssText = 'flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;';
+var title = document.createElement('div');
+title.style.cssText = 'font-weight:600;margin:0;';
+title.textContent = cfg.title;
+body.appendChild(title);
+var text = document.createElement('div');
+text.style.cssText = 'margin:0;';
+cfg.template.split(/(\{subscribe\}|\{donate\})/).forEach(function(part) {
+  var m = /^\{(subscribe|donate)\}/.exec(part);
+  var l = m && cfg.links[m[1]];
+  if (l) {
+    var a = document.createElement('a');
+    a.href = l.href;
+    a.textContent = l.label;
+    a.style.cssText = 'color:inherit;font-weight:600;text-decoration:underline;text-decoration-color:' + cfg.accent + ';text-decoration-thickness:2px;text-underline-offset:2px;';
+    // Ein normaler Klick würde die WebView selbst wegnavigieren (Artikel weg): extern öffnen.
+    a.addEventListener('click', function(ev) { ev.preventDefault(); MerlinHighlightBridge.onOpenExternalLink(l.href); });
+    text.appendChild(a);
+  } else if (part) {
+    text.appendChild(document.createTextNode(part));
+  }
+});
+body.appendChild(text);
+box.appendChild(body);
+ps[idx].after(box);
+"""
 
     /**
      * JS-Laufzeit im WebView: XPath-Generierung/-Auflösung (`tag[n]`/`text()[n]`
@@ -476,7 +695,9 @@ window.MerlinReader = (function() {
   document.addEventListener('click', function(ev) {
     var img = ev.target.closest && ev.target.closest('img');
     if (img) {
-      var imgs = Array.prototype.slice.call(document.querySelectorAll('img'));
+      // Das Icon der Support-Infobox ist kein Artikelbild: kein Lightbox-Tap, nicht in der Bildliste.
+      if (img.closest('merlin-support-box')) return;
+      var imgs = Array.prototype.slice.call(document.querySelectorAll('img')).filter(function(i) { return !i.closest('merlin-support-box'); });
       var index = imgs.indexOf(img);
       var srcs = imgs.map(function(i) { return i.src; });
       MerlinHighlightBridge.onImageTap(JSON.stringify({ index: index, srcs: srcs }));
@@ -510,6 +731,8 @@ window.MerlinReader = (function() {
   document.addEventListener('error', function(ev) {
     var el = ev.target;
     if (el && el.tagName === 'IMG') {
+      // Kaputtes Support-Box-Icon einfach weglassen statt "Bild nicht verfügbar" zu zeigen.
+      if (el.closest('merlin-support-box')) { el.remove(); return; }
       var placeholder = document.createElement('div');
       placeholder.className = 'merlin-img-error';
       placeholder.textContent = 'Bild nicht verfügbar';

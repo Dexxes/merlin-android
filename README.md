@@ -81,6 +81,10 @@ list/reader UI, share extension, and settings are complete. The TTS panel
 and onboarding tour are still outstanding. See [`CHANGELOG.md`](CHANGELOG.md)
 for details.
 
+## Privacy
+
+Merlin collects no data for the developer: no analytics, no tracking, no ads. See [PRIVACY.md](PRIVACY.md) (German and English).
+
 ## License
 
 Merlin for Android is licensed under the [GNU Affero General Public License

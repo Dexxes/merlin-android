@@ -1,7 +1,9 @@
 package dev.merlin.android.ui.reader
 
 import android.app.Activity
+import android.content.ClipData
 import android.content.Intent
+import android.view.Window
 import android.webkit.WebView
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
@@ -31,9 +33,10 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Archive
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.History
@@ -42,7 +45,6 @@ import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.NotificationAdd
-import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Star
@@ -76,6 +78,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -90,19 +93,21 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.ClipEntry
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalView
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.core.graphics.toColorInt
+import androidx.core.net.toUri
 import androidx.core.view.WindowCompat
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import dev.merlin.android.models.Article
 import dev.merlin.android.models.HighlightCreate
 import dev.merlin.android.models.ProgressEdge
@@ -115,7 +120,7 @@ import kotlin.math.roundToInt
 
 /**
  * Äquivalent zu `ArticleReaderView.swift`. Die Meta-Zeile (Site/Autor/
- * Lesezeit) + Tags ist kein eigener, sticky Compose-Header mehr, sondern Teil
+ * Lesezeit) + Tags ist kein eigener, fixierter Compose-Header mehr, sondern Teil
  * des HTML-Inhalts in [ReaderWebView] (siehe `ReaderHtmlBuilder.buildHeaderHtml`)
  * und scrollt dadurch wie im iOS-Original ganz normal mit. Der
  * Fortschrittsbalken ([ProgressBarOverlay]) liegt als Overlay über dem
@@ -124,19 +129,19 @@ import kotlin.math.roundToInt
  * (volle Aktionsliste statt Swipe/Long-Press, siehe `ArticleCard`-Kommentar
  * für dieselbe Designentscheidung).
  *
- * "Erinnern…" öffnet [ReminderSheet], "Artikel melden…" öffnet
- * [ReportArticleSheet], ein Bild-Tap im Reader öffnet [ImageLightboxScreen].
+ * Der Menüpunkt zum Erinnern öffnet [ReminderSheet], der zum Melden des Artikels öffnet
+ * [ReportArticleSheet], ein Tap auf ein Bild im Reader öffnet [ImageLightboxScreen].
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ArticleReaderScreen(
     onBack: () -> Unit,
-    // Äquivalent zu iOS' `onNavigateNext: (() -> Void)?` (ArticleReaderView.swift): der Reader
+    // Äquivalent zum optionalen `onNavigateNext`-Closure unter iOS (ArticleReaderView.swift): der Reader
     // selbst kennt keine Artikelliste/Index – der Aufrufer (hier `MainActivity`) berechnet den
     // nächsten Artikel aus seiner eigenen gefilterten Liste und übergibt nur die Sprung-Aktion.
     // `null` bedeutet "kein nächster Artikel vorhanden" → Button 3 wird deaktiviert/abgedunkelt.
     onNavigateNext: (() -> Unit)? = null,
-    // Äquivalent zu iOS' Sache: dort teilen sich Liste und Reader dieselbe `ArticlesViewModel`-
+    // Unterschied zu iOS: dort teilen sich Liste und Reader dieselbe `ArticlesViewModel`-
     // Instanz, hier nicht (siehe Architektur-Hinweis in Structure.md). Damit archivierte/
     // favorisierte/getaggte/gelöschte Artikel beim Zurücknavigieren sofort aus der Liste
     // verschwinden (statt erst beim nächsten `load()`), meldet der Reader jede Änderung über
@@ -145,7 +150,7 @@ fun ArticleReaderScreen(
     // berechnet).
     onArticleChanged: (Article) -> Unit = {},
     onArticleDeleted: (Int) -> Unit = {},
-    // Äquivalent zu iOS' Navigation aus dem Paywall-Banner zu `SiteCredentialsView`: der Reader
+    // Äquivalent zur iOS-Navigation aus dem Paywall-Banner zu `SiteCredentialsView`: der Reader
     // kennt keine eigene Navigationsroute für `SiteCredentialsScreen`, daher reicht `MainActivity`
     // hier nur die Sprung-Aktion durch (gleiches Muster wie `onNavigateNext`).
     onNavigateToSiteCredentials: (domain: String) -> Unit = {},
@@ -187,8 +192,7 @@ fun ArticleReaderScreen(
     SideEffect {
         if (!view.isInEditMode) {
             val window = (view.context as Activity).window
-            window.statusBarColor = chromeColors.background.toArgb()
-            window.navigationBarColor = chromeColors.background.toArgb()
+            window.setSystemBarColors(chromeColors.background.toArgb())
             val insetsController = WindowCompat.getInsetsController(window, view)
             insetsController.isAppearanceLightStatusBars = !isChromeDark
             insetsController.isAppearanceLightNavigationBars = !isChromeDark
@@ -198,8 +202,7 @@ fun ArticleReaderScreen(
         onDispose {
             if (!view.isInEditMode) {
                 val window = (view.context as Activity).window
-                window.statusBarColor = appBackgroundArgb
-                window.navigationBarColor = appBackgroundArgb
+                window.setSystemBarColors(appBackgroundArgb)
                 val insetsController = WindowCompat.getInsetsController(window, view)
                 insetsController.isAppearanceLightStatusBars = !appIsDark
                 insetsController.isAppearanceLightNavigationBars = !appIsDark
@@ -208,7 +211,7 @@ fun ArticleReaderScreen(
     }
 
     val context = LocalContext.current
-    val clipboard = LocalClipboardManager.current
+    val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val snackbarHostState = remember { SnackbarHostState() }
@@ -227,17 +230,17 @@ fun ArticleReaderScreen(
     var pendingHighlightDeleteId by remember { mutableStateOf<Int?>(null) }
     var selectionRect by remember { mutableStateOf<ReaderJsBridge.SelectionRect?>(null) }
     var infoPopover by remember { mutableStateOf<ReaderJsBridge.InfoPopover?>(null) }
-    var scrollProgress by remember { mutableStateOf(0f) }
+    var scrollProgress by remember { mutableFloatStateOf(0f) }
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
     // Nicht-persistenter Dismiss-State für PaywallWarningBanner (siehe dortiger Kommentar) –
     // pro Artikel zurückgesetzt, damit ein Wechsel zu `nextArticleId` den Banner wieder zeigt.
     var paywallBannerDismissed by remember(viewModel.articleId) { mutableStateOf(false) }
 
-    // Bottom-Bar-Sichtbarkeit – Äquivalent zu iOS' `onScrollGeometryChange`-Paar in
+    // Bottom-Bar-Sichtbarkeit – Äquivalent zum `onScrollGeometryChange`-Paar unter iOS in
     // ArticleReaderView.swift: beim Scrollen nach unten wird die Leiste ausgeblendet, außer man
     // ist nah am Artikelende (dort soll sie sichtbar bleiben, damit man archivieren/weiterspringen
     // kann). Scrollen nach oben (oder Stillstand) zeigt sie immer.
-    var lastScrollOffsetPx by remember(viewModel.articleId) { mutableStateOf(0f) }
+    var lastScrollOffsetPx by remember(viewModel.articleId) { mutableFloatStateOf(0f) }
     var scrollingDown by remember(viewModel.articleId) { mutableStateOf(false) }
     var showBottomBar by remember(viewModel.articleId) { mutableStateOf(true) }
     val density = LocalDensity.current
@@ -261,7 +264,7 @@ fun ArticleReaderScreen(
         }
     }
 
-    // Äußerste Hülle: Äquivalent zu iOS' `GeometryReader { ... }.ignoresSafeArea()` für den
+    // Äußerste Hülle: Äquivalent zum iOS-`GeometryReader` mit `.ignoresSafeArea()` für den
     // Fortschrittsbalken in ArticleReaderView.swift – der Balken liegt dort über dem *gesamten*
     // Bildschirm (inkl. der Fläche unter der Statusleiste), nicht nur über dem Artikelinhalt.
     // Android hat hier zusätzlich eine echte `TopAppBar`, die im iOS-Original kein Äquivalent mit
@@ -279,7 +282,7 @@ fun ArticleReaderScreen(
         drawerState = drawerState,
         // Standardmäßig öffnet ModalNavigationDrawer per Edge-Swipe – das kollidiert mit dem
         // WebView-Scrollen (jede Geste in Bildschirmnähe wird als Drawer-Aufziehen interpretiert).
-        // iOS' Action-Sheet (ArticleReaderView.swift) öffnet ausschließlich per Button-Tap, nie
+        // Das Action-Sheet unter iOS (ArticleReaderView.swift) öffnet ausschließlich per Button-Tap, nie
         // per Wisch-Geste – daher hier ebenfalls deaktiviert; Öffnen weiterhin über den Menü-Button.
         gesturesEnabled = drawerState.isOpen,
         drawerContent = {
@@ -300,13 +303,15 @@ fun ArticleReaderScreen(
                         onClick = { scope.launch { drawerState.close() }; viewModel.toggleFavorite() },
                         modifier = Modifier.padding(horizontal = 12.dp),
                     )
-                    NavigationDrawerItem(
-                        label = { Text("Erscheinungsbild") },
-                        icon = { Icon(Icons.Filled.Palette, contentDescription = null) },
-                        selected = false,
-                        onClick = { scope.launch { drawerState.close() }; showAppearanceSheet = true },
-                        modifier = Modifier.padding(horizontal = 12.dp),
-                    )
+                    if (article?.isPdf != true) {
+                        NavigationDrawerItem(
+                            label = { Text("Erscheinungsbild") },
+                            icon = { Icon(Icons.Filled.Palette, contentDescription = null) },
+                            selected = false,
+                            onClick = { scope.launch { drawerState.close() }; showAppearanceSheet = true },
+                            modifier = Modifier.padding(horizontal = 12.dp),
+                        )
+                    }
                     NavigationDrawerItem(
                         label = { Text("Teilen") },
                         icon = { Icon(Icons.Filled.Share, contentDescription = null) },
@@ -324,34 +329,38 @@ fun ArticleReaderScreen(
                     )
                     NavigationDrawerItem(
                         label = { Text("Im Browser öffnen") },
-                        icon = { Icon(Icons.Filled.OpenInNew, contentDescription = null) },
+                        icon = { Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null) },
                         selected = false,
                         onClick = {
                             scope.launch { drawerState.close() }
                             val url = article?.url ?: return@NavigationDrawerItem
-                            context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)))
+                            context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri()))
                         },
                         modifier = Modifier.padding(horizontal = 12.dp),
                     )
-                    NavigationDrawerItem(
-                        label = { Text("archive.ph öffnen") },
-                        icon = { Icon(Icons.Filled.History, contentDescription = null) },
-                        selected = false,
-                        onClick = {
-                            scope.launch { drawerState.close() }
-                            val url = article?.url ?: return@NavigationDrawerItem
-                            val archiveUrl = "https://archive.ph/newest/$url"
-                            context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(archiveUrl)))
-                        },
-                        modifier = Modifier.padding(horizontal = 12.dp),
-                    )
+                    if (article?.isPdf != true) {
+                        NavigationDrawerItem(
+                            label = { Text("archive.ph öffnen") },
+                            icon = { Icon(Icons.Filled.History, contentDescription = null) },
+                            selected = false,
+                            onClick = {
+                                scope.launch { drawerState.close() }
+                                val url = article?.url ?: return@NavigationDrawerItem
+                                val archiveUrl = "https://archive.ph/newest/$url"
+                                context.startActivity(Intent(Intent.ACTION_VIEW, archiveUrl.toUri()))
+                            },
+                            modifier = Modifier.padding(horizontal = 12.dp),
+                        )
+                    }
                     NavigationDrawerItem(
                         label = { Text("Link kopieren") },
                         icon = { Icon(Icons.Filled.Link, contentDescription = null) },
                         selected = false,
                         onClick = {
                             scope.launch { drawerState.close() }
-                            article?.url?.let { clipboard.setText(AnnotatedString(it)) }
+                            article?.url?.let { url ->
+                                scope.launch { clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("Link", url))) }
+                            }
                         },
                         modifier = Modifier.padding(horizontal = 12.dp),
                     )
@@ -420,7 +429,7 @@ fun ArticleReaderScreen(
                     title = {},
                     navigationIcon = {
                         IconButton(onClick = onBack) {
-                            Icon(Icons.Filled.ArrowBack, contentDescription = "Zurück")
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Zurück")
                         }
                     },
                     actions = {
@@ -470,58 +479,81 @@ fun ArticleReaderScreen(
                                 modifier = Modifier.align(Alignment.TopCenter),
                             )
                         }
-                        // Kein eigener, sticky Header mehr über der WebView (Äquivalent zu iOS'
+                        // Kein eigener, fixierter Header mehr über der WebView (Äquivalent zum iOS-
                         // `articleHeader`, ArticleReaderView.swift): die Meta-Zeile (Site/Autor/
                         // Lesezeit) + Tags werden jetzt von `ReaderHtmlBuilder` direkt in den
                         // WebView-HTML-Inhalt gerendert (siehe `buildHeaderHtml` dort) und scrollen
                         // dadurch ganz normal mit dem Artikeltext mit, statt fixiert zu bleiben.
                         Box(modifier = Modifier.fillMaxSize()) {
-                            // Video-Karte + WebView werden vertikal gestapelt (eigene innere
-                            // `Column`), die restlichen Geschwister unten (Highlight-Toolbar,
-                            // Info-Popover, Bottom-Bar) bleiben direkte Kinder der äußeren `Box`,
-                            // da sie `Modifier.align(...)` benötigen (nur in `BoxScope` verfügbar,
-                            // siehe Kommentar an `AnimatedVisibility` weiter unten für denselben
-                            // Scope-Fallstrick).
-                            Column(modifier = Modifier.fillMaxSize()) {
-                                if (NativeVideoHost.matches(currentArticle.url)) {
-                                    NativeVideoPlayerCard(
-                                        articleId = currentArticle.id,
-                                        posterUrl = currentArticle.imageUrl,
-                                    )
+                                // Bottom-Bar-Autohide/Scroll-Metriken: gemeinsam für WebView- und PDF-Reader.
+                                val onReaderScrollMetrics: (Float, Float) -> Unit = { newOffset, scrollableRange ->
+                                    val delta = newOffset - lastScrollOffsetPx
+                                    val isNearBottom = if (scrollableRange > 0f) {
+                                        (scrollableRange - newOffset) < nearBottomThresholdPx
+                                    } else {
+                                        true
+                                    }
+                                    // Debounce wie im iOS-Original: nur "echte" Scroll-Schübe (>4dp)
+                                    // werten Richtung/Sichtbarkeit neu, kleines Zittern wird ignoriert.
+                                    if (abs(delta) > deltaThresholdPx) {
+                                        scrollingDown = delta > 0f && newOffset > downThresholdPx
+                                        showBottomBar = !scrollingDown || isNearBottom
+                                    }
+                                    lastScrollOffsetPx = newOffset
                                 }
-                                ReaderWebView(
-                                    article = currentArticle,
-                                    highlights = highlights,
-                                    appearance = appearance,
-                                    initialScrollProgress = initialScrollProgress ?: 0f,
-                                    onCreateHighlight = { payload: HighlightCreate -> viewModel.createHighlight(payload) },
-                                    onHighlightTap = { id -> pendingHighlightDeleteId = id },
-                                    onImageTap = { index, srcs -> lightboxState = LightboxState(initialIndex = index, imageURLs = srcs) },
-                                    onSelectionChanged = { rect -> selectionRect = rect },
-                                    onInfoPopover = { popover -> infoPopover = popover },
-                                    onScrollPositionChanged = { progress -> viewModel.saveScrollProgress(progress) },
-                                    onWebViewReady = { webViewRef = it },
-                                    onScrollProgress = { scrollProgress = it },
-                                    onScrollMetrics = { newOffset, scrollableRange ->
-                                        val delta = newOffset - lastScrollOffsetPx
-                                        val isNearBottom = if (scrollableRange > 0f) {
-                                            (scrollableRange - newOffset) < nearBottomThresholdPx
-                                        } else {
-                                            true
-                                        }
-                                        // Debounce wie im iOS-Original: nur "echte" Scroll-Schübe (>4dp)
-                                        // werten Richtung/Sichtbarkeit neu, kleines Zittern wird ignoriert.
-                                        if (abs(delta) > deltaThresholdPx) {
-                                            scrollingDown = delta > 0f && newOffset > downThresholdPx
-                                            showBottomBar = !scrollingDown || isNearBottom
-                                        }
-                                        lastScrollOffsetPx = newOffset
-                                    },
-                                    modifier = Modifier.fillMaxWidth().weight(1f),
-                                )
-                            }
+                                // Video-Karte + Reader werden vertikal gestapelt (eigene innere `Column`), die
+                                // restlichen Geschwister unten (Highlight-Toolbar, Info-Popover, Bottom-Bar)
+                                // bleiben direkte Kinder der äußeren `Box`, da sie `Modifier.align(...)`
+                                // benötigen (nur in `BoxScope` verfügbar).
+                                Column(modifier = Modifier.fillMaxSize()) {
+                                    if (NativeVideoHost.matches(currentArticle.url)) {
+                                        NativeVideoPlayerCard(
+                                            articleId = currentArticle.id,
+                                            posterUrl = currentArticle.imageUrl,
+                                        )
+                                    }
+                                    if (currentArticle.isPdf) {
+                                        // PDF-Artikel: der Server speichert nur die URL, die PDF wird hier von der Quelle
+                                        // geladen und seitenweise gerendert (kein WebView, keine Highlights/Textauswahl).
+                                        PdfReaderView(
+                                            sourceUrl = currentArticle.url,
+                                            loadPdf = { url -> viewModel.loadPdf(url) },
+                                            discardPdf = { url -> viewModel.discardPdf(url) },
+                                            initialScrollProgress = initialScrollProgress ?: 0f,
+                                            foregroundColor = chromeColors.foreground,
+                                            onOpenInBrowser = {
+                                                runCatching {
+                                                    context.startActivity(
+                                                        Intent(Intent.ACTION_VIEW, currentArticle.url.toUri()),
+                                                    )
+                                                }
+                                            },
+                                            onScrollPositionChanged = { progress -> viewModel.saveScrollProgress(progress) },
+                                            onScrollProgress = { scrollProgress = it },
+                                            onScrollMetrics = onReaderScrollMetrics,
+                                            modifier = Modifier.fillMaxWidth().weight(1f),
+                                        )
+                                    } else {
+                                        ReaderWebView(
+                                            article = currentArticle,
+                                            highlights = highlights,
+                                            appearance = appearance,
+                                            initialScrollProgress = initialScrollProgress ?: 0f,
+                                            onCreateHighlight = { payload: HighlightCreate -> viewModel.createHighlight(payload) },
+                                            onHighlightTap = { id -> pendingHighlightDeleteId = id },
+                                            onImageTap = { index, imageUrls -> lightboxState = LightboxState(initialIndex = index, imageURLs = imageUrls) },
+                                            onSelectionChanged = { rect -> selectionRect = rect },
+                                            onInfoPopover = { popover -> infoPopover = popover },
+                                            onScrollPositionChanged = { progress -> viewModel.saveScrollProgress(progress) },
+                                            onWebViewReady = { webViewRef = it },
+                                            onScrollProgress = { scrollProgress = it },
+                                            onScrollMetrics = onReaderScrollMetrics,
+                                            modifier = Modifier.fillMaxWidth().weight(1f),
+                                        )
+                                    }
+                                }
 
-                            selectionRect?.let {
+                                selectionRect?.let {
                                     HighlightColorToolbar(
                                         onColorSelected = { color ->
                                             webViewRef?.evaluateJavascript(
@@ -534,11 +566,11 @@ fun ArticleReaderScreen(
                                     )
                                 }
 
-                                // Äquivalent zu iOS' `.popover`-Flyout für die Info-Card (Von/Erschienen),
+                                // Äquivalent zum iOS-`.popover`-Flyout für die Info-Card (Von/Erschienen),
                                 // siehe `ReaderHtmlBuilder` (CSS-Truncation + Klick-Handler in READER_JS).
                                 // Anders als bei `HighlightColorToolbar` oben WIRD hier die Position der
                                 // angetippten Zelle (CSS-px-Rect aus `getBoundingClientRect()`) verwendet,
-                                // damit das Popover sichtbar an der "Erschienen"/"Von"-Zelle andockt statt
+                                // damit das Popover sichtbar an der "Erschienen"/"Von"-Zelle andockt, statt
                                 // wirkungslos zentriert zu erscheinen – siehe `InfoPopoverOverlay`.
                                 infoPopover?.let { popover ->
                                     InfoPopoverOverlay(
@@ -547,18 +579,13 @@ fun ArticleReaderScreen(
                                     )
                                 }
 
-                                // Äquivalent zu iOS' `bottomBar` (ArticleReaderView.swift): als Overlay
+                                // Äquivalent zur iOS-`bottomBar` (ArticleReaderView.swift): als Overlay
                                 // positioniert (nicht den Scroll-Inhalt verdrängend), per
                                 // `.move(edge: .bottom).combined(with: .opacity)` ein-/ausgeblendet.
-                                // Vollqualifiziert aufgerufen: die umschließende `Column` weiter oben
-                                // bringt `ColumnScope` als implizit verfügbaren Receiver mit, und Kotlin
-                                // bevorzugt eine Extension auf einem impliziten Receiver (hier
-                                // `ColumnScope.AnimatedVisibility`) gegenüber der Top-Level-Funktion,
-                                // selbst wenn aktuell kein `ColumnScope`-Kontext vorliegt (wir sind in
-                                // einer `Box`) – das führt zum Compile-Fehler "cannot be called […]
-                                // with an implicit receiver". Die volle Paketqualifizierung erzwingt die
-                                // Top-Level-Überladung ohne Receiver.
-                                androidx.compose.animation.AnimatedVisibility(
+                                // Hier ist nur `BoxScope` als impliziter Receiver aktiv (kein
+                                // `ColumnScope`/`RowScope`), daher greift ohne Paketqualifizierung
+                                // direkt die Top-Level-Überladung von `AnimatedVisibility`.
+                                AnimatedVisibility(
                                     visible = showBottomBar,
                                     enter = slideInVertically(animationSpec = tween(200)) { it } + fadeIn(tween(200)),
                                     exit = slideOutVertically(animationSpec = tween(200)) { it } + fadeOut(tween(200)),
@@ -653,10 +680,10 @@ fun ArticleReaderScreen(
 /** Dünner Fortschrittsbalken entlang der per Einstellung gewählten Kante. */
 @Composable
 private fun ProgressBarOverlay(edge: ProgressEdge, progress: Float, colorHex: String, modifier: Modifier = Modifier) {
-    val color = remember(colorHex) { runCatching { Color(android.graphics.Color.parseColor(colorHex)) }.getOrDefault(Color.Red) }
+    val color = remember(colorHex) { runCatching { Color(colorHex.toColorInt()) }.getOrDefault(Color.Red) }
     Box(modifier = modifier) {
         when (edge) {
-            // Äquivalent zu iOS' `progressBar(in:)` (ArticleReaderView.swift): oben verankert,
+            // Äquivalent zu `progressBar(in:)` unter iOS (ArticleReaderView.swift): oben verankert,
             // wächst nach unten mit zunehmendem Scroll-Fortschritt (nicht von unten nach oben).
             ProgressEdge.LEFT -> Box(
                 modifier = Modifier
@@ -692,8 +719,8 @@ private fun ProgressBarOverlay(edge: ProgressEdge, progress: Float, colorHex: St
 }
 
 /**
- * Äquivalent zu iOS' `bottomBar` (ArticleReaderView.swift, Ende des Readers): 3 gleich breite,
- * reine Icon-Buttons (Zurück / Archivieren+Zurück / Archivieren+Weiter), getrennt durch
+ * Äquivalent zur iOS-`bottomBar` (ArticleReaderView.swift, Ende des Readers): 3 gleich breite,
+ * reine Icon-Buttons (zurück, archivieren und zurück, archivieren und weiter), getrennt durch
  * Haarlinien, 54dp hoch, Hintergrund leicht transparent mit oberer Haarlinie. Buttons 2/3
  * archivieren nur einseitig (nie un-archivieren), exakt wie im iOS-Original.
  */
@@ -718,7 +745,7 @@ private fun ReaderBottomBar(
                 .background(chromeColors.elevatedBackground.copy(alpha = 0.97f)),
         ) {
             BottomBarButton(
-                icon = Icons.Filled.ArrowBack,
+                icon = Icons.AutoMirrored.Filled.ArrowBack,
                 contentDescription = "Zurück",
                 onClick = onBack,
                 chromeColors = chromeColors,
@@ -735,10 +762,10 @@ private fun ReaderBottomBar(
             VerticalDivider(thickness = 0.5.dp, color = chromeColors.separator)
             BottomBarButton(
                 icon = Icons.Filled.Archive,
-                secondaryIcon = Icons.Filled.ArrowForward,
+                secondaryIcon = Icons.AutoMirrored.Filled.ArrowForward,
                 contentDescription = "Archivieren und nächster Artikel",
                 onClick = onArchiveAndNext,
-                // Wie iOS' `.disabled(onNavigateNext == nil)` + 25%-Abdunkelung: ohne nächsten
+                // Wie `.disabled(onNavigateNext == nil)` unter iOS plus 25-%-Abdunkelung: ohne nächsten
                 // Artikel ist der Button sichtbar, aber inaktiv und abgedunkelt.
                 enabled = canGoNext,
                 chromeColors = chromeColors,
@@ -783,7 +810,7 @@ private fun BottomBarButton(
 }
 
 /**
- * Äquivalent zu iOS' `.popover` über der Info-Card-Zelle (ArticleReaderView.swift): zeigt
+ * Äquivalent zum iOS-`.popover` über der Info-Card-Zelle (ArticleReaderView.swift): zeigt
  * Label (klein, gedämpft) + vollen Wert (z.B. den nicht-truncaten Autorennamen, oder
  * "Hinzugefügt am" + Datum) in einer kleinen Karte mit Pfeil, der – wie das native iOS-Popover –
  * auf die angetippte Zelle zeigt. Eine transparente Vollbild-Ebene dahinter schließt das Popover
@@ -793,11 +820,11 @@ private fun BottomBarButton(
  * **Verankerung an der Zelle:** [popover] trägt die CSS-px-Bounding-Box der angetippten Zelle
  * (`getBoundingClientRect()` in READER_JS). Da die WebView per `width=device-width,
  * initial-scale=1.0`-Viewport-Meta 1 CSS-px ≈ 1 dp rendert und deckungsgleich mit diesem Overlay
- * liegt (beide `Modifier.fillMaxSize()` im selben Eltern-`Box`), wird die Rect direkt über `.dp`
+ * liegt (beide `Modifier.fillMaxSize()` in derselben Eltern-`Box`), wird das Rect direkt über `.dp`
  * eingelesen und für die gesamte Platzierungsmathematik EINMALIG in echte Px umgerechnet – so
  * läuft alles (Zellenrect, Kartengröße, Container) in einer einzigen Einheit.
  *
- * **Warum die echte Kartengröße gemessen wird:** die Vorversion klemmte die Karte horizontal mit
+ * **Messung der echten Kartengröße:** Die Vorversion klemmte die Karte horizontal mit
  * einer *geschätzten* Breite (220dp). Da die Karte real aber viel schmaler ist ("GESPEICHERT" +
  * Kurzdatum), zog diese Überschätzung die Karte – besonders bei der rechts sitzenden
  * "Erschienen"-Zelle – sichtbar nach links weg von der Zelle. Hier wird die Karte daher per
@@ -828,7 +855,7 @@ private fun InfoPopoverOverlay(popover: ReaderJsBridge.InfoPopover, onDismiss: (
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
-            // Tap außerhalb der Karte schließt – `detectTapGestures` statt `clickable`, damit kein
+            // Ein Tap außerhalb der Karte schließt sie – `detectTapGestures` statt `clickable`, damit kein
             // Ripple über dem ganzen Lesebereich aufblitzt.
             .pointerInput(popover) { detectTapGestures { onDismiss() } },
     ) {
@@ -842,7 +869,7 @@ private fun InfoPopoverOverlay(popover: ReaderJsBridge.InfoPopover, onDismiss: (
         val cardLeftPx = (cellCenterXPx - cardW / 2f).coerceIn(edgeMarginPx, maxLeftPx)
 
         // Vertikal: bevorzugt UNTER der Zelle (mit Platz für den Pfeil); passt das nicht mehr,
-        // dann DARÜBER – analog zu iOS' automatischer `.popover`-Umklapp-Logik.
+        // dann DARÜBER – analog zur automatischen `.popover`-Umklapp-Logik unter iOS.
         val below = cellBottomPx + gapPx + arrowHeightPx + cardH <= containerHPx - edgeMarginPx
         val cardTopPx = if (below) {
             cellBottomPx + gapPx + arrowHeightPx
@@ -883,12 +910,12 @@ private fun InfoPopoverOverlay(popover: ReaderJsBridge.InfoPopover, onDismiss: (
         Column(
             modifier = Modifier
                 .offset { IntOffset(cardLeftPx.roundToInt(), cardTopPx.roundToInt()) }
-                // Vor der Messung unsichtbar, damit die Karte nicht kurz an der ungemessenen
-                // (zentrierten) Stelle aufblitzt.
+                // Vor der Messung unsichtbar, damit die Karte nicht kurz an der noch nicht
+                // gemessenen (zentrierten) Stelle aufblitzt.
                 .alpha(if (cardSize == null) 0f else 1f)
                 .widthIn(max = 260.dp)
                 .onSizeChanged { cardSize = it }
-                // Tap auf die Karte konsumieren, ohne zu schließen (und ohne Ripple).
+                // Taps auf die Karte selbst abfangen, ohne sie zu schließen (und ohne Ripple).
                 .pointerInput(Unit) { detectTapGestures { } }
                 .background(cardColor, shape = RoundedCornerShape(14.dp))
                 .padding(horizontal = 16.dp, vertical = 12.dp),
@@ -920,7 +947,7 @@ private fun HighlightColorToolbar(onColorSelected: (String) -> Unit, modifier: M
             Box(
                 modifier = Modifier
                     .size(28.dp)
-                    .background(Color(android.graphics.Color.parseColor(hex)), shape = CircleShape)
+                    .background(Color(hex.toColorInt()), shape = CircleShape)
                     .clickable { onColorSelected(name) },
             )
         }
@@ -929,7 +956,7 @@ private fun HighlightColorToolbar(onColorSelected: (String) -> Unit, modifier: M
 
 /**
  * Farben für die native Chrome (TopAppBar, [ReaderBottomBar]), passend zum
- * gewählten Reader-Theme statt zum System-Theme – Äquivalent zu iOS' `readerBgColor`/
+ * gewählten Reader-Theme statt zum System-Theme – Äquivalent zu den iOS-Farben `readerBgColor`/
  * `readerFgColor`/`readerButtonBgColor`/`readerSeparatorColor`/`readerFgMutedColor`
  * (ArticleReaderView.swift). `elevatedBackground` ist die etwas hellere/dunklere Fläche für
  * die Bottom-Bar, damit sie sich (besonders im Dark-Theme mit reinem Schwarz als Seiten-
@@ -981,4 +1008,19 @@ private fun rememberReaderChromeColors(theme: ReaderTheme): ReaderChromeColors {
             }
         }
     }
+}
+
+/**
+ * Färbt Status- und Navigationsleiste ein. `Window.statusBarColor`/`navigationBarColor` sind seit
+ * API 35 deprecated, weil Apps mit `targetSdk >= 35` zwingend edge-to-edge laufen und die Setter
+ * dort wirkungslos sind. Merlin zielt aktuell auf `targetSdk = 34` ohne `enableEdgeToEdge()`; hier
+ * sind die Setter weiterhin der einzige Weg, die Leisten einzufärben (dasselbe Muster wie in
+ * `MerlinTheme`, Theme.kt). Die Deprecation wird daher gebündelt an dieser einen Stelle
+ * unterdrückt. Beim Umstieg auf `targetSdk 35` entfällt diese Funktion zugunsten von
+ * edge-to-edge plus Hintergrund hinter den System-Insets.
+ */
+@Suppress("DEPRECATION")
+private fun Window.setSystemBarColors(argb: Int) {
+    statusBarColor = argb
+    navigationBarColor = argb
 }

@@ -89,6 +89,12 @@
     <string name="articleReader_sideMenu_share">"Teilen…"</string>
     <string name="articleReader_sideMenu_startReadAloud">"Vorlesen"</string>
     <string name="articleReader_sideMenu_stopReadAloud">"Vorlesen stoppen"</string>
+    <string name="articleReader_supportBox_both">"Überlege, ein %1$s abzuschließen oder zu %2$s."</string>
+    <string name="articleReader_supportBox_donateLabel">"spenden"</string>
+    <string name="articleReader_supportBox_donateOnly">"Überlege, zu %1$s."</string>
+    <string name="articleReader_supportBox_subscribeLabel">"Abo"</string>
+    <string name="articleReader_supportBox_subscribeOnly">"Überlege, ein %1$s abzuschließen."</string>
+    <string name="articleReader_supportBox_title">"Dir gefällt der Artikel von %1$s?"</string>
     <string name="articleReader_tagSheet_newTagPlaceholder">"Neuen Tag erstellen…"</string>
     <string name="articleReader_tagSheet_title">"Tags bearbeiten"</string>
     <string name="articleReader_ttsPanel_preparing">"Audio wird vorbereitet …"</string>
@@ -170,6 +176,7 @@
     <string name="report_title">"Artikel melden"</string>
     <string name="settings_about_commitLabel">"Commit"</string>
     <string name="settings_about_sectionHeader">"Über"</string>
+    <string name="settings_about_sourceCodeLabel">"Quellcode"</string>
     <string name="settings_about_versionLabel">"Version"</string>
     <string name="settings_account_connectHeadline">"Mit Merlin verbinden"</string>
     <string name="settings_account_footer">"Tippe auf \"Mit Nextcloud anmelden\", um dich über deinen Browser zu authentifizieren."</string>

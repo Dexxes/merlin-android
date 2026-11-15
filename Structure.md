@@ -86,8 +86,9 @@ Adaptive-Vordergrund 108/162/216/324/432px (jeweils mdpi→xxxhdpi).
 
 | Datei | Zweck |
 |---|---|
-| `Article.kt` | Wie iOS-Original inkl. `displayTitle`/`displaySiteName`/`faviconUrl`; eigene `equals`/`hashCode` (id + isProcessing + updatedAt + sortierte Tag-IDs) statt Default-Datenklassen-Vergleich, aus demselben Grund wie im iOS-Original (Recomposition bei Server-Updates) |
+| `Article.kt` | Wie iOS-Original inkl. `displayTitle`/`displaySiteName`/`faviconUrl`/`isPdf` (Kategorie `PDF` oder URL endet auf `.pdf`); eigene `equals`/`hashCode` (id + isProcessing + updatedAt + sortierte Tag-IDs) statt Default-Datenklassen-Vergleich, aus demselben Grund wie im iOS-Original (Recomposition bei Server-Updates) |
 | `Tag.kt` | 1:1 |
+| `SupportBox.kt` | Daten der Support-Infobox (`siteName`, `subscribeUrl`, `donationsUrl`, `accentColor`, `iconUrl`) aus `GET /api/articles/{id}`; `Article.supportBox` (nur Einzelabruf, wird von `ArticleCacheService.upsert` bewusst nie in Room geschrieben – der Login-Status kann sich ändern, Äquivalent zu `Article.encode` in iOS) |
 | `Highlight.kt` | `Highlight` + `HighlightCreate` (Request-Payload ohne Server-Felder) |
 | `Reminder.kt` | `triggerAt`/`createdAt` als Epoch-Millis statt `Date` (passt direkt zu `AlarmManager`/`WorkManager`); `id` als String-UUID statt `UUID`-Typ wegen Room-Kompatibilität |
 
@@ -126,6 +127,7 @@ Filter-/Eviction-Logik 1:1 aus den Swift-Originalen übernommen werden kann.
 | `ImageCacheIndexEntity.kt` / `ImageCacheIndexDao.kt` | Room-Index `articleId → urlsJson`, ermöglicht gezielte Pro-Artikel-Eviction, die Coils Disk-Cache nativ nicht bietet |
 | `RefererInterceptor.kt` | OkHttp-Interceptor, setzt `Referer: scheme://host/` pro Request (Hotlink-Schutz) |
 | `ImageModule.kt` | Hilt-Modul: eigener Coil-`ImageLoader` mit `RefererInterceptor` in dessen `OkHttpClient` |
+| `PdfCacheService.kt` | Äquivalent zu `PDFCacheService.swift`: lädt die PDF eines PDF-Artikels von der Quell-URL mit eigenem, auth-freiem `OkHttpClient` (nur `RefererInterceptor`; der Retrofit-Client würde Host umschreiben und Zugangsdaten senden) nach `cacheDir/pdf/<sha256>.pdf` (Status-, `%PDF-`- und 100-MB-Prüfung); `prune(days)` beim Start, `remove(url)` beim Löschen, `clear()` aus den Einstellungen |
 | `ImageCacheService.kt` | Äquivalent zu `ImageCacheService.swift`, aufbauend auf Coils Disk-Cache statt eigenem Hash-Dateinamen-Cache: `prefetch` (WLAN-only-Option, `Semaphore(4)`), `fetchSingle`, `evict(articleId)`, `clear` |
 | `PreferencesStore.kt` | Äquivalent zu `PreferencesStore.swift` via `DataStore<Preferences>`: Filter, Theme, Schriftgröße, Zeilenhöhe, Fortschrittsbalken-Position, Akzentfarbe, Lese-/Scroll-Position pro Artikel, ausgeblendete Tag-IDs, Server-Sync (`loadFromServer`/`toServerSettings`) |
 | `PendingMutationEntity.kt` / `MutationDao.kt` | Wartende Mutationen (`TOGGLE_ARCHIVE`/`TOGGLE_FAVORITE`/`SET_TAGS`/`DELETE`) je Artikel |
@@ -171,12 +173,13 @@ Reminder-Tap während die App schon läuft.
 | Datei | Zweck |
 |---|---|
 | `OnboardingScreen.kt` | Server-URL-Eingabe + „Anmelden"-Button; öffnet die vom Server gelieferte `loginUrl` per Custom Tabs (`androidx.browser`) im System-Browser, Merlin selbst sieht das Nextcloud-Passwort nie. Nach erfolgreichem Polling ruft es `onLoginSuccess` auf |
-| `ArticleListScreen.kt` | Äquivalent zur iOS-Artikelliste (Abschnitt 9, Teil 1): `Scaffold` mit `TopAppBar` (Suche-Toggle), Filter-Chips aus `ArticleFilter.entries`, Offline-/Fehler-Banner, Inhalt in `PullToRefreshBox` (`isRefreshing = isLoading`, `onRefresh = { viewModel.load() }`) – Äquivalent zu SwiftUIs `.refreshable`; kein dauerhafter Refresh-IconButton mehr in der TopAppBar (iOS hat ebenfalls keinen), stattdessen ein „Aktualisieren“-Button im Empty-State (Äquivalent `ArticleListView.swift`s `emptyView`-Button), `LazyColumn` über `viewModel.filteredArticles`, `SnackbarHost` verdrahtet mit `lastUndoableAction`/`undoToast` (Undo-Action ruft `viewModel.undo()`) |
-| `ArticleCard.kt` | Äquivalent zu `ArticleRowView.swift`: `ArticleThumbnail` (72×54dp) links, Titel (2-zeilig)/Processing-Spinner, Site-Name + Lesezeit + Favoriten-Indikator, Tag-Chips, sichtbarer Favoriten-Toggle-Button, Overflow-`DropdownMenu` (Archivieren/Tags bearbeiten/Löschen) – wie im iOS-Original (das parallel `.swipeActions` UND `.contextMenu` anbietet) zusätzlich in eine `SwipeActionsRow` gewrappt: Trailing Löschen→Archiv/Unarchiv→Favorit/Unfavorit (konditional über `isArchived`/`isFavorite`/`showArchiveAction`/`showFavoriteAction`), Leading Teilen (`Intent.ACTION_SEND`). Neue Parameter `activeSwipeKey: MutableState<Any?>`, `showFavoriteAction`/`showArchiveAction: Boolean = true` |
+| `ArticleListScreen.kt` | Äquivalent zu `ArticleListView.swift`: `ModalNavigationDrawer` mit `ListDrawerContent` (Seitenmenü, öffnet über den Menü-Button links – der linke Rand gehört auf Android der Zurück-Geste), `CenterAlignedTopAppBar` mit Logo + Name der Ansicht bzw. des Tags, rechts Augen-Icon (Tag-Filter bzw. Archiv-Sichtbarkeit in der Tag-Ansicht) und „+“. Suchfeld hinter dem Lupen-Icon neben dem Menü-Button, Offline-/Fehler-Banner, `PullToRefreshBox`, `LazyColumn` mit `ArticleGridCard` (Kartenansicht) bzw. `ArticleRow` + Trennlinie (Listenansicht), Nachlade-Footer (Spinner bzw. „Ältere Artikel laden“), filterabhängiger Leer-Zustand. Lesefortschritt je Zeile per Last-Write-Wins aus `ArticlesViewModel.localProgress` und `Article.scrollProgress`. `SnackbarHost` mit `lastUndoableAction`/`undoToast` |
+| `ArticleCard.kt` | `ArticleRow` (Äquivalent `ArticleRowView.swift`): schlichte Zeile, Vorschaubild rechts, Status-Symbole (Verarbeitung, Schloss bei Login/Paywall, nicht unterstützte Seite), Lesefortschritt als Ring + %, „Archiviert“-Markierung + Abblenden in gemischten Listen, `SwipeActionsRow` mit Teilen links und Löschen→Favorit→Archiv rechts (Archiv ganz außen wie iOS). `ArticleGridCard` (Äquivalent `ArticleCardView.swift`): 16:9-Hero mit Fortschrittsbalken und „Archiviert“-Plakette, ohne Wischgesten. Beide ohne sichtbaren Stern-/⋮-Button; Aktionen über langes Drücken (`ArticleContextMenu`: Favorit, Archiv/Als ungelesen markieren, Tags, Link kopieren, Teilen, Löschen) |
+| `ListDrawer.kt` | `ListDrawerContent`, Äquivalent zu `ListFlyoutModifier.swift`: Tabs Text/Video/Audio (`SingleChoiceSegmentedButtonRow`), darunter die vier Ansichten der Medienart mit Zählern aus `ArticleCounts` (ohne Zähler bei Weiterlesen/-schauen/-hören), ausklappbare Tag-Liste (Tap = Einzel-Tag-Ansicht, „Tag-Filter aufheben“), Listen-/Kartenansicht, Erinnerungen, Einstellungen, Merlin-Logo unten. Außerdem `ArticleFilter.icon` |
 | `ArticleThumbnail.kt` | Äquivalent zu `CachedAsyncImage`/`NoImageView.swift`: `AsyncImage` mit dem geteilten Hilt-`ImageLoader` (`RefererInterceptor` + Coil-Disk-Cache, siehe `ImageModule`) – Cache-First-Verhalten kommt transparent von Coil, kein eigenes Disk-Lookup wie im iOS-Original nötig. Bei `null`/leerem `imageUrl` oder `onError` ein Icon-Platzhalter (`Icons.Filled.Image` auf `surfaceVariant`) statt eines eigenen `no-img`-Drawable-Assets. `ArticlesViewModel` exponiert dafür `val imageLoader: ImageLoader` (gleiches Konstruktor-Pattern wie `ArticleReaderViewModel`) |
 | `EditTagsDialog.kt` | Tag-Editor als `ModalBottomSheet` (Äquivalent zu iOS' `ArticleTagSheet`): Chip-Auswahl aller bekannten Tags plus inline-Erstellung neuer Tags (gleiches `pendingTags`-Konzept wie `AddArticleSheet`). Bewusst ViewModel-agnostisch über einen `onSave`-Suspend-Lambda statt direkter Injection – wird sowohl aus `ArticleListScreen` (`ArticlesViewModel.saveTags`) als auch aus dem Reader-Drawer (`ArticleReaderViewModel.saveTags`) heraus geöffnet |
 
-`MainActivity.kt` schaltet anhand `CredentialsStore.isConfigured` zwischen `OnboardingScreen`/`NavHost` um; innerhalb des `NavHost` führt `ArticleListScreen.onArticleClick` zur Route `reader/{articleId}`, `ArticleListScreen.onRemindersClick` (Glocken-Icon in der TopAppBar) zur Route `reminders`, `ArticleListScreen.onSettingsClick` (Zahnrad-Icon in der TopAppBar) zur Route `settings`.
+`MainActivity.kt` schaltet anhand `CredentialsStore.isConfigured` zwischen `OnboardingScreen`/`NavHost` um; innerhalb des `NavHost` führt `ArticleListScreen.onArticleClick` zur Route `reader/{articleId}`, `ArticleListScreen.onRemindersClick` (Seitenmenü-Eintrag „Erinnerungen“) zur Route `reminders`, `ArticleListScreen.onSettingsClick` (Seitenmenü-Eintrag „Einstellungen“) zur Route `settings`.
 
 **„Nächster Artikel"-Verdrahtung** (Äquivalent zu iOS' `onNavigateNext`-Closure aus `ArticleListView.swift`, die der Reader selbst nicht kennt): die `reader/{articleId}`-Route holt sich per `hiltViewModel(navController.getBackStackEntry("list"))` dieselbe `ArticlesViewModel`-Instanz wie die Liste (bleibt im Back-Stack, da nie ersetzt), liest `filteredArticles`, ermittelt den Index des aktuellen Artikels und reicht – falls ein Nachfolger existiert – eine Navigations-Lambda als `onNavigateNext` durch, die den aktuellen Reader-Eintrag per `popUpTo(...) { inclusive = true }` ersetzt statt zu stapeln.
 
@@ -237,7 +240,8 @@ eigener Task).
 |---|---|
 | `viewmodel/ArticleReaderViewModel.kt` | `@HiltViewModel`, liest `articleId` aus `SavedStateHandle["articleId"]` (vom `NavHost`-Argument befüllt); lädt Artikel + Highlights + Reminder-Status, optimistisches Create/Delete von Highlights mit Offline-Queue-Fallback, Scroll-Position-Persistenz über `PreferencesStore`, `Appearance`-State (Theme/Font/Größe/Zeilenhöhe/Akzentfarbe/Fortschrittsbalken-Kante), `currentReminder`/`reminderError`/`scheduleReminder()`/`cancelReminder()` für `ReminderSheet`, geteilter Coil-`imageLoader` (mit `RefererInterceptor`) für `ImageLightboxScreen`. Eigenes, von `ArticlesViewModel` unabhängiges `allTags`/`loadTags()`/`saveTags()`/`resolveTagIds()` (Dedup gegen vorhandene Tag-Namen, gleiche Logik wie `ArticlesViewModel`) für den im Drawer geöffneten `EditTagsDialog` |
 | `ui/reader/ReaderHtmlBuilder.kt` | Baut das Artikel-HTML inkl. eingebettetem `READER_JS` (Highlight-Erstellung per Selection-XPath, Tap-Erkennung auf Highlights/Bildern, Scroll-Postmessages) und themenabhängigem CSS aus `Appearance` |
-| `ui/reader/ReaderJsBridge.kt` | `@JavascriptInterface`-Brücke (`MerlinHighlightBridge`): JS → Kotlin-Callbacks für Highlight-Erstellung/-Tap, Bild-Tap (öffnet `ImageLightboxScreen`), Text-Selection-Rect |
+| `ui/reader/ReaderJsBridge.kt` | `@JavascriptInterface`-Brücke (`MerlinHighlightBridge`): JS → Kotlin-Callbacks für Highlight-Erstellung/-Tap, Bild-Tap (öffnet `ImageLightboxScreen`), Text-Selection-Rect, `onOpenExternalLink` (Links der Support-Infobox; nur http(s), Öffnen per `ACTION_VIEW` in `ReaderWebView`) |
+| `ui/reader/PdfReaderView.kt` | Reader-Inhalt für PDF-Artikel (`Article.isPdf`): lädt über `ArticleReaderViewModel.loadPdf` (→ `PdfCacheService`) und rendert die Seiten mit `PdfRenderer` als Bitmaps in einer `LazyColumn` (nur sichtbare Seiten, Zugriffe unter `Mutex`, Seitenverhältnisse vorab gelesen → exakter Fortschritt/Restore); gleiche Callbacks wie `ReaderWebView` (`onScrollProgress`/`onScrollMetrics`/`onScrollPositionChanged`); Lade-, Fehler- (Retry + „Im Browser öffnen“) und Passwortschutz-Zustand; kein Zoom/Textauswahl |
 | `ui/reader/ReaderWebView.kt` | `AndroidView`-Wrapper um `android.webkit.WebView` (bewusst natives Scrollen statt iOS' `ScrollView`+ResizeObserver-Pattern – siehe Datei-Kommentar); Scroll-Restore mit Retry-Polling (Layout/Reflow nicht sofort final nach `onPageFinished`), live `onScrollProgress`-Callback für den Fortschrittsbalken, zusätzlicher `onScrollMetrics(offsetPx, scrollableRangePx)`-Callback mit rohen Pixelwerten für die Bottom-Bar-Sichtbarkeitslogik (siehe `ArticleReaderScreen.kt`), einmaliges Save-on-Dispose für die Persistenz. **Gesten-Konflikt-Fix**: `systemGestureExclusionRects` auf einem 32dp-Streifen am linken Rand (API 29+, via `addOnLayoutChangeListener` da `height` erst nach dem ersten Layout bekannt ist) reduziert die Kollision mit dem System-Edge-Swipe-Zurück (v.a. Samsung One UI) beim Scrollen nah am Rand – nur ein Hinweis ans System, kein hartes Override, siehe Datei-Kommentar |
 | `ui/reader/AppearanceSheet.kt` | `ModalBottomSheet`: Theme/Schriftart/-größe/Zeilenhöhe/Akzentfarbe/Fortschrittsbalken-Kante, schreibt direkt über `viewModel.preferencesStore` |
 | `ui/reader/ReminderSheet.kt` | Äquivalent zu `ReminderSheet.swift`. `ModalBottomSheet` mit Material3 `DatePickerDialog` + eigenem `TimePicker`-`AlertDialog` (sequenziell statt iOS' kombiniertem grafischem `DatePicker`, den es in Compose nicht gibt); Pre-Fill mit vorhandenem Reminder-Zeitpunkt, „Erinnerung entfernen“-Button bei bestehendem Reminder, Fehleranzeige aus `viewModel.reminderError`, lokaler `isSaving`-State sperrt die Buttons und schließt das Sheet nach erfolgreichem Speichern |
@@ -246,6 +250,26 @@ eigener Task).
 | `data/ReportService.kt` | Äquivalent zu `ReportService.swift`. `@Singleton`, Mutex-isoliert (Kotlin-Pendant zu Swifts `actor`). Cacht die per `MerlinApi.getSettings().reportBackendUrl` geladene Backend-URL; `report(url, comment)` postet JSON an `{backendUrl}?action=report` über einen eigenen, schlanken `OkHttpClient` **ohne** `BaseUrlInterceptor`/`AuthInterceptor` – der Hilt-weite Client ist fest auf den Nextcloud-Host verdrahtet und für das externe, unauthentifizierte merlin-reports-Backend ungeeignet. `ReportError`-Sealed-Class mit denselben deutschen Meldungen wie im iOS-Original |
 | `ui/reader/ReportArticleSheet.kt` | Äquivalent zu `ReportArticleSheet.swift`. `ModalBottomSheet` (statt iOS' `.sheet`/`NavigationStack`+Toolbar) mit URL-Vorschau, optionalem Mehrzeilen-Kommentarfeld, Feedback-Text (Erfolg/Fehler aus `viewModel.reportFeedback`), Abbrechen/Melden/Schließen-Button-States passend zu `viewModel.reportSending`/`reportFeedback`; `sendReport()`/`clearReportFeedback()` in `ArticleReaderViewModel.kt` |
 | `ui/reader/NativeVideoPlayerCard.kt` | Äquivalent zu `NativeVideoPlayerView.swift`. `NativeVideoHost.matches(url)` erkennt ARD-/ZDF-/Arte-Mediathek-Artikel-URLs; `NativeVideoPlayerCard` fragt darauf `MerlinApi.getVideoStream(articleId)` ab (Pass-through über `ArticleReaderViewModel.getVideoStream`, da `api` dort `private` ist) und spielt die aufgelöste HLS-Stream-URL per Media3 `ExoPlayer`/`PlayerView` ab; Poster-Cover (geteilter `viewModel.imageLoader` für Hotlink-Schutz) bis zum ersten Play-Tap, Vollbild-Umschalter über einen `Dialog` mit demselben, geteilten `ExoPlayer` (Inline-`PlayerView` gibt den Player während `isFullScreen` frei, siehe Datei-Kommentar zum Surface-Konflikt), Varianten-Auswahl per `DropdownMenu` bei mehr als einer Variante, `setPreferredTextLanguage` für Arte-Untertitelspuren. **Architekturabweichung von iOS**: die Karte sitzt als fixiertes Compose-Element *über* der `ReaderWebView` (analog zum `PaywallWarningBanner`-Overlay) statt als scrollendes Element davor, da Android Header+Artikeltext komplett als HTML in einer einzigen, selbst scrollenden `WebView` rendert (siehe `ReaderWebView`-Kommentar) und sich dort kein natives Element einbetten lässt. `ReaderHtmlBuilder.stripHeroImageIfShownAsVideoCover()` entfernt dafür wie im iOS-Original das erste Bild aus dem Artikeltext, wenn dasselbe Titelbild schon als Player-Cover dient |
+
+**Support-Infobox (`ReaderHtmlBuilder.buildSupportBoxScript`, `SupportBoxTexts`):** Port von
+`supportBoxScript(for:seed:)` aus `ArticleReaderView.swift` – Abo-/Spendenhinweis ("Dir gefällt der
+Artikel von …?") nach einem pseudo-zufälligen Top-Level-`<p>` (Seed = Artikel-ID, ab 4 Absätzen), in
+der Akzentfarbe des Nutzers und mit dem Icon der konkreten Artikelseite (`iconUrl`, vom Server aus
+dem Seiten-HTML gelesen) als eigene Spalte links (2,5 em, ohne Kachel-Hintergrund) über die volle Boxhöhe
+(`align-self: stretch`; Titel und Satz stehen in der Spalte daneben, vertikal zentriert). Der Server liefert `supportBox` nur im Einzelabruf und lässt sie im Reader
+weg, wenn der Nutzer dort einen aktiven Abo-Login hat; offline (Artikel aus dem Room-Cache) gibt es
+keine Box. Eingefügt wird ein eigenes Element `<merlin-support-box>` nach dem Wiederherstellen der
+Highlights – `getXPath`/`resolveXPath` zählen Geschwister je Tag-Name, ein unbekannter Tag
+verschiebt daher keinen Index des Artikeltextes. Der Builder ist ein `object` ohne Context: die
+Texte löst `ReaderWebView` über Android-Ressourcen auf (`articleReader_supportBox_*`, Platzhalter
+`{subscribe}`/`{donate}` bleiben stehen, das Skript setzt daran die Links ein). Sicherheit: nur
+http(s)-URLs (Kotlin **und** JS), Konfiguration als JSON mit maskiertem `<`/`>`/`&` (ein Seitenname
+wie `</script>` bricht nicht aus dem inline-Script aus), alles per `textContent`/DOM. Link-Klicks
+gehen über `MerlinHighlightBridge.onOpenExternalLink` in den externen Browser, weil ein normaler
+Klick die WebView selbst wegnavigieren und den Artikel ersetzen würde. Das Icon ist in `READER_JS`
+vom Lightbox-Tap und vom "Bild nicht verfügbar"-Platzhalter ausgenommen (ein kaputtes Icon wird
+einfach entfernt). Die Strings in `strings_i18n.xml` stammen aus den `articleReader.supportBox.*`-
+Keys von `merlin-translations`.
 
 **Polish-Punkt (zurückgestellt):** anders als iOS (Bild-Vorab-Cache +
 `loadFileURL`) lädt die `WebView` Artikelbilder direkt über ihren eigenen
@@ -304,7 +328,7 @@ Letzter offener Punkt aus Abschnitt 9 in `todo.md` – Äquivalent zu `SettingsV
 
 | Datei | Zweck |
 |---|---|
-| `viewmodel/SettingsViewModel.kt` | `@HiltViewModel`. Login-Logik bewusst aus `OnboardingViewModel` dupliziert statt injiziert (ViewModels referenzieren keine anderen ViewModels) – beide kapseln denselben `LoginFlowService`, analog zu iOS' separaten `@StateObject`s in `OnboardingView`/`SettingsView`. Exponiert `preferencesStore` public (gleiches Pattern wie `ArticleReaderViewModel`, siehe `AppearanceSheet.kt`): UI liest dessen `Flow`s direkt per `collectAsState()`, schreibt aber über die Setter hier (`setDefaultFilter`/`setProgressEdge`/`setSaveProgress`/`setResumeOnOpen`/`setPrefetchWifiOnly`/`setDeveloperMode`), die bei sync-fähigen Feldern automatisch `syncPreferences()` anstoßen. `testConnection()` ruft mangels eigenem `/test`-Endpoint einfach `api.getSettings()` auf (gleiche Vereinfachung wie iOS' `MerlinAPI.testConnection()`). `syncPreferences()` ist ein einfaches `runCatching { api.updateSettings(...) }` – Android hat (noch) kein `SettingsSyncQueue`-Äquivalent für Offline-Retry, ein Fehlschlag wird daher bewusst verschluckt (lokaler Wert bleibt trotzdem gesetzt). `clearCache()` löscht Artikel-/Bild-/Highlight-Cache, Lesepositionen und Zugangsdaten – loggt den Nutzer dadurch implizit aus |
+| `viewmodel/SettingsViewModel.kt` | `@HiltViewModel`. Login-Logik bewusst aus `OnboardingViewModel` dupliziert statt injiziert (ViewModels referenzieren keine anderen ViewModels) – beide kapseln denselben `LoginFlowService`, analog zu iOS' separaten `@StateObject`s in `OnboardingView`/`SettingsView`. Exponiert `preferencesStore` public (gleiches Pattern wie `ArticleReaderViewModel`, siehe `AppearanceSheet.kt`): UI liest dessen `Flow`s direkt per `collectAsState()`, schreibt aber über die Setter hier (`setDefaultFilter`/`setProgressEdge`/`setSaveProgress`/`setResumeOnOpen`/`setPrefetchWifiOnly`/`setDeveloperMode`), die bei sync-fähigen Feldern automatisch `syncPreferences()` anstoßen. `testConnection()` ruft mangels eigenem `/test`-Endpoint einfach `api.getSettings()` auf (gleiche Vereinfachung wie iOS' `MerlinAPI.testConnection()`). `syncPreferences()` fängt einen `IOException`-Fehlschlag ab und markiert `SettingsSyncQueue` (siehe unten) für einen späteren Retry statt ihn stillschweigend zu verlieren – der lokale Wert bleibt in jedem Fall sofort gesetzt. `clearCache()` löscht Artikel-/Bild-/Highlight-Cache, Lesepositionen und Zugangsdaten – loggt den Nutzer dadurch implizit aus |
 | `ui/screens/SettingsScreen.kt` | Eigene Route (`Scaffold` + Zurück-`TopAppBar`) statt iOS' `Form`/Sheet: Konto-Sektion (Server-URL-Feld, „Mit Nextcloud anmelden"-Button öffnet die `loginUrl` per Custom Tabs wie `OnboardingScreen`, Lade-/Erfolgs-/Fehleranzeige, „Abmelden" mit `AlertDialog`-Bestätigung), Verbindungstest-Sektion, Präferenzen (`FilterChip`-Reihen für `ArticleFilter`/`ProgressEdge`, `Switch` für `saveProgress`/`resumeOnOpen`), Cache-Sektion (`Switch` für WLAN-only-Vorladen, „Cache leeren" mit `AlertDialog`-Bestätigung), Über-Sektion (`BuildConfig.VERSION_NAME`), Entwickler-Sektion (`Switch` + Debug-Infos). `onLoggedOut`-Callback feuert per `LaunchedEffect(isConfigured)`, sobald `isConfigured` von `true` auf `false` wechselt (Logout/Cache leeren) |
 
 Einstieg über neues Zahnrad-Icon in der `ArticleListScreen`-TopAppBar
@@ -335,13 +359,34 @@ Route `site-credentials?domain={domain}` in `MainActivity.kt`; Einstieg über
 neue Zeile "Site-Zugangsdaten verwalten" in `SettingsScreen.kt`
 (`onSiteCredentialsClick`).
 
+## Settings-Sync mit Offline-Retry (`data/SettingsSyncQueue.kt`)
+
+Äquivalent zu `SettingsSyncQueue.swift`, schließt die in `SettingsView.swift`/`ArticleReaderView.swift`
+referenzierte Lücke (bisheriges Android-`todo.md`: „Android hat (noch) kein `SettingsSyncQueue`-
+Äquivalent, ein Fehlschlag wird bewusst verschluckt"). Anders als `OfflineMutationQueue`/
+`OfflineHighlightQueue` muss sich diese Queue nicht merken, *was* sich geändert hat: Settings werden
+immer als ein flaches Snapshot-Objekt gepusht (`PreferencesStore.toServerSettings()`), ein einzelnes
+Dirty-Flag genügt daher – beliebig viele Offline-Änderungen fassen sich beim Retry automatisch zu
+einem PUT mit dem dann aktuellen lokalen Stand zusammen.
+
+| Datei | Zweck |
+|---|---|
+| `data/SettingsSyncQueue.kt` | `isDirty()`/`markDirty()` (Persistenz über `PreferencesStore.needsSettingsSync`/`setNeedsSettingsSync`, DataStore-Boolean statt In-Memory, damit ein Prozess-Tod das Flag nicht verliert), `retryIfNeeded()` (Mutex-isoliert, pusht `toServerSettings()` erneut und löscht das Flag nur bei Erfolg), `scheduleRetry()` (netzwerkabhängiger `OneTimeWorkRequest` über WorkManager, `NetworkType.CONNECTED`, `ExistingWorkPolicy.KEEP`) |
+| `data/SettingsSyncWorker.kt` | `@HiltWorker`-`CoroutineWorker`, ruft `SettingsSyncQueue.retryIfNeeded()` – Äquivalent zum `NWPathMonitor`-Trigger im iOS-Original, hier als WorkManager-Job (robuster gegen Prozess-Tod als ein reiner `ConnectivityManager.NetworkCallback`), analog `MutationDrainWorker` |
+
+`SettingsViewModel.syncPreferences()` und `ArticleReaderViewModel.syncAppearanceToServer()` (Appearance-
+Push aus `AppearanceSheet.kt`) sind die beiden Aufrufer: beide fangen jetzt `IOException` (echter
+Verbindungsfehler, Äquivalent zu iOS' `MerlinAPIError.networkError`) ab und rufen
+`settingsSyncQueue.markDirty()` + `scheduleRetry()` auf, statt den Fehlschlag wie zuvor stillschweigend
+zu verschlucken.
+
 ### Paywall-Hinweis im Reader (`ui/reader/PaywallWarningBanner.kt`)
 
 Äquivalent zum Paywall-Banner in `ArticleReaderView.swift`. `Article.kt` trägt
 dafür zwei zusätzliche, vom Server gesetzte Felder: `requiresLoginDomain`
 (Paywall-Domain, wenn die Extraktion mangels gültiger Zugangsdaten
 gescheitert ist) und `requiresLoginPage` (nur gesetzt, wenn auch
-`requiresLoginDomain` gesetzt ist). `ArticleReaderScreen.kt` zeigt den Banner
+`requiresLoginDomain` gesetzt ist). `ArticleReaderScreen.kt` zeigt das Banner
 oben im Artikelbereich, solange `requiresLoginDomain` gesetzt und der Banner
 nicht lokal weggewischt ist (nicht-persistenter `remember`-State, pro
 `articleId` zurückgesetzt – Parität zu iOS' Session-Dismiss). "Verbinden"
@@ -353,7 +398,7 @@ Reader wie bei `delete()` verlassen).
 
 ## Bewusst noch nicht angelegt
 
-Siehe `todo.md` für die vollständige Liste; insbesondere fehlen noch: TTS-Pipeline (Media3) und der `OnboardingTour`-Screen (inkl. der UI-seitige Notification-Permission-Prompt), SSE-Client, ein `SettingsSyncQueue`-Äquivalent für Offline-Retry der Settings-Synchronisation.
+Siehe `todo.md` für die vollständige Liste; insbesondere fehlen noch: TTS-Pipeline (Media3) und der `OnboardingTour`-Screen (inkl. der UI-seitige Notification-Permission-Prompt), SSE-Client.
 
 ## Bekannte offene Punkte für den ersten Android-Studio-Sync
 
