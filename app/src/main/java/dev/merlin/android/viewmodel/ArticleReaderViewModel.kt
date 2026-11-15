@@ -19,6 +19,8 @@ import dev.merlin.android.models.Article
 import dev.merlin.android.models.Highlight
 import dev.merlin.android.models.HighlightCreate
 import dev.merlin.android.models.HighlightUpdate
+import dev.merlin.android.models.InstalledFontFamily
+import dev.merlin.android.models.InstalledFonts
 import dev.merlin.android.models.ProgressEdge
 import dev.merlin.android.models.ReaderFont
 import dev.merlin.android.models.ReaderTheme
@@ -46,6 +48,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -219,6 +224,39 @@ class ArticleReaderViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.Eagerly, ReaderFont.SYSTEM)
     val readerFontSize: StateFlow<Int> = preferencesStore.readerFontSize
         .stateIn(viewModelScope, SharingStarted.Eagerly, 17)
+
+    /** Name der gewählten installierten Schriftfamilie (überschreibt [readerFont]), `null` = Voreinstellung. */
+    val readerCustomFontFamily: StateFlow<String?> = preferencesStore.readerCustomFontFamily
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    /**
+     * Aufgelöste Schnitte der gewählten Familie. `null`, wenn keine gewählt ist oder sie nicht mehr
+     * installiert ist (z. B. nach einem System-Update) – dann greift still die Voreinstellung.
+     */
+    private val customFont = preferencesStore.readerCustomFontFamily.map { name ->
+        name?.let { withContext(Dispatchers.IO) { runCatching { InstalledFonts.family(it) }.getOrNull() } }
+    }
+
+    /** Alle installierten Schriftfamilien für die Auswahl im Erscheinungsbild-Sheet (lazy geladen). */
+    suspend fun installedFontFamilies(): List<InstalledFontFamily> =
+        withContext(Dispatchers.IO) { runCatching { InstalledFonts.families() }.getOrDefault(emptyList()) }
+
+    /** Voreinstellung wählen – hebt eine gewählte installierte Schrift auf. */
+    fun selectPresetFont(font: ReaderFont) {
+        viewModelScope.launch {
+            preferencesStore.setReaderCustomFontFamily(null)
+            preferencesStore.setReaderFont(font)
+            syncAppearanceToServer()
+        }
+    }
+
+    /**
+     * Installierte Schrift wählen (`null` = zurück zur Voreinstellung). Nur lokal: der Server kennt
+     * weiter nur die Voreinstellung, daher kein [syncAppearanceToServer].
+     */
+    fun selectInstalledFont(family: String?) {
+        viewModelScope.launch { preferencesStore.setReaderCustomFontFamily(family) }
+    }
     val lineHeight: StateFlow<Double> = preferencesStore.lineHeight
         .stateIn(viewModelScope, SharingStarted.Eagerly, 1.6)
     val accentColorHex: StateFlow<String> = preferencesStore.accentProgressColorHex
@@ -255,7 +293,8 @@ class ArticleReaderViewModel @Inject constructor(
             Appearance(theme, font, fontSize, lineHeightValue, accent)
         },
         paperTexture,
-    ) { base, paper -> base.copy(paperTexture = paper) }
+        customFont,
+    ) { base, paper, custom -> base.copy(paperTexture = paper, customFont = custom) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, Appearance(ReaderTheme.AUTO, ReaderFont.SYSTEM, 17, 1.6, "#FF3B30"))
 
     data class Appearance(
@@ -266,6 +305,8 @@ class ArticleReaderViewModel @Inject constructor(
         val accentColorHex: String,
         /** Gewünschte Papierstruktur; ob sie sichtbar ist, entscheidet das Theme (siehe `ReaderHtmlBuilder`). */
         val paperTexture: Boolean = true,
+        /** Gewählte installierte Schrift; überschreibt [font] für den Artikeltext, [font] bleibt CSS-Fallback. */
+        val customFont: InstalledFontFamily? = null,
     )
 
     init {

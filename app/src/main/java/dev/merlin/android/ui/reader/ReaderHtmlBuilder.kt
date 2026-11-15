@@ -350,12 +350,16 @@ object ReaderHtmlBuilder {
         val accentText = if (isDark) PosterColors.readableTextHex(accent, bg) else accent
         val accentTextInfobox = if (isDark) PosterColors.readableTextHex(accent, infoboxBg) else accent
         val citeOpacity = if (isDark) "0.75" else "0.5"
+        // Gewählte installierte Schrift (siehe `ReaderLocalFonts`); Voreinstellung bleibt Fallback.
+        val fontFaces = ReaderLocalFonts.fontFaceCss(appearance.customFont)
+        val bodyFontFamily = ReaderLocalFonts.fontFamilyCss(appearance.font, appearance.customFont)
         return """
+            $fontFaces
             html, body {
               margin: 0; padding: 0;
               background-color: $bg;
               color: $fg;
-              font-family: ${appearance.font.cssValue};
+              font-family: $bodyFontFamily;
               font-size: ${appearance.fontSize}px;
               line-height: ${appearance.lineHeight};
               -webkit-text-size-adjust: 100%;
