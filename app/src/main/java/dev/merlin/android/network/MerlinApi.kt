@@ -169,8 +169,31 @@ interface MerlinApi {
     suspend fun deleteSiteCredential(@Path("domain") domain: String): Response<Unit>
 }
 
+/**
+ * Antwort von `GET api/articles/counts`: Zählungen je oberster Kategorie
+ * (siehe `ArticleCounts`/`ArticleCountGroup` in merlin-featureset/merlin-api.yaml
+ * und `ArticleCounts` in merlin-ios/MerlinAPI.swift).
+ *
+ * `audio` fehlt bei Servern ohne Audio-Kategorie, `files` bei Servern ohne
+ * „Merlin Dateien“ (Standalone-Server, merlin-nextcloud < 1.0.18) – dann 0
+ * statt Decode-Fehler, wie auf iOS.
+ */
 @Serializable
-data class ArticleCounts(val total: Int, val unread: Int, val favorites: Int, val archived: Int)
+data class ArticleCounts(
+    val pages: CategoryCounts = CategoryCounts(),
+    val videos: CategoryCounts = CategoryCounts(),
+    val audio: CategoryCounts = CategoryCounts(),
+    val files: CategoryCounts = CategoryCounts(),
+)
+
+@Serializable
+data class CategoryCounts(
+    /** Nicht archivierte Artikel. */
+    val total: Int = 0,
+    val unread: Int = 0,
+    val favorites: Int = 0,
+    val archived: Int = 0,
+)
 
 @Serializable
 data class CreateArticleRequest(val url: String, val tagIds: List<Int> = emptyList())
