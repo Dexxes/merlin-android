@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -34,8 +35,6 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.Delete
@@ -58,7 +57,6 @@ import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
@@ -69,8 +67,6 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
@@ -104,7 +100,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalView
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
@@ -141,24 +136,21 @@ import kotlin.math.roundToInt
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ArticleReaderScreen(
+    // Kein sichtbarer Zurück-Button mehr (weder oben links noch in der Bottom-Bar): Zurück läuft
+    // über die System-Zurück-Geste/-Taste (NavHost → `popBackStack`) sowie über "Archivieren und
+    // zurück" und das Löschen eines Artikels.
     onBack: () -> Unit,
-    // Äquivalent zum optionalen `onNavigateNext`-Closure unter iOS (ArticleReaderView.swift): der Reader
-    // selbst kennt keine Artikelliste/Index – der Aufrufer (hier `MainActivity`) berechnet den
-    // nächsten Artikel aus seiner eigenen gefilterten Liste und übergibt nur die Sprung-Aktion.
-    // `null` bedeutet "kein nächster Artikel vorhanden" → Button 3 wird deaktiviert/abgedunkelt.
-    onNavigateNext: (() -> Unit)? = null,
     // Unterschied zu iOS: dort teilen sich Liste und Reader dieselbe `ArticlesViewModel`-
     // Instanz, hier nicht (siehe Architektur-Hinweis in Structure.md). Damit archivierte/
     // favorisierte/getaggte/gelöschte Artikel beim Zurücknavigieren sofort aus der Liste
     // verschwinden (statt erst beim nächsten `load()`), meldet der Reader jede Änderung über
     // diese beiden Callbacks an den Aufrufer zurück (`MainActivity` verdrahtet sie auf die
-    // geteilte `ArticlesViewModel`-Instanz der "list"-Route, dieselbe, die auch `onNavigateNext`
-    // berechnet).
+    // geteilte `ArticlesViewModel`-Instanz der "list"-Route).
     onArticleChanged: (Article) -> Unit = {},
     onArticleDeleted: (Int) -> Unit = {},
     // Äquivalent zur iOS-Navigation aus dem Paywall-Banner zu `SiteCredentialsView`: der Reader
     // kennt keine eigene Navigationsroute für `SiteCredentialsScreen`, daher reicht `MainActivity`
-    // hier nur die Sprung-Aktion durch (gleiches Muster wie `onNavigateNext`).
+    // hier nur die Sprung-Aktion durch.
     onNavigateToSiteCredentials: (domain: String) -> Unit = {},
     viewModel: ArticleReaderViewModel = hiltViewModel(),
 ) {
@@ -171,7 +163,7 @@ fun ArticleReaderScreen(
     val progressEdge by viewModel.progressEdge.collectAsState()
     val accentColorHex by viewModel.accentColorHex.collectAsState()
 
-    // Native Chrome (TopAppBar/ReaderHeader/ReaderBottomBar) folgt bewusst dem gewählten
+    // Native Chrome (ReaderHeader/ReaderBottomBar) folgt bewusst dem gewählten
     // Reader-Theme statt `MaterialTheme.colorScheme` (System-Theme) – sonst klafft die Chrome
     // weiß/hell auseinander, wenn der Nutzer z.B. "Dunkel" als Reader-Theme wählt, während das
     // System-Theme hell ist (oder umgekehrt bei "Hell" auf einem Dark-Mode-Gerät). Siehe
@@ -179,7 +171,7 @@ fun ArticleReaderScreen(
     val chromeColors = rememberReaderChromeColors(appearance.theme)
 
     // Status- und Navigationsleiste folgen normalerweise `MerlinTheme`/`Theme.kt`, also dem
-    // System-Theme – exakt derselbe Bug wie bei TopAppBar/Header/Bottom-Bar oben, nur auf
+    // System-Theme – exakt derselbe Bug wie bei Header/Bottom-Bar oben, nur auf
     // Systemleisten-Ebene: weicht das gewählte Reader-Theme vom System-Theme ab, bleiben Status-
     // und Navigationsleiste in der falschen (System-)Farbe, während die restliche Reader-Chrome
     // schon auf `chromeColors` umgestellt ist – sichtbar als weißer Streifen oben/unten im
@@ -240,7 +232,7 @@ fun ArticleReaderScreen(
     var scrollProgress by remember { mutableFloatStateOf(0f) }
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
     // Nicht-persistenter Dismiss-State für PaywallWarningBanner (siehe dortiger Kommentar) –
-    // pro Artikel zurückgesetzt, damit ein Wechsel zu `nextArticleId` den Banner wieder zeigt.
+    // pro Artikel zurückgesetzt, damit ein Wechsel zu einem anderen Artikel den Banner wieder zeigt.
     var paywallBannerDismissed by remember(viewModel.articleId) { mutableStateOf(false) }
 
     // Bottom-Bar-Sichtbarkeit – Äquivalent zum `onScrollGeometryChange`-Paar unter iOS in
@@ -274,10 +266,9 @@ fun ArticleReaderScreen(
     // Äußerste Hülle: Äquivalent zum iOS-`GeometryReader` mit `.ignoresSafeArea()` für den
     // Fortschrittsbalken in ArticleReaderView.swift – der Balken liegt dort über dem *gesamten*
     // Bildschirm (inkl. der Fläche unter der Statusleiste), nicht nur über dem Artikelinhalt.
-    // Android hat hier zusätzlich eine echte `TopAppBar`, die im iOS-Original kein Äquivalent mit
-    // eigenem Layout-Platzbedarf hat; damit der Balken trotzdem die komplette Bildschirmhöhe
-    // einnimmt statt nur den Bereich unterhalb der TopAppBar, sitzt er als Geschwister-Overlay
-    // außerhalb von Scaffold/TopAppBar in dieser Box, nicht innerhalb des Scaffold-Contents.
+    // Damit der Balken die komplette Bildschirmhöhe einnimmt statt nur den (um die System-Insets
+    // verkleinerten) Scaffold-Content-Bereich, sitzt er als Geschwister-Overlay außerhalb des
+    // Scaffold in dieser Box, nicht innerhalb des Scaffold-Contents.
     Box(modifier = Modifier.fillMaxSize()) {
     // ModalNavigationDrawer öffnet in Material3 ausschließlich von der Start-Kante (links in LTR) –
     // es gibt keinen nativen "DrawerPosition"-Parameter für eine rechtsseitige Variante. Trick:
@@ -290,19 +281,12 @@ fun ArticleReaderScreen(
         // Standardmäßig öffnet ModalNavigationDrawer per Edge-Swipe – das kollidiert mit dem
         // WebView-Scrollen (jede Geste in Bildschirmnähe wird als Drawer-Aufziehen interpretiert).
         // Das Action-Sheet unter iOS (ArticleReaderView.swift) öffnet ausschließlich per Button-Tap, nie
-        // per Wisch-Geste – daher hier ebenfalls deaktiviert; Öffnen weiterhin über den Menü-Button.
+        // per Wisch-Geste – daher hier ebenfalls deaktiviert; Öffnen weiterhin über den Menü-Button in der Bottom-Bar.
         gesturesEnabled = drawerState.isOpen,
         drawerContent = {
             CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
             ModalDrawerSheet {
                 Column(modifier = Modifier.padding(vertical = 12.dp)) {
-                    Text(
-                        article?.displayTitle.orEmpty(),
-                        style = MaterialTheme.typography.titleSmall,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
-                    )
                     NavigationDrawerItem(
                         label = { Text(if (article?.isFavorite == true) "Favorit entfernen" else "Zu Favoriten hinzufügen") },
                         icon = { Icon(if (article?.isFavorite == true) Icons.Filled.Star else Icons.Outlined.Star, contentDescription = null) },
@@ -437,37 +421,17 @@ fun ArticleReaderScreen(
         CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
         Scaffold(
             containerColor = chromeColors.background,
-            topBar = {
-                TopAppBar(
-                    // Titellos – 1:1 wie iOS (kein fixer Titel-Balken, nur Back/Favorit/Menü).
-                    // Der Titel existiert nur noch einmal: im scrollenden Header
-                    // (siehe ReaderHtmlBuilder.buildHeaderHtml), nicht mehr zusätzlich hier.
-                    title = {},
-                    navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Zurück")
-                        }
-                    },
-                    actions = {
-                        IconButton(onClick = { viewModel.toggleFavorite() }) {
-                            Icon(
-                                if (article?.isFavorite == true) Icons.Filled.Star else Icons.Outlined.Star,
-                                contentDescription = "Favorit",
-                                tint = if (article?.isFavorite == true) Color(0xFFFFC107) else chromeColors.foreground,
-                            )
-                        }
-                        IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                            Icon(Icons.Filled.Menu, contentDescription = "Menü")
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = chromeColors.background,
-                        titleContentColor = chromeColors.foreground,
-                        navigationIconContentColor = chromeColors.foreground,
-                        actionIconContentColor = chromeColors.foreground,
-                    ),
-                )
-            },
+            // Keine zusätzlichen Insets: Merlin läuft (noch) nicht edge-to-edge, das Fenster liegt
+            // also bereits unterhalb der Statusleiste und oberhalb der Navigationsleiste. Compose
+            // meldet die System-Insets trotzdem, sodass `Scaffold` sie standardmäßig ein zweites
+            // Mal als Padding addiert hätte – sichtbar als leerer Streifen in Statusleistenhöhe
+            // über dem Artikel, seit die TopAppBar (die diese Insets vorher selbst geschluckt hat)
+            // entfallen ist. Beim Umstieg auf edge-to-edge (targetSdk 35) muss das wieder rein.
+            contentWindowInsets = WindowInsets(0, 0, 0, 0),
+            // Bewusst keine TopAppBar mehr: kein Zurück-Button (System-Zurück genügt), kein
+            // Favoriten-Stern (Favorisieren über das Seitenmenü) und das Menü sitzt rechts in der
+            // [ReaderBottomBar]. Der Titel existiert nur im scrollenden Header
+            // (siehe ReaderHtmlBuilder.buildHeaderHtml).
             snackbarHost = { SnackbarHost(snackbarHostState) { data -> Snackbar(snackbarData = data) } },
         ) { padding ->
             Box(modifier = Modifier.padding(padding).fillMaxSize().background(chromeColors.background)) {
@@ -610,16 +574,11 @@ fun ArticleReaderScreen(
                                     modifier = Modifier.align(Alignment.BottomCenter),
                                 ) {
                                     ReaderBottomBar(
-                                        canGoNext = onNavigateNext != null,
-                                        onBack = onBack,
                                         onArchiveAndBack = {
                                             if (!currentArticle.isArchived) viewModel.toggleArchive()
                                             onBack()
                                         },
-                                        onArchiveAndNext = {
-                                            if (!currentArticle.isArchived) viewModel.toggleArchive()
-                                            onNavigateNext?.invoke()
-                                        },
+                                        onOpenMenu = { scope.launch { drawerState.open() } },
                                         chromeColors = chromeColors,
                                     )
                                 }
@@ -634,7 +593,7 @@ fun ArticleReaderScreen(
 
     // Fortschrittsbalken als Geschwister-Overlay der Drawer/Scaffold-Hülle (siehe Kommentar an der
     // äußeren Box oben) – `Modifier.fillMaxSize()` bezieht sich hier auf die volle Bildschirmgröße
-    // dieses Composables, nicht auf den von der TopAppBar verkleinerten Scaffold-Content-Bereich.
+    // dieses Composables, nicht auf den um die System-Insets verkleinerten Scaffold-Content-Bereich.
     if (progressEdge != ProgressEdge.OFF) {
         ProgressBarOverlay(
             edge = progressEdge,
@@ -711,7 +670,7 @@ fun ArticleReaderScreen(
  *
  * [progress] ist bewusst ein Lambda und wird erst in der Draw-Phase (`drawBehind`) gelesen: der
  * Fortschritt ändert sich bei jedem Scroll-Event. Würde der Wert in einer Composition gelesen,
- * müsste bei jedem Frame der ganze `ArticleReaderScreen` (Drawer, TopAppBar, Reader-Wrapper)
+ * müsste bei jedem Frame der ganze `ArticleReaderScreen` (Drawer, Bottom-Bar, Reader-Wrapper)
  * neu komponiert werden – das war eine Hauptursache für ruckelndes Scrollen. So wird pro Frame
  * nur dieser Balken neu gezeichnet.
  */
@@ -737,17 +696,17 @@ private fun ProgressBarOverlay(edge: ProgressEdge, progress: () -> Float, colorH
 }
 
 /**
- * Äquivalent zur iOS-`bottomBar` (ArticleReaderView.swift, Ende des Readers): 3 gleich breite,
- * reine Icon-Buttons (zurück, archivieren und zurück, archivieren und weiter), getrennt durch
- * Haarlinien, 54dp hoch, Hintergrund leicht transparent mit oberer Haarlinie. Buttons 2/3
- * archivieren nur einseitig (nie un-archivieren), exakt wie im iOS-Original.
+ * Reader-Bottom-Bar (abgeleitet von der iOS-`bottomBar` in ArticleReaderView.swift): 2 gleich
+ * breite Icon-Buttons ("Archivieren und zurück" links, Menü rechts), getrennt durch eine
+ * Haarlinie, 54dp hoch, Hintergrund leicht transparent mit oberer Haarlinie. Der frühere
+ * Zurück-Button und "Archivieren und weiter" wurden entfernt; das Menü kam aus der früheren
+ * TopAppBar hierher und öffnet den (rechtsseitigen) Drawer. Archiviert nur einseitig (nie
+ * un-archivieren), wie im iOS-Original.
  */
 @Composable
 private fun ReaderBottomBar(
-    canGoNext: Boolean,
-    onBack: () -> Unit,
     onArchiveAndBack: () -> Unit,
-    onArchiveAndNext: () -> Unit,
+    onOpenMenu: () -> Unit,
     chromeColors: ReaderChromeColors,
     modifier: Modifier = Modifier,
 ) {
@@ -763,14 +722,6 @@ private fun ReaderBottomBar(
                 .background(chromeColors.elevatedBackground.copy(alpha = 0.97f)),
         ) {
             BottomBarButton(
-                icon = Icons.AutoMirrored.Filled.ArrowBack,
-                contentDescription = "Zurück",
-                onClick = onBack,
-                chromeColors = chromeColors,
-                modifier = Modifier.weight(1f),
-            )
-            VerticalDivider(thickness = 0.5.dp, color = chromeColors.separator)
-            BottomBarButton(
                 icon = Icons.Filled.Archive,
                 contentDescription = "Archivieren und zurück",
                 onClick = onArchiveAndBack,
@@ -779,13 +730,9 @@ private fun ReaderBottomBar(
             )
             VerticalDivider(thickness = 0.5.dp, color = chromeColors.separator)
             BottomBarButton(
-                icon = Icons.Filled.Archive,
-                secondaryIcon = Icons.AutoMirrored.Filled.ArrowForward,
-                contentDescription = "Archivieren und nächster Artikel",
-                onClick = onArchiveAndNext,
-                // Wie `.disabled(onNavigateNext == nil)` unter iOS plus 25-%-Abdunkelung: ohne nächsten
-                // Artikel ist der Button sichtbar, aber inaktiv und abgedunkelt.
-                enabled = canGoNext,
+                icon = Icons.Filled.Menu,
+                contentDescription = "Menü",
+                onClick = onOpenMenu,
                 chromeColors = chromeColors,
                 modifier = Modifier.weight(1f),
             )
@@ -800,30 +747,15 @@ private fun BottomBarButton(
     onClick: () -> Unit,
     chromeColors: ReaderChromeColors,
     modifier: Modifier = Modifier,
-    secondaryIcon: ImageVector? = null,
-    enabled: Boolean = true,
 ) {
-    val contentColor = if (enabled) {
-        chromeColors.foreground
-    } else {
-        chromeColors.foreground.copy(alpha = 0.25f)
-    }
     Row(
         modifier = modifier
             .fillMaxHeight()
-            .clickable(enabled = enabled, onClick = onClick),
+            .clickable(onClick = onClick),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(icon, contentDescription = contentDescription, tint = contentColor)
-        if (secondaryIcon != null) {
-            Icon(
-                secondaryIcon,
-                contentDescription = null,
-                tint = contentColor,
-                modifier = Modifier.size(16.dp),
-            )
-        }
+        Icon(icon, contentDescription = contentDescription, tint = chromeColors.foreground)
     }
 }
 
@@ -973,7 +905,7 @@ private fun HighlightColorToolbar(onColorSelected: (String) -> Unit, modifier: M
 }
 
 /**
- * Farben für die native Chrome (TopAppBar, [ReaderBottomBar]), passend zum
+ * Farben für die native Chrome ([ReaderBottomBar]), passend zum
  * gewählten Reader-Theme statt zum System-Theme – Äquivalent zu den iOS-Farben `readerBgColor`/
  * `readerFgColor`/`readerButtonBgColor`/`readerSeparatorColor`/`readerFgMutedColor`
  * (ArticleReaderView.swift). `elevatedBackground` ist die etwas hellere/dunklere Fläche für
