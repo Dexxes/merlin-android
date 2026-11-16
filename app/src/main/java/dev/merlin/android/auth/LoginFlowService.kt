@@ -1,6 +1,7 @@
 package dev.merlin.android.auth
 
 import dev.merlin.android.network.CredentialsStore
+import dev.merlin.android.network.HttpsUrls
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.Dispatchers
@@ -101,10 +102,13 @@ class LoginFlowService @Inject constructor(
                 // sonst ginge die Login-Seite nach "Abbrechen" erneut auf.
                 coroutineContext.ensureActive()
 
+                // Hinter einem TLS-Proxy meldet der Server Poll-/Login-URL oft mit
+                // http:// – Cleartext ist gesperrt, also auf https anheben.
+                val loginUrl = HttpsUrls.upgrade(decoded.login)
                 pollToken = decoded.poll.token
-                pollEndpoint = decoded.poll.endpoint
-                _loginUrl.value = decoded.login
-                decoded.login
+                pollEndpoint = HttpsUrls.upgrade(decoded.poll.endpoint)
+                _loginUrl.value = loginUrl
+                loginUrl
             }
         } finally {
             _isLoading.value = false
@@ -125,7 +129,7 @@ class LoginFlowService @Inject constructor(
             while (System.currentTimeMillis() < deadline) {
                 val result = attemptPoll(endpoint, token)
                 if (result != null) {
-                    credentialsStore.nextcloudUrl = result.server
+                    credentialsStore.nextcloudUrl = HttpsUrls.upgrade(result.server)
                     credentialsStore.username = result.loginName
                     credentialsStore.appPassword = result.appPassword
                     return@withContext
@@ -159,14 +163,17 @@ class LoginFlowService @Inject constructor(
     }
 
     /**
-     * Entfernt Leerzeichen/abschließende Slashes und ergänzt `https://`, falls kein Schema
-     * angegeben wurde (im Onboarding gibt es – anders als iOS – kein vorbelegtes "https://";
-     * ohne Schema würde OkHttp die URL ablehnen).
+     * Entfernt Leerzeichen/abschließende Slashes und erzwingt `https://`: fehlt das Schema,
+     * wird es ergänzt; `http://` oder ein doppeltes Präfix (z. B. "https://http://…" nach
+     * Einfügen einer vollständigen URL in das vorbelegte Feld) wird zu genau einem
+     * `https://` – Cleartext ist in der App nicht erlaubt.
      */
     private fun normalizeBaseUrl(serverUrl: String): String {
-        var base = serverUrl.trim().trimEnd('/')
-        if (base.isEmpty() || base == "https:" || base == "http:") throw LoginFlowException.InvalidServerUrl
-        if (!base.startsWith("http://", ignoreCase = true) && !base.startsWith("https://", ignoreCase = true)) {
+        var base = HttpsUrls.upgrade(serverUrl).trimEnd('/')
+        if (base.isEmpty() || base.equals("https:", true) || base.equals("http:", true) || base.equals("https://", true)) {
+            throw LoginFlowException.InvalidServerUrl
+        }
+        if (!base.startsWith("https://", ignoreCase = true)) {
             base = "https://$base"
         }
         if (base.toHttpUrlOrNull() == null) throw LoginFlowException.InvalidServerUrl

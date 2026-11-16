@@ -39,9 +39,11 @@ class CredentialsStore @Inject constructor(
     }
 
     var nextcloudUrl: String
-        get() = prefs.getString(KEY_NEXTCLOUD_URL, "") ?: ""
+        // Bereits gespeicherte http://-URLs (ältere Logins) beim Lesen auf https
+        // anheben, sonst schlägt jeder API-Call an der Cleartext-Sperre fehl.
+        get() = HttpsUrls.upgrade(prefs.getString(KEY_NEXTCLOUD_URL, "") ?: "")
         set(value) {
-            val trimmed = value.trim().trimEnd('/')
+            val trimmed = HttpsUrls.upgrade(value).trimEnd('/')
             prefs.edit().putString(KEY_NEXTCLOUD_URL, trimmed).apply()
         }
 
