@@ -8,6 +8,9 @@ import androidx.security.crypto.MasterKey
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * Speichert Nextcloud-Zugangsdaten verschlüsselt im Android Keystore –
@@ -45,22 +48,39 @@ class CredentialsStore @Inject constructor(
         set(value) {
             val trimmed = HttpsUrls.upgrade(value).trimEnd('/')
             prefs.edit().putString(KEY_NEXTCLOUD_URL, trimmed).apply()
+            publishConfigured()
         }
 
     var username: String
         get() = prefs.getString(KEY_USERNAME, "") ?: ""
         set(value) {
             prefs.edit().putString(KEY_USERNAME, value.trim()).apply()
+            publishConfigured()
         }
 
     var appPassword: String
         get() = prefs.getString(KEY_APP_PASSWORD, "") ?: ""
         set(value) {
             prefs.edit().putString(KEY_APP_PASSWORD, value.trim()).apply()
+            publishConfigured()
         }
 
     val isConfigured: Boolean
         get() = nextcloudUrl.isNotEmpty() && username.isNotEmpty() && appPassword.isNotEmpty()
+
+    /**
+     * Beobachtbare Variante von [isConfigured] – einzige Quelle dafür, ob die App die
+     * Artikelliste oder das Onboarding zeigt (siehe `MainActivity`). Vorher hielt
+     * `MainActivity` eine eigene Kopie, die nur über den `onLoggedOut`-Callback der
+     * Settings zurückgesetzt wurde; griff der nicht, blieb die Liste ohne Zugangsdaten
+     * stehen und lud gegen den Retrofit-Platzhalter (`example.invalid`).
+     */
+    private val _isConfiguredFlow = MutableStateFlow(isConfigured)
+    val isConfiguredFlow: StateFlow<Boolean> = _isConfiguredFlow.asStateFlow()
+
+    private fun publishConfigured() {
+        _isConfiguredFlow.value = isConfigured
+    }
 
     /** Äquivalent zu CredentialsStore.BackendKind (iOS). */
     enum class BackendKind { NEXTCLOUD, STANDALONE }
@@ -99,6 +119,7 @@ class CredentialsStore @Inject constructor(
             .remove(KEY_USERNAME)
             .remove(KEY_APP_PASSWORD)
             .apply()
+        publishConfigured()
     }
 
     // MARK: – CredentialsProvider (für AuthInterceptor)

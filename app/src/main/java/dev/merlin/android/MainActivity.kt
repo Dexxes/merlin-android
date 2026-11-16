@@ -96,7 +96,10 @@ class MainActivity : ComponentActivity() {
             MerlinTheme(theme = appTheme) {
                 // Lade-/Fehlerdialog beim Teilen von Datei-Einträgen (siehe FileShareService).
                 FileShareHost(fileShareService)
-                var isConfigured by remember { mutableStateOf(credentialsStore.isConfigured) }
+                // Direkt aus dem CredentialsStore abgeleitet: sobald die Zugangsdaten weg sind
+                // (Logout/Cache leeren), erscheint das Onboarding – unabhängig davon, welcher
+                // Screen gerade offen ist oder ob Netzwerkaufrufe noch laufen/fehlschlagen.
+                val isConfigured by credentialsStore.isConfiguredFlow.collectAsState()
                 // Splash nur einmal pro App-Start (nicht erneut nach Rotation o. Ä.).
                 var splashVisible by rememberSaveable { mutableStateOf(true) }
                 var showOfflinePrompt by remember { mutableStateOf(false) }
@@ -117,6 +120,11 @@ class MainActivity : ComponentActivity() {
                         delay(SPLASH_POLL_MILLIS)
                     }
                     splashVisible = false
+                }
+
+                // Abgemeldet → das ArticlesViewModel der alten "list"-Route nicht weiter referenzieren.
+                LaunchedEffect(isConfigured) {
+                    if (!isConfigured) splashGate.viewModel = null
                 }
 
                 Box(modifier = Modifier.fillMaxSize()) {
@@ -191,15 +199,11 @@ class MainActivity : ComponentActivity() {
                                     )
                                 }
                                 composable("settings") {
+                                    // Logout/Cache leeren braucht keinen eigenen Callback mehr: `isConfigured`
+                                    // folgt dem CredentialsStore, der NavHost verschwindet und das Onboarding
+                                    // erscheint (analog zu iOS' `logout()`/`clearCache()` in `SettingsView`).
                                     SettingsScreen(
                                         onBack = { navController.popBackStack() },
-                                        onLoggedOut = {
-                                            // Zugangsdaten wurden entfernt (Logout/Cache leeren) → zurück zum
-                                            // Onboarding, analog zu iOS' `logout()`/`clearCache()` in `SettingsView`.
-                                            isConfigured = false
-                                            splashGate.viewModel = null
-                                            navController.popBackStack("list", inclusive = true)
-                                        },
                                         onSiteCredentialsClick = { navController.navigate("site-credentials") },
                                     )
                                 }
@@ -220,7 +224,8 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
                         } else {
-                            OnboardingScreen(onLoginSuccess = { isConfigured = true })
+                            // Nach erfolgreichem Login schaltet `isConfiguredFlow` von selbst um.
+                            OnboardingScreen(onLoginSuccess = {})
                         }
                     }
 
