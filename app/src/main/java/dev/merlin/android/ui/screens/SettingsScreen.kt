@@ -35,7 +35,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -61,15 +60,14 @@ import dev.merlin.android.viewmodel.SettingsViewModel
  *
  * Statt iOS' `Form`/`Section`-Liste mit Sheet-Präsentation ein einfaches gescrolltes
  * `Column` in einem eigenen `Scaffold` mit Zurück-Pfeil (eigene Navigation-Route statt
- * `.sheet`+`dismiss()`, analog zu `RemindersScreen`). [onLoggedOut] wird aufgerufen, sobald
- * `isConfigured` von `true` auf `false` wechselt (Logout oder Cache leeren) – der Aufrufer
- * (`MainActivity`) navigiert dann zurück zum `OnboardingScreen`.
+ * `.sheet`+`dismiss()`, analog zu `RemindersScreen`). Nach Logout oder Cache leeren zeigt
+ * `MainActivity` automatisch den `OnboardingScreen`, da sie `CredentialsStore.isConfiguredFlow`
+ * beobachtet.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit,
-    onLoggedOut: () -> Unit,
     onSiteCredentialsClick: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
@@ -101,14 +99,6 @@ fun SettingsScreen(
     // Sobald der Server eine Login-URL liefert, die Login-Seite im Vollbild öffnen (siehe `OnboardingScreen`).
     loginUrl?.let { url ->
         LoginWebViewDialog(url = url, onCancel = { viewModel.cancelLogin() })
-    }
-
-    // War der Nutzer angemeldet und ist es jetzt nicht mehr (Logout/Cache leeren) →
-    // Aufrufer informieren, der zurück zum Onboarding navigiert.
-    var wasConfigured by remember { mutableStateOf(isConfigured) }
-    LaunchedEffect(isConfigured) {
-        if (wasConfigured && !isConfigured) onLoggedOut()
-        wasConfigured = isConfigured
     }
 
     Scaffold(

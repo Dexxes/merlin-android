@@ -1,6 +1,8 @@
 package dev.merlin.android.network
 
+import java.io.IOException
 import javax.inject.Inject
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.Interceptor
 import okhttp3.Response
@@ -20,10 +22,15 @@ class BaseUrlInterceptor @Inject constructor(
 ) : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
         val original = chain.request()
+        val targetsPlaceholder = original.url.host == PLACEHOLDER_HOST
         val configuredBase = credentialsStore.nextcloudUrl
             .takeIf { it.isNotEmpty() }
             ?.toHttpUrlOrNull()
-            ?: return chain.proceed(original)
+            // Ohne Server-URL (z. B. direkt nach dem Abmelden) nie gegen den Platzhalter
+            // `example.invalid` senden – das lieferte nur ein verwirrendes
+            // "Unable to resolve host". Stattdessen sofort und lokal abbrechen.
+            // Anfragen mit echter, absoluter URL (z. B. Login-Flow) laufen wie bisher durch.
+            ?: if (targetsPlaceholder) throw NotConfiguredException() else return chain.proceed(original)
 
         // Scheme/Host/Port werden ersetzt; ein eventueller Unterpfad der
         // Nextcloud-Installation (z. B. "/nextcloud") wird dem Platzhalter-Pfad
@@ -55,4 +62,11 @@ class BaseUrlInterceptor @Inject constructor(
 
         return chain.proceed(original.newBuilder().url(newUrl).build())
     }
+
+    private companion object {
+        val PLACEHOLDER_HOST: String = NetworkModule.PLACEHOLDER_BASE_URL.toHttpUrl().host
+    }
 }
+
+/** Kein Server konfiguriert (abgemeldet) – Anfrage wurde gar nicht erst gesendet. */
+class NotConfiguredException : IOException("Nicht angemeldet")
