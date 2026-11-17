@@ -27,19 +27,27 @@ DataStore, WorkManager, Coil.
 | `app/build.gradle.kts` | App-Modul: `applicationId dev.merlin.android`, minSdk 23 (siehe Begründung in todo.md, Abschnitt „Offene Fragen"), targetSdk/compileSdk 34, alle Dependencies (Compose, Retrofit, Room, Hilt, Media3, Coil) |
 | `app/src/main/AndroidManifest.xml` | Permissions (Internet, Notifications, Exact Alarm), `android:icon`/`android:roundIcon` → `@mipmap/ic_launcher`/`ic_launcher_round` (siehe „App-Icon" unten), `MainActivity` als Launcher; `ShareActivity` mit `ACTION_SEND`/`ACTION_SEND_MULTIPLE`-Intent-Filter für `*/*` (Abschnitt 10), `excludeFromRecents`/`noHistory` da reine Overlay-Activity, transparentes `Theme.Merlin.Share` |
 
-## Lokalisierung (`res/values(-de)/strings_i18n.xml`)
+## Lokalisierung (`res/values(-de|-fa)/strings_i18n.xml`)
 
-Die App gibt es auf **Englisch und Deutsch**. Englisch liegt im Default-Ordner
-`res/values/`, Deutsch in `res/values-de/`. Android wählt daher Deutsch, wenn
-das Gerät (bzw. ab Android 13 die Spracheinstellung pro App) auf Deutsch steht,
-und fällt bei jeder anderen Sprache (Französisch, Spanisch, …) auf Englisch
-zurück.
+Die App gibt es auf **Englisch, Deutsch und Persisch**. Englisch liegt im
+Default-Ordner `res/values/`, Deutsch in `res/values-de/`, Persisch in
+`res/values-fa/`. Android wählt daher Deutsch bzw. Persisch, wenn das Gerät
+(bzw. ab Android 13 die Spracheinstellung pro App) darauf steht, und fällt bei
+jeder anderen Sprache (Französisch, Spanisch, …) auf Englisch zurück.
+
+**Rechts nach links (Persisch):** `android:supportsRtl="true"`, Compose spiegelt
+Start/End-Layouts automatisch. Stellen mit eigener Richtungslogik: der
+Reader-Drawer öffnet immer von der End-Kante (`ArticleReaderScreen`, Wrapper in
+der umgekehrten Richtung, innen wieder die App-Richtung), `SwipeActionsRow`
+kehrt die Drag-Richtung in RTL um, der Tag-Chevron im `ListDrawer` zeigt in
+Leserichtung. Richtungs-Icons immer als `Icons.AutoMirrored.*`. Der
+Artikelinhalt im Reader richtet sich nach dem Artikel, nicht nach der App-Sprache.
 
 `merlin-translations` ist die zentrale Quelle für alle UI-Strings
 (`<lang>.json`, siehe `schema.md` dort). `python3 export.py --platform android`
 (im Ordner `merlin-translations`, mit `merlin-android` daneben) generiert daraus
-`res/values/strings_i18n.xml` (Quellsprache `en`) und
-`res/values-de/strings_i18n.xml` – eigene Datei statt Einträge in der
+`res/values/strings_i18n.xml` (Quellsprache `en`),
+`res/values-de/strings_i18n.xml` und `res/values-fa/strings_i18n.xml` – eigene Datei statt Einträge in der
 bestehenden `strings.xml`, damit die dort von Hand gepflegte `app_name`-
 Ressource unangetastet bleibt (der Exporter lässt `app.name` deshalb aus). Nicht
 direkt editieren, Änderungen gehen beim nächsten Export verloren – stattdessen

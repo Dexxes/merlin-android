@@ -36,7 +36,7 @@ android {
     // ~80 Sprachen mit, und auf einem z. B. französischen Gerät stünden dann französische
     // System-Buttons (Date-/TimePicker) neben englischen App-Texten.
     androidResources {
-        localeFilters += listOf("en", "de")
+        localeFilters += listOf("en", "de", "fa")
     }
 
     buildFeatures {

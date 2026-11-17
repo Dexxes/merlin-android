@@ -428,11 +428,14 @@ fun ArticleReaderScreen(
     // Scaffold in dieser Box, nicht innerhalb des Scaffold-Contents.
     Box(modifier = Modifier.fillMaxSize()) {
     // ModalNavigationDrawer öffnet in Material3 ausschließlich von der Start-Kante (links in LTR) –
-    // es gibt keinen nativen "DrawerPosition"-Parameter für eine rechtsseitige Variante. Trick:
-    // den Drawer in einem RTL-LocalLayoutDirection einbetten (Start-Kante wird dadurch rechts),
-    // und sowohl drawerContent als auch den Hauptinhalt innen wieder auf LTR zurücksetzen, damit
-    // Texte/Icons nicht gespiegelt werden – nur der Drawer selbst öffnet von rechts.
-    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+    // es gibt keinen nativen "DrawerPosition"-Parameter für eine End-seitige Variante. Trick:
+    // den Drawer in der umgekehrten LocalLayoutDirection einbetten (Start-Kante wird dadurch zur
+    // End-Kante), und sowohl drawerContent als auch den Hauptinhalt innen wieder auf die
+    // Richtung der App-Sprache zurücksetzen, damit Texte/Icons nicht gespiegelt werden – nur der
+    // Drawer selbst öffnet von der End-Kante (rechts bei Deutsch/Englisch, links bei Persisch).
+    val appLayoutDirection = LocalLayoutDirection.current
+    val drawerHostDirection = if (appLayoutDirection == LayoutDirection.Ltr) LayoutDirection.Rtl else LayoutDirection.Ltr
+    CompositionLocalProvider(LocalLayoutDirection provides drawerHostDirection) {
     ModalNavigationDrawer(
         drawerState = drawerState,
         // Standardmäßig öffnet ModalNavigationDrawer per Edge-Swipe – das kollidiert mit dem
@@ -441,7 +444,7 @@ fun ArticleReaderScreen(
         // per Wisch-Geste – daher hier ebenfalls deaktiviert; Öffnen weiterhin über den Menü-Button in der Bottom-Bar.
         gesturesEnabled = drawerState.isOpen,
         drawerContent = {
-            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+            CompositionLocalProvider(LocalLayoutDirection provides appLayoutDirection) {
             ModalDrawerSheet {
                 Column(modifier = Modifier.padding(vertical = 12.dp)) {
                     NavigationDrawerItem(
@@ -615,7 +618,7 @@ fun ArticleReaderScreen(
             }
         },
     ) {
-        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+        CompositionLocalProvider(LocalLayoutDirection provides appLayoutDirection) {
         Scaffold(
             containerColor = chromeColors.background,
             // Keine zusätzlichen Insets: Merlin läuft (noch) nicht edge-to-edge, das Fenster liegt

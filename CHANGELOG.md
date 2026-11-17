@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- Persian (fa) translation. The layout switches to right-to-left: the reader
+  menu opens from the left edge, list swipe gestures are mirrored, and
+  back/expand arrows point the right way. Dates use the Gregorian calendar
+  with Persian month names and digits.
 - The app is now fully available in English and German. All screens, menus,
   dialogs, error messages, notifications and the reader header use string
   resources generated from `merlin-translations`. German devices get German;
@@ -196,6 +200,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   connectivity returns, instead of being silently dropped
 
 ### Fixed
+- Generated `strings_i18n.xml` files contained `--` inside an XML comment,
+  which is not well-formed XML and can break the resource build.
 
 - Logging out in Settings now always returns to the login screen instead of
   showing "Unable to resolve host 'example.invalid'". Whether the list or the
