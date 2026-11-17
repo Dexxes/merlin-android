@@ -17,6 +17,12 @@ interface ReaderDocumentActions {
 
     fun clearSelection()
 
+    /**
+     * Zitat-Tafel: Text der aktuellen Auswahl (mit Absätzen) an [onResult], danach ist die Auswahl
+     * aufgehoben. `null`, wenn es keine gibt – und immer bei PDFs (wie auf iOS nur Text-Artikel).
+     */
+    fun quoteSelection(onResult: (String?) -> Unit) = onResult(null)
+
     /** „Im Text zeigen“: zur Markierung springen. */
     fun reveal(highlightId: Int)
 
@@ -57,6 +63,14 @@ class WebViewDocumentActions(
 
     override fun clearSelection() {
         webView.evaluateJavascript("window.getSelection() && window.getSelection().removeAllRanges();", null)
+    }
+
+    override fun quoteSelection(onResult: (String?) -> Unit) {
+        webView.evaluateJavascript("MerlinReader.quoteSelection ? MerlinReader.quoteSelection() : ''") { result ->
+            // Ergebnis kommt als JSON-Literal (String in Anführungszeichen bzw. `null`).
+            val text = runCatching { org.json.JSONTokener(result).nextValue() as? String }.getOrNull()
+            onResult(text?.takeIf { it.isNotBlank() })
+        }
     }
 
     override fun reveal(highlightId: Int) {

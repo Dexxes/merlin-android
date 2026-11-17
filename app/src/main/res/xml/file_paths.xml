@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Für den FileProvider freigegebene Ordner: nur die zum Teilen geladenen Dateien
-     (FileShareService.DOWNLOADS_FOLDER im Cache). -->
+     (FileShareService.DOWNLOADS_FOLDER im Cache) und das Bild der Zitat-Tafel
+     (QuoteImageActions.SHARE_FOLDER). -->
 <paths>
     <cache-path name="share-out" path="merlin-share-out/" />
+    <cache-path name="quote-out" path="merlin-quote-out/" />
 </paths>

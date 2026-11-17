@@ -1056,6 +1056,28 @@ window.MerlinReader = (function() {
     MerlinHighlightBridge.onCommentAnchor(JSON.stringify(anchor));
   }
 
+  // Zitat-Tafel: Text der Auswahl mit Absätzen (Range.toString kennt keine Umbrüche, daher kurz
+  // unsichtbar ins Dokument hängen und innerText lesen, wie `quotePlainText` auf iOS); danach die
+  // Auswahl aufheben, damit Griffe und Kontextmenü verschwinden. '' = keine Auswahl.
+  function quoteSelection() {
+    var sel = window.getSelection();
+    if (!sel || sel.isCollapsed || sel.rangeCount === 0) return '';
+    var r = sel.getRangeAt(0), text;
+    try {
+      var d = document.createElement('div');
+      d.style.cssText = 'position:absolute;left:-99999px;top:0;width:600px;';
+      d.appendChild(r.cloneContents());
+      document.body.appendChild(d);
+      text = d.innerText;
+      d.remove();
+      text = text.replace(/[ \t]+\n/g, '\n').replace(/\n{2,}/g, '\n').trim();
+    } catch (e) {
+      text = r.toString().trim();
+    }
+    sel.removeAllRanges();
+    return text;
+  }
+
   // „Im Text zeigen“ aus dem Kommentar-Sheet.
   function reveal(id) {
     var spans = marksOf(id);
@@ -1167,6 +1189,7 @@ window.MerlinReader = (function() {
     setHighlights: setHighlights,
     createHighlightFromSelection: createHighlightFromSelection,
     commentFromSelection: commentFromSelection,
+    quoteSelection: quoteSelection,
     reveal: reveal
   };
 })();

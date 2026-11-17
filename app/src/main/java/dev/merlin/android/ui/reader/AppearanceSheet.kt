@@ -74,6 +74,7 @@ fun AppearanceSheet(
     val accentColorHex by viewModel.accentColorHex.collectAsState()
     val progressEdge by viewModel.progressEdge.collectAsState()
     val handsFreeButton by viewModel.handsFreeButton.collectAsState()
+    val quoteMode by viewModel.quoteMode.collectAsState()
     val paperTexture by viewModel.paperTexture.collectAsState()
     val isSystemDark = isSystemInDarkTheme()
     val scope = rememberCoroutineScope()
@@ -287,6 +288,28 @@ fun AppearanceSheet(
                 Switch(
                     checked = handsFreeButton,
                     onCheckedChange = { viewModel.setHandsFreeButton(it) },
+                )
+            }
+
+            // Zitat-Tafel: Knopf an der Markierungsleiste (Standard: an), wie `quoteModeRow` im
+            // iOS-Erscheinungsbild-Sheet. Nur lokal, nicht mit dem Server gesynct.
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(stringResource(R.string.articleReader_appearance_quoteMode), style = MaterialTheme.typography.labelLarge)
+                    Text(
+                        stringResource(R.string.articleReader_appearance_quoteModeFooter),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 2.dp),
+                    )
+                }
+                Switch(
+                    checked = quoteMode,
+                    onCheckedChange = { viewModel.setQuoteMode(it) },
                 )
             }
         }

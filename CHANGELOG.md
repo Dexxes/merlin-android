@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- Quote card, as on iOS: selecting text (or tapping a highlight) shows a
+  "Quote card" button above the color bar. It puts the passage on its own on
+  blurred glass over the whole screen, with status and navigation bars hidden.
+  Swipe sideways for eight backgrounds (the article itself, bubbles, sunset,
+  ocean, hearts, rainbow, aurora, candy), drag the text, pinch to zoom it.
+  "Design" offers font, size, color, blur strength and a glow behind the text;
+  "Author"/"Source" add a "— Author · site.com" line. "Save Image" stores a PNG
+  in Pictures/Merlin, "Share" opens the share sheet; both use exactly what is
+  on screen, minus the buttons. Tap the glass, ✕ or Back to close. The button
+  can be turned off in the Appearance sheet; all choices are stored on the
+  device only. Text articles only.
 - The app is now fully available in English and German. All screens, menus,
   dialogs, error messages, notifications and the reader header use string
   resources generated from `merlin-translations`. German devices get German;

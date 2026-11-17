@@ -8,6 +8,11 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Zitat-Tafel „Bild speichern“: nur bis Android 9 nötig, ab 10 legt MediaStore ohne
+         Berechtigung in „Bilder/Merlin“ ab (siehe QuoteImageActions). -->
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28" />
 
     <application
         android:name=".MerlinApp"

@@ -14,6 +14,7 @@ import dev.merlin.android.data.OfflineHighlightQueue
 import dev.merlin.android.data.OfflineMutationQueue
 import dev.merlin.android.data.PdfCacheService
 import dev.merlin.android.data.PreferencesStore
+import dev.merlin.android.data.QuotePrefs
 import dev.merlin.android.data.ReminderService
 import dev.merlin.android.data.ReportService
 import dev.merlin.android.data.SettingsSyncQueue
@@ -282,6 +283,29 @@ class ArticleReaderViewModel @Inject constructor(
 
     fun setHandsFreeButton(enabled: Boolean) {
         viewModelScope.launch { preferencesStore.setReaderHandsFreeButton(enabled) }
+    }
+
+    /** Zitat-Tafel: Knopf an der Markierungsleiste zeigen (Schalter im Erscheinungsbild-Sheet). */
+    val quoteMode: StateFlow<Boolean> = preferencesStore.readerQuoteMode
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
+
+    fun setQuoteMode(enabled: Boolean) {
+        viewModelScope.launch { preferencesStore.setReaderQuoteMode(enabled) }
+    }
+
+    /** Gemerkte Gestaltung der Zitat-Tafel (Schrift, Farbe, Hintergrund, …). */
+    val quotePrefs: StateFlow<QuotePrefs> = preferencesStore.readerQuotePrefs
+        .stateIn(viewModelScope, SharingStarted.Eagerly, QuotePrefs())
+
+    fun saveQuotePrefs(prefs: QuotePrefs) {
+        viewModelScope.launch { preferencesStore.setReaderQuotePrefs(prefs) }
+    }
+
+    /** `true` nur beim allerersten Öffnen der Zitat-Tafel (Hinweis „Tippen zum Schließen“). */
+    suspend fun consumeQuoteHint(): Boolean {
+        if (preferencesStore.readerQuoteHintShown()) return false
+        preferencesStore.setReaderQuoteHintShown()
+        return true
     }
 
     /** Papierstruktur als Reader-Hintergrund (Schalter im Erscheinungsbild-Sheet, nur Hell/Sepia). */
