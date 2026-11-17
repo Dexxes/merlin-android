@@ -57,6 +57,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
@@ -204,7 +206,7 @@ fun ListDrawerContent(
                         Icons.Filled.ChevronRight,
                         contentDescription = stringResource(if (tagsExpanded) R.string.android_common_collapse else R.string.android_common_expand),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.rotate(if (tagsExpanded) 90f else 0f),
+                        modifier = Modifier.rotate(chevronRotation(tagsExpanded)),
                     )
                 }
                 AnimatedVisibility(visible = tagsExpanded) {
@@ -329,7 +331,7 @@ private fun TagTreeDrawerRow(
                         Icons.Filled.ChevronRight,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(18.dp).rotate(if (expanded) 90f else 0f),
+                        modifier = Modifier.size(18.dp).rotate(chevronRotation(expanded)),
                     )
                 }
             } else {
@@ -383,4 +385,15 @@ private fun TagTreeDrawerRow(
 @Composable
 private fun DrawerDivider() {
     HorizontalDivider(modifier = Modifier.padding(start = 20.dp))
+}
+
+/**
+ * Drehung des Aufklapp-Chevrons: zugeklappt zeigt er in Leserichtung (rechts, bei Persisch
+ * links), aufgeklappt nach unten.
+ */
+@Composable
+private fun chevronRotation(expanded: Boolean): Float = when {
+    expanded -> 90f
+    LocalLayoutDirection.current == LayoutDirection.Rtl -> 180f
+    else -> 0f
 }

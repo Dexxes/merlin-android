@@ -34,9 +34,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -92,6 +94,7 @@ fun SwipeActionsRow(
     val maxTrailingPx = trailingActions.size * actionWidthPx
     val maxLeadingPx = if (leadingAction != null) actionWidthPx else 0f
 
+    val isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl
     val offsetX = remember { Animatable(0f) }
     val scope = rememberCoroutineScope()
     var dragBase by remember { mutableStateOf(0f) }
@@ -132,6 +135,10 @@ fun SwipeActionsRow(
                 .offset { IntOffset(offsetX.value.roundToInt(), 0) }
                 .draggable(
                     orientation = Orientation.Horizontal,
+                    // offsetX ist logisch (Start→End positiv) und wird von Modifier.offset in RTL
+                    // gespiegelt; die Drag-Deltas kommen dagegen physisch (links→rechts positiv).
+                    // In RTL daher umkehren, sonst liefe die Karte gegen den Finger.
+                    reverseDirection = isRtl,
                     state = rememberDraggableState { delta ->
                         val newValue = (offsetX.value + delta).coerceIn(-maxTrailingPx, maxLeadingPx)
                         scope.launch { offsetX.snapTo(newValue) }
