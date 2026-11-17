@@ -73,12 +73,11 @@ fun OnboardingScreen(
         verticalArrangement = Arrangement.Center,
     ) {
         Text(
-            text = stringResource(R.string.settings_account_connectHeadline),
+            text = stringResource(R.string.android_settings_account_connectHeadline),
             style = MaterialTheme.typography.headlineSmall,
         )
 
-        // Backend-Namen ("Nextcloud"/"Standalone-Server") bewusst nicht lokalisiert -
-        // Eigennamen, analog zu SettingsView.swift's `Picker("Backend", ...)`.
+        // "Nextcloud" ist ein Eigenname und bleibt unübersetzt.
         SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
             SegmentedButton(
                 selected = backendKind == CredentialsStore.BackendKind.NEXTCLOUD,
@@ -89,7 +88,7 @@ fun OnboardingScreen(
                 selected = backendKind == CredentialsStore.BackendKind.STANDALONE,
                 onClick = { backendKind = CredentialsStore.BackendKind.STANDALONE },
                 shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
-            ) { Text("Standalone-Server") }
+            ) { Text(stringResource(R.string.settings_account_backendStandalone)) }
         }
 
         OutlinedTextField(

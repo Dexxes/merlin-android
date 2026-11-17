@@ -8,6 +8,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import dev.merlin.android.R
 import dev.merlin.android.models.Tag
 import dev.merlin.android.models.TagTree
 import dev.merlin.android.network.CreateArticleRequest
@@ -150,17 +151,17 @@ class ShareViewModel @Inject constructor(
             return
         }
         if (shared.streams.isEmpty()) {
-            showError("Keine URL im geteilten Inhalt gefunden.")
+            showError(context.getString(R.string.share_result_errorNoUrl))
             return
         }
         if (credentialsStore.backendKind == CredentialsStore.BackendKind.STANDALONE) {
-            showError("Dateien lassen sich nur mit Nextcloud speichern, nicht mit dem Merlin-Server.")
+            showError(context.getString(R.string.share_files_errorStandalone))
             return
         }
         viewModelScope.launch {
             val files = withContext(Dispatchers.IO) { copyToCache(shared) }
             if (files.isEmpty()) {
-                showError("Die geteilte Datei konnte nicht gelesen werden.")
+                showError(context.getString(R.string.share_files_errorReadFile))
             } else {
                 showStaging(files)
             }
@@ -214,7 +215,7 @@ class ShareViewModel @Inject constructor(
 
         var name = displayName?.takeIf { it.isNotBlank() }
             ?: uri.lastPathSegment?.substringAfterLast('/')?.takeIf { it.isNotBlank() }
-            ?: "Datei"
+            ?: context.getString(R.string.android_share_defaultFileName)
         name = name.replace('/', '-')
         val ext = MimeTypeMap.getSingleton().getExtensionFromMimeType(mimeType)
         if (ext != null && name.substringAfterLast('.', "").isEmpty()) name += ".$ext"
@@ -346,23 +347,23 @@ class ShareViewModel @Inject constructor(
             finish()
         } catch (e: HttpException) {
             when (e.code()) {
-                401 -> showError(ERROR_AUTH)
-                404 -> showError("Merlin-App auf diesem Server nicht gefunden.")
-                429 -> showRateLimited(ERROR_RATE_LIMITED)
+                401 -> showError(context.getString(R.string.share_result_errorAuthFailed))
+                404 -> showError(context.getString(R.string.share_result_errorAppNotFound))
+                429 -> showRateLimited(context.getString(R.string.share_result_errorRateLimited))
                 else -> {
                     val detail = serverMessage(runCatching { e.response()?.errorBody()?.string() }.getOrNull())
-                    showError("Serverfehler (HTTP ${e.code()})." + (detail?.let { "\n$it" } ?: ""))
+                    showError(context.getString(R.string.share_result_errorServerCode, e.code()) + (detail?.let { "\n$it" } ?: ""))
                 }
             }
         } catch (e: Exception) {
-            showError("Netzwerkfehler: ${e.message ?: "unbekannt"}")
+            showError(context.getString(R.string.share_result_errorNetwork, e.message ?: context.getString(R.string.android_share_unknownErrorShort)))
         }
     }
 
     private suspend fun saveFiles(files: List<SharedFile>, tagIds: List<Int>) {
         val authorization = credentialsStore.basicAuthHeader
         if (authorization == null) {
-            showError(ERROR_AUTH)
+            showError(context.getString(R.string.share_result_errorAuthFailed))
             return
         }
         val uploader = FileUploader(api, credentialsStore.nextcloudUrl, authorization, json)
@@ -392,16 +393,16 @@ class ShareViewModel @Inject constructor(
     }
 
     private fun showUploadError(error: Exception, file: SharedFile) {
-        val failed = "Hochladen fehlgeschlagen: ${file.name}"
+        val failed = context.getString(R.string.share_files_errorUpload, file.name)
         val message = when (error) {
             is FileUploader.UploadError.Http -> when (error.code) {
-                401 -> ERROR_AUTH
-                429 -> ERROR_RATE_LIMITED
-                else -> "$failed\nServerfehler (HTTP ${error.code})." + (error.serverMessage?.let { "\n$it" } ?: "")
+                401 -> context.getString(R.string.share_result_errorAuthFailed)
+                429 -> context.getString(R.string.share_result_errorRateLimited)
+                else -> "$failed\n" + context.getString(R.string.share_result_errorServerCode, error.code) + (error.serverMessage?.let { "\n$it" } ?: "")
             }
-            is FileUploader.UploadError.UnreadableFile -> "Die geteilte Datei konnte nicht gelesen werden."
-            is FileUploader.UploadError.InvalidResponse -> "$failed\nKeine Antwort vom Server."
-            else -> "$failed\nNetzwerkfehler: ${error.message ?: "unbekannt"}"
+            is FileUploader.UploadError.UnreadableFile -> context.getString(R.string.share_files_errorReadFile)
+            is FileUploader.UploadError.InvalidResponse -> "$failed\n" + context.getString(R.string.share_result_errorNoResponse)
+            else -> "$failed\n" + context.getString(R.string.share_result_errorNetwork, error.message ?: context.getString(R.string.android_share_unknownErrorShort))
         }
         showError(message)
     }
@@ -442,9 +443,6 @@ class ShareViewModel @Inject constructor(
     companion object {
         private const val PREFS_NAME = "merlin_share"
         private const val KEY_COMPRESSION = "shareImageCompression"
-        private const val ERROR_AUTH = "Authentifizierung fehlgeschlagen.\nÜberprüfe deine Zugangsdaten in der Merlin-App."
-        private const val ERROR_RATE_LIMITED =
-            "Der Server begrenzt aktuell die Anfragen.\nBitte warte einen Moment und versuche es erneut."
 
         /**
          * Findet die erste http(s)-URL in einem beliebigen Text – Äquivalent zu

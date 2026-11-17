@@ -35,6 +35,7 @@ import dev.merlin.android.models.Article
 import dev.merlin.android.models.Highlight
 import dev.merlin.android.models.CommentAnchor
 import dev.merlin.android.models.HighlightCreate
+import dev.merlin.android.ui.appLocale
 import dev.merlin.android.viewmodel.ArticleReaderViewModel
 
 /**
@@ -129,8 +130,18 @@ fun ReaderWebView(
             )
         }
     }
-    val html = remember(article.id, appearance, isSystemDark, supportBox, supportBoxTexts, transparentBackground) {
-        ReaderHtmlBuilder.build(article, appearance, isSystemDark, supportBoxTexts, transparentBackground)
+    val locale = appLocale()
+    val readerTexts = remember(locale) {
+        ReaderHtmlBuilder.ReaderTexts(
+            authorLabel = context.getString(R.string.articleReader_labels_author),
+            savedLabel = context.getString(R.string.articleReader_labels_saved),
+            readingTimeFormat = context.getString(R.string.android_articleList_readingTimeMinutes),
+            imageUnavailable = context.getString(R.string.articleReader_imagePlaceholder_unavailable),
+            locale = locale,
+        )
+    }
+    val html = remember(article.id, appearance, isSystemDark, supportBox, supportBoxTexts, readerTexts, transparentBackground) {
+        ReaderHtmlBuilder.build(article, readerTexts, appearance, isSystemDark, supportBoxTexts, transparentBackground)
     }
     // Markierungen und Kommentar-Zähler setzt ein Skript nach dem Laden bzw. bei jeder Änderung –
     // ein Neuladen der Seite (wie früher) würde die Leseposition zurücksetzen.

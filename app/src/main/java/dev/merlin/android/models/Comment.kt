@@ -2,6 +2,8 @@
 
 package dev.merlin.android.models
 
+import androidx.annotation.StringRes
+import dev.merlin.android.R
 import java.time.Instant
 import java.time.OffsetDateTime
 import kotlinx.serialization.EncodeDefault
@@ -105,10 +107,12 @@ data class CommentErrorBody(val error: String = "")
  * `comment_deleted`, `not_found`. Äquivalent zu `CommentAPIError` in `MerlinAPI.swift`.
  */
 class CommentApiException(val code: String, val status: Int) : Exception(code) {
-    val userMessage: String
+    /** Meldung für die Oberfläche, als String-Ressource. */
+    @get:StringRes
+    val userMessage: Int
         get() = when (code) {
-            "body_too_long" -> "Der Kommentar darf höchstens 5000 Zeichen lang sein."
-            "body_empty" -> "Der Kommentar ist leer."
-            else -> "Der Kommentar konnte nicht gespeichert werden."
+            "body_too_long" -> R.string.articleReader_comments_error_bodyTooLong
+            "body_empty" -> R.string.articleReader_comments_error_bodyEmpty
+            else -> R.string.articleReader_comments_error_generic
         }
 }

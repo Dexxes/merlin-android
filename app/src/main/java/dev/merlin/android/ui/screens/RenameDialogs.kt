@@ -17,11 +17,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
+import dev.merlin.android.R
 import dev.merlin.android.models.Article
 import kotlinx.coroutines.launch
 
@@ -60,13 +62,13 @@ fun RenameFileDialog(
 
     AlertDialog(
         onDismissRequest = { if (!isSaving) onDismiss() },
-        title = { Text("Datei umbenennen") },
+        title = { Text(stringResource(R.string.fileRename_title)) },
         text = {
             Column {
                 OutlinedTextField(
                     value = field,
                     onValueChange = { field = it; errorMessage = null },
-                    placeholder = { Text("Name") },
+                    placeholder = { Text(stringResource(R.string.fileRename_placeholder)) },
                     singleLine = true,
                     enabled = !isSaving,
                     isError = errorMessage != null,
@@ -80,7 +82,7 @@ fun RenameFileDialog(
                 )
                 if (extension.isNotEmpty()) {
                     Text(
-                        "Die Endung .$extension bleibt erhalten.",
+                        stringResource(R.string.fileRename_message, extension),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 8.dp),
@@ -97,10 +99,10 @@ fun RenameFileDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = ::save, enabled = canSave) { Text("Umbenennen") }
+            TextButton(onClick = ::save, enabled = canSave) { Text(stringResource(R.string.fileRename_confirm)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss, enabled = !isSaving) { Text("Abbrechen") }
+            TextButton(onClick = onDismiss, enabled = !isSaving) { Text(stringResource(R.string.common_cancel)) }
         },
     )
 }
@@ -149,13 +151,13 @@ fun RenameTagDialog(
 
     AlertDialog(
         onDismissRequest = { if (!isSaving) onDismiss() },
-        title = { Text("Tag umbenennen") },
+        title = { Text(stringResource(R.string.android_tags_renameTitle)) },
         text = {
             Column {
                 OutlinedTextField(
                     value = field,
                     onValueChange = { field = it; errorMessage = null },
-                    placeholder = { Text("Name") },
+                    placeholder = { Text(stringResource(R.string.fileRename_placeholder)) },
                     singleLine = true,
                     enabled = !isSaving,
                     isError = errorMessage != null,
@@ -174,10 +176,10 @@ fun RenameTagDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = ::save, enabled = canSave) { Text("Umbenennen") }
+            TextButton(onClick = ::save, enabled = canSave) { Text(stringResource(R.string.fileRename_confirm)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss, enabled = !isSaving) { Text("Abbrechen") }
+            TextButton(onClick = onDismiss, enabled = !isSaving) { Text(stringResource(R.string.common_cancel)) }
         },
     )
 }

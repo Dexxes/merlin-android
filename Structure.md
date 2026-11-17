@@ -29,30 +29,59 @@ DataStore, WorkManager, Coil.
 
 ## Lokalisierung (`res/values(-de)/strings_i18n.xml`)
 
-`merlin-translations` ist die zentrale Quelle für alle UI-Strings
-(`localization/strings/<lang>.json`, siehe `schema.md` dort). `export.py
---platform android` generiert daraus `res/values/strings_i18n.xml`
-(Quellsprache `en`) und `res/values-de/strings_i18n.xml` – eigene Datei statt
-Einträge in der bestehenden `strings.xml`, damit die dort von Hand gepflegte
-`app_name`-Ressource unangetastet bleibt. Nicht direkt editieren, Änderungen
-gehen beim nächsten Export verloren – stattdessen `strings/<lang>.json` in
-`merlin-translations` anpassen und neu exportieren. Wie iOS werden
-`webext.*`/`nextcloudWeb.*`/`merlinServer.*`-Keys nicht mit exportiert.
-Mehrfache Platzhalter in einem String werden positionell (`%1$s`, `%2$d`)
-statt wie bei iOS einfach (`%@`/`%lld`) ausgegeben – Android verlangt das bei
-mehr als einem Platzhalter zwingend.
+Die App gibt es auf **Englisch und Deutsch**. Englisch liegt im Default-Ordner
+`res/values/`, Deutsch in `res/values-de/`. Android wählt daher Deutsch, wenn
+das Gerät (bzw. ab Android 13 die Spracheinstellung pro App) auf Deutsch steht,
+und fällt bei jeder anderen Sprache (Französisch, Spanisch, …) auf Englisch
+zurück.
 
-**Migrationsstand:** `OnboardingScreen.kt` und `SettingsScreen.kt` (Server-
-URL-Eingabe, Login-Flow, Konto-/Präferenzen-/Cache-/Über-/Entwickler-
-Sektionen) sind vollständig auf `stringResource()`/`pluralStringResource()`
-umgestellt. Backend-Namen (`"Nextcloud"`/`"Standalone-Server"`) und die
-`ProgressEdge`-Kantenlabel (`"Links"`/`"Oben"`/…) bleiben bewusst
-hartcodiert – analog zu `SettingsView.swift`, das dieselben Strings ebenso
-wenig lokalisiert. Alle übrigen Screens (Artikelliste/-reader, Onboarding-
-Tour, Erinnerungen, Teilen, Sheets) haben noch keine `stringResource()`-Aufrufe
-und müssen schrittweise nachgezogen werden – die dafür nötigen Keys liegen
-bereits vollständig in `strings_i18n.xml` (819 Keys insgesamt, siehe
-`merlin-translations/localization/strings/en.json`).
+`merlin-translations` ist die zentrale Quelle für alle UI-Strings
+(`<lang>.json`, siehe `schema.md` dort). `python3 export.py --platform android`
+(im Ordner `merlin-translations`, mit `merlin-android` daneben) generiert daraus
+`res/values/strings_i18n.xml` (Quellsprache `en`) und
+`res/values-de/strings_i18n.xml` – eigene Datei statt Einträge in der
+bestehenden `strings.xml`, damit die dort von Hand gepflegte `app_name`-
+Ressource unangetastet bleibt (der Exporter lässt `app.name` deshalb aus). Nicht
+direkt editieren, Änderungen gehen beim nächsten Export verloren – stattdessen
+`<lang>.json` in `merlin-translations` anpassen und neu exportieren.
+
+- **Namen:** Dot-Key mit `_` (`settings.account.loginButton` →
+  `R.string.settings_account_loginButton`).
+- **Namespaces:** exportiert werden alle App-Keys; `webext.*`/`nextcloudWeb.*`/
+  `merlinServer.*` nicht. Texte, die es nur auf Android gibt (Android-eigene
+  Bedienelemente, Fehlermeldungen der ViewModels, …), stehen unter `android.*`
+  und werden umgekehrt nicht nach iOS exportiert.
+- **Platzhalter:** positionell (`%1$s`, `%2$d`), Reihenfolge nach dem ersten
+  Auftreten im englischen Text; `{count}`/`{code}` sind Integer, alles andere
+  `%s`.
+- **Plurals:** `<plurals>` + `pluralStringResource()`.
+
+**Im Code:** Compose nutzt `stringResource()`/`pluralStringResource()`.
+ViewModels bekommen `@ApplicationContext` und lösen über `context.getString()`
+auf. Modelle/Enums (z. B. `ArticleFilter.label`, `ImageCompression.titleRes`,
+`SwipeAction.label`, `CommentApiException.userMessage`) tragen `@StringRes`-IDs
+statt fertiger Texte. Fehler aus Services/Interceptoren, die Nutzer sehen
+können, implementieren `LocalizedError` (`data/LocalizedError.kt`) und werden
+mit `Throwable.userMessage(context)` übersetzt; `Exception.message` bleibt
+englisch für Logs. `ReaderHtmlBuilder` (ohne Context) bekommt seine Texte als
+`ReaderTexts`/`SupportBoxTexts` vom `ReaderWebView`.
+
+**Datums-/Zahlenformate:** `AppLocale.of(context)` bzw. `appLocale()`
+(`ui/AppLocale.kt`) liefert die Locale passend zur *angezeigten* Sprache (über
+den Key `android.localeTag`): spricht das Gerät dieselbe Sprache, bleibt dessen
+Region erhalten (en-GB, de-AT), sonst gilt die App-Sprache – damit auf einem
+französischen Gerät kein „17 nov.“ in einem englischen Satz steht. Genutzt für
+Erinnerungen (Sheet + Liste, 12/24-h nach Geräteeinstellung), Ablaufdatum des
+Freigabelinks und das Kurzdatum im Reader-Header.
+
+**Sprachkonfiguration:** `res/xml/locales_config.xml` (im Manifest als
+`android:localeConfig`) meldet `en`/`de` für die App-Spracheinstellung ab
+Android 13. `androidResources.localeFilters = en, de` in `app/build.gradle.kts`
+wirft die Übersetzungen der Bibliotheken für andere Sprachen raus, damit
+System-Buttons (Date-/TimePicker) zur App-Sprache passen.
+
+Bewusst nicht übersetzt: der Eigenname „Nextcloud“ im Backend-Umschalter und
+die Werte der Entwickler-Sektion in den Einstellungen.
 
 ## App-Icon (`res/mipmap-*`)
 

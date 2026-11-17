@@ -1,5 +1,8 @@
 package dev.merlin.android.models
 
+import androidx.annotation.StringRes
+import dev.merlin.android.R
+
 /**
  * Oberste Inhaltskategorie eines Artikels, Äquivalent zu `ContentGroup` in
  * `ArticlesViewModel.swift`: "Video" und "Audio" sind eigene Kategorien, alles
@@ -23,13 +26,14 @@ enum class ContentGroup {
             FILES -> "file"
         }
 
-    /** Tab-Beschriftung im Seitenmenü (siehe `ListFlyoutModifier.swift`). */
-    val label: String
+    /** Tab-Beschriftung im Seitenmenü (siehe `ListFlyoutModifier.swift`), als String-Ressource. */
+    @get:StringRes
+    val label: Int
         get() = when (this) {
-            PAGES -> "Text"
-            VIDEOS -> "Video"
-            AUDIO -> "Audio"
-            FILES -> "Dateien"
+            PAGES -> R.string.navigationMenu_tab_text
+            VIDEOS -> R.string.navigationMenu_tab_video
+            AUDIO -> R.string.navigationMenu_tab_audio
+            FILES -> R.string.navigationMenu_tab_files
         }
 
     companion object {
@@ -74,18 +78,22 @@ enum class ArticleFilter(val group: ContentGroup, val kind: Kind) {
     /** Angefangene, aber nicht fertig gelesene/geschaute/gehörte Inhalte (rein client-seitig gefiltert). */
     val isContinue: Boolean get() = kind == Kind.CONTINUE
 
-    /** UI-Label, Äquivalent zu `ArticleFilter.label` (Swift). Icons liegen in der UI-Schicht. */
-    val label: String
+    /**
+     * UI-Label als String-Ressource, Äquivalent zu `ArticleFilter.label` (Swift). Icons liegen
+     * in der UI-Schicht.
+     */
+    @get:StringRes
+    val label: Int
         get() = when (this) {
-            PAGES_CONTINUE -> "Weiterlesen"
-            PAGES_UNREAD -> "Ungelesen"
-            VIDEOS_CONTINUE -> "Weiterschauen"
-            VIDEOS_UNREAD -> "Ungesehen"
-            AUDIO_CONTINUE -> "Weiterhören"
-            AUDIO_UNREAD -> "Ungehört"
-            FILES_UNREAD -> "Nicht geöffnet"
-            PAGES_FAVORITES, VIDEOS_FAVORITES, AUDIO_FAVORITES, FILES_FAVORITES -> "Favoriten"
-            PAGES_ARCHIVE, VIDEOS_ARCHIVE, AUDIO_ARCHIVE, FILES_ARCHIVE -> "Archiv"
+            PAGES_CONTINUE -> R.string.articleList_filter_continueReading
+            PAGES_UNREAD -> R.string.articleList_filter_unread
+            VIDEOS_CONTINUE -> R.string.articleList_filter_continueWatching
+            VIDEOS_UNREAD -> R.string.articleList_filter_unseen
+            AUDIO_CONTINUE -> R.string.articleList_filter_continueListening
+            AUDIO_UNREAD -> R.string.articleList_filter_unheard
+            FILES_UNREAD -> R.string.articleList_filter_unopened
+            PAGES_FAVORITES, VIDEOS_FAVORITES, AUDIO_FAVORITES, FILES_FAVORITES -> R.string.articleList_filter_favorites
+            PAGES_ARCHIVE, VIDEOS_ARCHIVE, AUDIO_ARCHIVE, FILES_ARCHIVE -> R.string.articleList_filter_archive
         }
 
     /**

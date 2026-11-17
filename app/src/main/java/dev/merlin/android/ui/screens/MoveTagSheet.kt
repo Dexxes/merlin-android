@@ -30,10 +30,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import dev.merlin.android.R
 import dev.merlin.android.models.Tag
 import dev.merlin.android.models.TagTree
 
@@ -61,9 +63,9 @@ fun MoveTagSheet(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
             ) {
-                TextButton(onClick = onDismiss) { Text("Abbrechen") }
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
                 Text(
-                    "Tag verschieben",
+                    stringResource(R.string.moveTagSheet_title),
                     style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.weight(1f),
                     maxLines = 1,
@@ -71,11 +73,13 @@ fun MoveTagSheet(
                 Button(
                     onClick = { onMove(selection); onDismiss() },
                     enabled = selection != tag.parentId,
-                ) { Text("Verschieben") }
+                ) { Text(stringResource(R.string.moveTagSheet_move)) }
             }
             Text(
-                if (tree.hasChildren(tag.id)) "„${tag.name}“ mit seinen Unter-Tags verschieben unter:"
-                else "„${tag.name}“ verschieben unter:",
+                stringResource(
+                    if (tree.hasChildren(tag.id)) R.string.moveTagSheet_introWithSubTags else R.string.moveTagSheet_intro,
+                    tag.name,
+                ),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
@@ -83,7 +87,7 @@ fun MoveTagSheet(
             LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
                 item(key = "top") {
                     MoveTargetRow(
-                        label = "Oberste Ebene",
+                        label = stringResource(R.string.moveTagSheet_topLevel),
                         depthPadding = 0.dp,
                         showIcon = false,
                         italic = true,
@@ -138,7 +142,7 @@ private fun MoveTargetRow(
         if (selected) {
             Icon(
                 Icons.Filled.Check,
-                contentDescription = "Ausgewählt",
+                contentDescription = stringResource(R.string.android_common_selected),
                 tint = MaterialTheme.colorScheme.primary,
             )
         }

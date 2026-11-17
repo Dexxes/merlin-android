@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- The app is now fully available in English and German. All screens, menus,
+  dialogs, error messages, notifications and the reader header use string
+  resources generated from `merlin-translations`. German devices get German;
+  every other device language falls back to English. On Android 13+ the
+  language can also be chosen per app in the system settings.
+- Dates and times (reminders, share-link expiry, reader header) follow the
+  app language, and reminder times respect the device's 12/24-hour setting.
 - Free font choice in the reader's Appearance sheet: besides the four presets,
   "Installed font" opens a searchable list of every font family installed on
   the device (each shown in its own typeface). The chosen font applies to the

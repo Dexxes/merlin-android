@@ -35,8 +35,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import dev.merlin.android.R
 import dev.merlin.android.models.CommentAnchor
 import dev.merlin.android.models.Highlight
 import dev.merlin.android.models.HighlightCreate
@@ -114,7 +116,7 @@ fun PdfReaderView(
             PdfPhase.Loading -> PdfLoading(foregroundColor, Modifier.align(Alignment.Center))
 
             PdfPhase.Failed -> PdfMessage(
-                text = "Die PDF konnte nicht geladen werden.",
+                text = stringResource(R.string.articleReader_pdf_failed),
                 color = foregroundColor,
                 onRetry = { attempt++ },
                 onOpenInBrowser = onOpenInBrowser,
@@ -122,7 +124,7 @@ fun PdfReaderView(
             )
 
             PdfPhase.Encrypted -> PdfMessage(
-                text = "Diese PDF ist passwortgeschützt und kann hier nicht angezeigt werden.",
+                text = stringResource(R.string.articleReader_pdf_encrypted),
                 color = foregroundColor,
                 onRetry = null,
                 onOpenInBrowser = onOpenInBrowser,
@@ -181,7 +183,7 @@ private fun PdfLoading(color: Color, modifier: Modifier = Modifier) {
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         CircularProgressIndicator()
-        Text("PDF wird geladen…", color = color)
+        Text(stringResource(R.string.articleReader_pdf_loading), color = color)
     }
 }
 
@@ -200,9 +202,9 @@ private fun PdfMessage(
     ) {
         Text(text, color = color)
         if (onRetry != null) {
-            Button(onClick = onRetry) { Text("Erneut versuchen") }
+            Button(onClick = onRetry) { Text(stringResource(R.string.articleReader_pdf_retry)) }
         }
-        TextButton(onClick = onOpenInBrowser) { Text("Im Browser öffnen") }
+        TextButton(onClick = onOpenInBrowser) { Text(stringResource(R.string.articleReader_pdf_openBrowser)) }
     }
 }
 

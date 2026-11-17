@@ -1,5 +1,6 @@
 package dev.merlin.android.ui.screens
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.DropdownMenu
@@ -126,8 +127,7 @@ fun SettingsScreen(
         ) {
             // MARK: – Nextcloud-Konto
             SectionHeader(stringResource(R.string.settings_account_sectionHeader))
-            // Backend-Namen ("Nextcloud"/"Standalone-Server") bewusst nicht lokalisiert -
-            // Eigennamen, analog zu SettingsView.swift's `Picker("Backend", ...)`.
+            // "Nextcloud" ist ein Eigenname und bleibt unübersetzt.
             SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
                 SegmentedButton(
                     selected = backendKind == CredentialsStore.BackendKind.NEXTCLOUD,
@@ -140,7 +140,7 @@ fun SettingsScreen(
                     onClick = { viewModel.setBackendKind(CredentialsStore.BackendKind.STANDALONE) },
                     shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
                     enabled = !isLoginLoading,
-                ) { Text("Standalone-Server") }
+                ) { Text(stringResource(R.string.settings_account_backendStandalone)) }
             }
             OutlinedTextField(
                 value = serverUrlInput,
@@ -189,7 +189,7 @@ fun SettingsScreen(
             }
             if (isConfigured) {
                 Text(
-                    stringResource(R.string.settings_account_loggedInAs, username),
+                    stringResource(R.string.android_settings_account_loggedInAs, username),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -205,15 +205,15 @@ fun SettingsScreen(
 
             // MARK: – Paywall-Site-Zugangsdaten (getrennt vom Nextcloud-/Server-Login oben,
             // siehe `SiteCredentialsScreen`/`SiteCredentialsViewModel`).
-            SectionHeader("Site-Zugangsdaten")
+            SectionHeader(stringResource(R.string.settings_paywall_rowTitle))
             OutlinedButton(
                 onClick = onSiteCredentialsClick,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text("Site-Zugangsdaten verwalten")
+                Text(stringResource(R.string.android_settings_paywall_manageButton))
             }
             Text(
-                "Verwalte Login-Zugangsdaten für Paywall-Seiten, damit Merlin den vollständigen Artikelinhalt abrufen kann.",
+                stringResource(R.string.settings_paywall_footer),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -250,7 +250,7 @@ fun SettingsScreen(
             Box {
                 var defaultViewMenuExpanded by remember { mutableStateOf(false) }
                 OutlinedButton(onClick = { defaultViewMenuExpanded = true }) {
-                    Text("${defaultFilter.group.label} · ${defaultFilter.label}")
+                    Text("${stringResource(defaultFilter.group.label)} · ${stringResource(defaultFilter.label)}")
                 }
                 DropdownMenu(expanded = defaultViewMenuExpanded, onDismissRequest = { defaultViewMenuExpanded = false }) {
                     // Dateien nur mit merlin-nextcloud (der Standalone-Server kennt keine Datei-Einträge).
@@ -259,7 +259,7 @@ fun SettingsScreen(
                         .filter { it.group != ContentGroup.FILES || backendKind == CredentialsStore.BackendKind.NEXTCLOUD }
                         .forEach { filter ->
                         DropdownMenuItem(
-                            text = { Text("${filter.group.label} · ${filter.label}") },
+                            text = { Text("${stringResource(filter.group.label)} · ${stringResource(filter.label)}") },
                             onClick = {
                                 defaultViewMenuExpanded = false
                                 viewModel.setDefaultFilter(filter)
@@ -278,7 +278,7 @@ fun SettingsScreen(
                     FilterChip(
                         selected = edge == progressEdge,
                         onClick = { viewModel.setProgressEdge(edge) },
-                        label = { Text(edge.label()) },
+                        label = { Text(stringResource(edge.labelRes())) },
                     )
                 }
             }
@@ -370,7 +370,7 @@ fun SettingsScreen(
                         .padding(8.dp),
                 ) {
                     Text("nextcloudUrl: $nextcloudUrl", style = MaterialTheme.typography.bodySmall)
-                    Text("username: ${username.ifEmpty { "<leer>" }}", style = MaterialTheme.typography.bodySmall)
+                    Text("username: ${username.ifEmpty { "–" }}", style = MaterialTheme.typography.bodySmall)
                     Text("isConfigured: $isConfigured", style = MaterialTheme.typography.bodySmall)
                 }
             }
@@ -431,10 +431,12 @@ private fun SettingsToggleRow(label: String, checked: Boolean, onCheckedChange: 
     }
 }
 
-private fun ProgressEdge.label(): String = when (this) {
-    ProgressEdge.LEFT -> "Links"
-    ProgressEdge.RIGHT -> "Rechts"
-    ProgressEdge.TOP -> "Oben"
-    ProgressEdge.BOTTOM -> "Unten"
-    ProgressEdge.OFF -> "Aus"
+/** Beschriftung einer Fortschrittsbalken-Position, geteilt mit dem `AppearanceSheet`. */
+@StringRes
+fun ProgressEdge.labelRes(): Int = when (this) {
+    ProgressEdge.LEFT -> R.string.android_progressEdge_left
+    ProgressEdge.RIGHT -> R.string.android_progressEdge_right
+    ProgressEdge.TOP -> R.string.android_progressEdge_top
+    ProgressEdge.BOTTOM -> R.string.android_progressEdge_bottom
+    ProgressEdge.OFF -> R.string.android_progressEdge_off
 }

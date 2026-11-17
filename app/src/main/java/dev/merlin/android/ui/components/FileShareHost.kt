@@ -14,7 +14,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import dev.merlin.android.R
 import dev.merlin.android.share.FileShareService
 
 /**
@@ -38,17 +40,17 @@ fun FileShareHost(service: FileShareService) {
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
                     CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 3.dp)
-                    Text("Datei wird geladen …")
+                    Text(stringResource(R.string.fileShare_loading))
                 }
             },
             confirmButton = {},
-            dismissButton = { TextButton(onClick = { service.reset() }) { Text("Abbrechen") } },
+            dismissButton = { TextButton(onClick = { service.reset() }) { Text(stringResource(R.string.common_cancel)) } },
         )
         FileShareService.State.Failed -> AlertDialog(
             onDismissRequest = { service.reset() },
-            title = { Text("Fehler") },
-            text = { Text("Die Datei konnte nicht geladen werden.") },
-            confirmButton = { TextButton(onClick = { service.reset() }) { Text("OK") } },
+            title = { Text(stringResource(R.string.common_error)) },
+            text = { Text(stringResource(R.string.fileShare_failed)) },
+            confirmButton = { TextButton(onClick = { service.reset() }) { Text(stringResource(R.string.common_ok)) } },
         )
         is FileShareService.State.Ready -> LaunchedEffect(current) {
             runCatching { FileShareService.shareFile(current, context) }

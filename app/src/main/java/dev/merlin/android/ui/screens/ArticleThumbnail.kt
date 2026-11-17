@@ -18,6 +18,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil.ImageLoader
@@ -79,7 +80,7 @@ fun ArticleThumbnail(
             ) {
                 if (isPdf) {
                     Text(
-                        text = "PDF",
+                        text = stringResource(R.string.articleReader_pdf_badge),
                         color = Color.White,
                         fontWeight = FontWeight.Bold,
                         style = MaterialTheme.typography.titleMedium,
@@ -87,7 +88,7 @@ fun ArticleThumbnail(
                 } else {
                     androidx.compose.foundation.Image(
                         painter = painterResource(id = R.drawable.no_img),
-                        contentDescription = contentDescription ?: "Kein Vorschaubild",
+                        contentDescription = contentDescription ?: stringResource(R.string.android_articleList_noThumbnail),
                         contentScale = ContentScale.Fit,
                         modifier = Modifier.fillMaxSize(),
                     )

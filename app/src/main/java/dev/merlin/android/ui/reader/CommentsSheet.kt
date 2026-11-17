@@ -3,6 +3,7 @@ package dev.merlin.android.ui.reader
 import android.content.Context
 import android.text.format.DateUtils
 import android.util.Patterns
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -57,6 +58,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
@@ -68,6 +70,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.toColorInt
+import dev.merlin.android.R
 import dev.merlin.android.models.Comment
 import dev.merlin.android.models.CommentAnchor
 import dev.merlin.android.models.CommentApiException
@@ -86,10 +89,10 @@ data class CommentFocus(
 )
 
 /** Sortierung von „Alle Kommentare“, wie `CommentSortOrder` auf iOS. */
-private enum class CommentSortOrder(val label: String) {
-    TEXT("Reihenfolge im Text"),
-    NEWEST("Neueste Antwort zuerst"),
-    OLDEST("Älteste Antwort zuerst"),
+private enum class CommentSortOrder(@StringRes val label: Int) {
+    TEXT(R.string.articleReader_comments_sortText),
+    NEWEST(R.string.articleReader_comments_sortNewest),
+    OLDEST(R.string.articleReader_comments_sortOldest),
 }
 
 private const val SORT_PREFS = "merlin_comments"
@@ -187,9 +190,9 @@ fun CommentsSheet(
                 }
                 draft = ""
             } catch (e: CommentApiException) {
-                errorMessage = e.userMessage
+                errorMessage = context.getString(e.userMessage)
             } catch (e: Exception) {
-                errorMessage = "Der Kommentar konnte nicht gespeichert werden."
+                errorMessage = context.getString(R.string.articleReader_comments_saveFailed)
             }
             isSending = false
         }
@@ -202,10 +205,10 @@ fun CommentsSheet(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp),
             ) {
-                IconButton(onClick = onDismiss) { Icon(Icons.Filled.Close, contentDescription = "Schließen") }
+                IconButton(onClick = onDismiss) { Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.common_close)) }
                 // An einer Stelle keine Überschrift: das Zitat darunter sagt genug.
                 Text(
-                    if (isPassageFocused) "" else "Kommentare",
+                    if (isPassageFocused) "" else stringResource(R.string.articleReader_comments_title),
                     style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.weight(1f),
                 )
@@ -214,16 +217,16 @@ fun CommentsSheet(
                         focusedHighlightId = null
                         pendingAnchor = null
                         replyTarget = null
-                    }) { Text("Alle Kommentare") }
+                    }) { Text(stringResource(R.string.articleReader_comments_allComments)) }
                 } else if (state.threads.size > 1) {
                     Box {
                         IconButton(onClick = { showSortMenu = true }) {
-                            Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = "Sortieren")
+                            Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = stringResource(R.string.articleReader_comments_sort))
                         }
                         DropdownMenu(expanded = showSortMenu, onDismissRequest = { showSortMenu = false }) {
                             CommentSortOrder.entries.forEach { order ->
                                 DropdownMenuItem(
-                                    text = { Text(order.label) },
+                                    text = { Text(stringResource(order.label)) },
                                     leadingIcon = { RadioButton(selected = order == sortOrder, onClick = null) },
                                     onClick = {
                                         sortOrder = order
@@ -249,11 +252,13 @@ fun CommentsSheet(
                 if (visibleThreads.isEmpty() && pendingAnchor == null) {
                     item(key = "empty") {
                         Text(
-                            if (focusedHighlightId != null) {
-                                "Zu dieser Stelle gibt es noch keine Kommentare."
-                            } else {
-                                "Noch keine Kommentare. Markiere eine Textstelle, um sie zu kommentieren."
-                            },
+                            stringResource(
+                                if (focusedHighlightId != null) {
+                                    R.string.articleReader_comments_noneOnPassage
+                                } else {
+                                    R.string.articleReader_comments_none
+                                },
+                            ),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
@@ -291,7 +296,8 @@ fun CommentsSheet(
                 errorMessage?.let {
                     Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                 }
-                val contextLine = replyTarget?.let { "Antwort an ${it.authorName}" } ?: editing?.let { "Bearbeiten" }
+                val contextLine = replyTarget?.let { stringResource(R.string.articleReader_comments_replyTo, it.authorName) }
+                    ?: editing?.let { stringResource(R.string.articleReader_comments_edit) }
                 if (contextLine != null) {
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                         Text(
@@ -304,14 +310,14 @@ fun CommentsSheet(
                             if (editing != null) draft = ""
                             replyTarget = null
                             editing = null
-                        }) { Icon(Icons.Filled.Close, contentDescription = "Abbrechen", modifier = Modifier.size(18.dp)) }
+                        }) { Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.common_cancel), modifier = Modifier.size(18.dp)) }
                     }
                 }
                 Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.fillMaxWidth()) {
                     OutlinedTextField(
                         value = draft,
                         onValueChange = { draft = it.take(5000) },
-                        placeholder = { Text(if (replyTarget != null) "Antwort schreiben …" else "Kommentar schreiben …") },
+                        placeholder = { Text(stringResource(if (replyTarget != null) R.string.articleReader_comments_writeReply else R.string.articleReader_comments_writeComment)) },
                         maxLines = 6,
                         shape = RoundedCornerShape(20.dp),
                         modifier = Modifier.weight(1f).heightIn(min = 48.dp).focusRequester(inputFocus),
@@ -323,7 +329,7 @@ fun CommentsSheet(
                         }
                     } else {
                         IconButton(onClick = { send() }, enabled = draft.isNotBlank()) {
-                            Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Senden")
+                            Icon(Icons.AutoMirrored.Filled.Send, contentDescription = stringResource(R.string.articleReader_comments_send))
                         }
                     }
                 }
@@ -334,7 +340,7 @@ fun CommentsSheet(
     commentToDelete?.let { comment ->
         AlertDialog(
             onDismissRequest = { commentToDelete = null },
-            title = { Text("Diesen Kommentar löschen?") },
+            title = { Text(stringResource(R.string.articleReader_comments_confirmDelete)) },
             confirmButton = {
                 TextButton(onClick = {
                     commentToDelete = null
@@ -348,12 +354,12 @@ fun CommentsSheet(
                             }
                             if (replyTarget?.id == comment.id) replyTarget = null
                         } catch (e: Exception) {
-                            errorMessage = "Der Kommentar konnte nicht gelöscht werden."
+                            errorMessage = context.getString(R.string.articleReader_comments_deleteFailed)
                         }
                     }
-                }) { Text("Löschen", color = MaterialTheme.colorScheme.error) }
+                }) { Text(stringResource(R.string.articleReader_comments_delete), color = MaterialTheme.colorScheme.error) }
             },
-            dismissButton = { TextButton(onClick = { commentToDelete = null }) { Text("Abbrechen") } },
+            dismissButton = { TextButton(onClick = { commentToDelete = null }) { Text(stringResource(R.string.common_cancel)) } },
         )
     }
 }
@@ -451,7 +457,7 @@ private fun QuoteView(text: String, removed: Boolean = false, modifier: Modifier
         }
         if (removed) {
             Text(
-                "Die Markierung wurde entfernt",
+                stringResource(R.string.articleReader_comments_highlightRemoved),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 4.dp),
@@ -475,7 +481,7 @@ private fun CommentRow(
 ) {
     if (comment.deleted) {
         Text(
-            "Kommentar gelöscht",
+            stringResource(R.string.articleReader_comments_deleted),
             style = MaterialTheme.typography.bodyMedium,
             fontStyle = FontStyle.Italic,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -495,7 +501,7 @@ private fun CommentRow(
                 Text(comment.authorName, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
                 if (comment.isOwner) {
                     Text(
-                        "Du",
+                        stringResource(R.string.articleReader_comments_you),
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.SemiBold,
                         modifier = Modifier
@@ -515,13 +521,13 @@ private fun CommentRow(
                     )
                 }
                 if (comment.edited) {
-                    Text("(bearbeitet)", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(R.string.articleReader_comments_edited), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Spacer(Modifier.weight(1f))
                 IconButton(onClick = { onDelete(comment) }, modifier = Modifier.size(28.dp)) {
                     Icon(
                         Icons.Outlined.Delete,
-                        contentDescription = "Löschen",
+                        contentDescription = stringResource(R.string.articleReader_comments_delete),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(18.dp),
                     )
@@ -531,8 +537,8 @@ private fun CommentRow(
                 Text(linkified(comment.body), style = MaterialTheme.typography.bodyLarge)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.padding(top = 2.dp)) {
-                ActionText("Antworten") { onReply(comment) }
-                if (comment.isOwner) ActionText("Bearbeiten") { onEdit(comment) }
+                ActionText(stringResource(R.string.articleReader_comments_reply)) { onReply(comment) }
+                if (comment.isOwner) ActionText(stringResource(R.string.articleReader_comments_edit)) { onEdit(comment) }
             }
         }
     }

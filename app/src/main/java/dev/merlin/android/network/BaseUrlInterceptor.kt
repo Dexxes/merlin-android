@@ -1,5 +1,7 @@
 package dev.merlin.android.network
 
+import dev.merlin.android.R
+import dev.merlin.android.data.LocalizedError
 import java.io.IOException
 import javax.inject.Inject
 import okhttp3.HttpUrl.Companion.toHttpUrl
@@ -69,4 +71,6 @@ class BaseUrlInterceptor @Inject constructor(
 }
 
 /** Kein Server konfiguriert (abgemeldet) – Anfrage wurde gar nicht erst gesendet. */
-class NotConfiguredException : IOException("Nicht angemeldet")
+class NotConfiguredException : IOException("Not logged in"), LocalizedError {
+    override val messageRes: Int get() = R.string.api_error_notConfigured
+}

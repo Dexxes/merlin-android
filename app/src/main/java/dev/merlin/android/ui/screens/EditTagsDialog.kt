@@ -33,7 +33,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import dev.merlin.android.R
+import dev.merlin.android.data.userMessage
 import dev.merlin.android.models.Article
 import dev.merlin.android.models.Tag
 import dev.merlin.android.models.TagTree
@@ -72,6 +76,8 @@ fun EditTagsDialog(
     var newTagParentId by remember(article.id) { mutableStateOf<Int?>(null) }
     var isSaving by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    val unknownError = stringResource(R.string.api_error_unknown)
+    val context = LocalContext.current
 
     fun addPendingTag() {
         val name = newTagText.trim()
@@ -94,7 +100,7 @@ fun EditTagsDialog(
                 onSave(selectedTagIds, pendingTagNames, newTagParentId.takeIf { canNestTags })
                 onDismiss()
             } catch (e: Exception) {
-                errorMessage = e.message ?: "Unbekannter Fehler"
+                errorMessage = e.userMessage(context) ?: unknownError
             } finally {
                 isSaving = false
             }
@@ -103,7 +109,7 @@ fun EditTagsDialog(
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
         Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) {
-            Text("Tags bearbeiten", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.articleReader_tagSheet_title), style = MaterialTheme.typography.titleMedium)
 
             if (allTags.isNotEmpty()) {
                 TagTreeSelectionList(
@@ -115,7 +121,7 @@ fun EditTagsDialog(
                 )
             } else {
                 Text(
-                    "Noch keine Tags vorhanden.",
+                    stringResource(R.string.android_tags_noneYet),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 16.dp),
@@ -133,7 +139,7 @@ fun EditTagsDialog(
                             onClick = { pendingTagNames = pendingTagNames - name },
                             label = { Text(name) },
                             trailingIcon = {
-                                Icon(Icons.Filled.Close, contentDescription = "„$name“ entfernen", modifier = Modifier.size(16.dp))
+                                Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.android_tags_removeNamed, name), modifier = Modifier.size(16.dp))
                             },
                         )
                     }
@@ -147,13 +153,13 @@ fun EditTagsDialog(
                 OutlinedTextField(
                     value = newTagText,
                     onValueChange = { newTagText = it },
-                    placeholder = { Text("Neuer Tag…") },
+                    placeholder = { Text(stringResource(R.string.articleReader_tagSheet_newTagPlaceholder)) },
                     singleLine = true,
                     enabled = !isSaving,
                     modifier = Modifier.weight(1f),
                 )
                 IconButton(onClick = ::addPendingTag, enabled = newTagText.isNotBlank() && !isSaving) {
-                    Icon(Icons.Filled.Add, contentDescription = "Tag hinzufügen")
+                    Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.android_tags_add))
                 }
             }
 
@@ -180,12 +186,12 @@ fun EditTagsDialog(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 16.dp),
             ) {
-                TextButton(onClick = onDismiss, enabled = !isSaving) { Text("Abbrechen") }
+                TextButton(onClick = onDismiss, enabled = !isSaving) { Text(stringResource(R.string.common_cancel)) }
                 Spacer(Modifier.width(8.dp))
                 if (isSaving) {
                     CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                 } else {
-                    Button(onClick = ::save) { Text("Speichern") }
+                    Button(onClick = ::save) { Text(stringResource(R.string.common_save)) }
                 }
             }
         }

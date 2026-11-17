@@ -32,12 +32,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import dev.merlin.android.R
 import dev.merlin.android.models.InstalledFontFamily
 
 /**
@@ -62,7 +64,7 @@ fun InstalledFontPickerDialog(
         ) {
             Column(modifier = Modifier.padding(top = 20.dp)) {
                 Text(
-                    "Installierte Schrift",
+                    stringResource(R.string.articleReader_appearance_installedFont),
                     style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.padding(horizontal = 20.dp),
                 )
@@ -70,7 +72,7 @@ fun InstalledFontPickerDialog(
                     value = query,
                     onValueChange = { query = it },
                     singleLine = true,
-                    placeholder = { Text("Suchen") },
+                    placeholder = { Text(stringResource(R.string.android_common_search)) },
                     leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
                 )
@@ -85,7 +87,7 @@ fun InstalledFontPickerDialog(
                             if (query.isBlank()) {
                                 item {
                                     FontRow(
-                                        label = "Keine – Voreinstellung nutzen",
+                                        label = stringResource(R.string.articleReader_appearance_installedFontNone),
                                         fontFamily = null,
                                         selected = selected == null,
                                         onClick = { onSelect(null) },
@@ -107,7 +109,7 @@ fun InstalledFontPickerDialog(
                             if (filtered.isEmpty()) {
                                 item {
                                     Text(
-                                        "Keine passende Schrift gefunden.",
+                                        stringResource(R.string.android_appearance_noFontFound),
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         modifier = Modifier.padding(20.dp),
@@ -121,7 +123,7 @@ fun InstalledFontPickerDialog(
                     modifier = Modifier.fillMaxWidth().padding(8.dp),
                     horizontalArrangement = Arrangement.End,
                 ) {
-                    TextButton(onClick = onDismiss) { Text("Schließen") }
+                    TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_close)) }
                 }
             }
         }
@@ -149,7 +151,7 @@ private fun FontRow(label: String, fontFamily: FontFamily?, selected: Boolean, o
         if (selected) {
             Icon(
                 Icons.Filled.Check,
-                contentDescription = "Ausgewählt",
+                contentDescription = stringResource(R.string.android_common_selected),
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(20.dp),
             )

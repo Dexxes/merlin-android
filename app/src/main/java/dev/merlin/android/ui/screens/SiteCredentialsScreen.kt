@@ -48,9 +48,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import dev.merlin.android.R
 import dev.merlin.android.models.SiteCredentialInfo
 import dev.merlin.android.viewmodel.SiteCredentialsViewModel
 import kotlinx.coroutines.launch
@@ -90,10 +92,10 @@ fun SiteCredentialsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Site-Zugangsdaten") },
+                title = { Text(stringResource(R.string.siteCredentials_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Zurück")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.common_back))
                     }
                 },
             )
@@ -126,7 +128,7 @@ fun SiteCredentialsScreen(
                         }
                         if (credentials.isNotEmpty()) {
                             item {
-                                SectionHeader("Verbunden")
+                                SectionHeader(stringResource(R.string.siteCredentials_connectedSection))
                             }
                             items(credentials, key = { it.domain }) { credential ->
                                 ConnectedSiteCredentialRow(
@@ -138,7 +140,7 @@ fun SiteCredentialsScreen(
                         }
                         if (connectableDomains.isNotEmpty()) {
                             item {
-                                SectionHeader("Hinzufügen", modifier = Modifier.padding(top = if (credentials.isNotEmpty()) 8.dp else 0.dp))
+                                SectionHeader(stringResource(R.string.siteCredentials_addSection), modifier = Modifier.padding(top = if (credentials.isNotEmpty()) 8.dp else 0.dp))
                             }
                             items(connectableDomains, key = { it }) { domain ->
                                 ConnectableDomainRow(domain = domain, onClick = { editDomain = domain })
@@ -176,12 +178,12 @@ private fun EmptySiteCredentialsState(modifier: Modifier = Modifier) {
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Text(
-            text = "Keine Paywall-Seiten verfügbar",
+            text = stringResource(R.string.android_siteCredentials_noDomainsTitle),
             style = MaterialTheme.typography.titleMedium,
             modifier = Modifier.padding(top = 12.dp),
         )
         Text(
-            text = "Der Server unterstützt aktuell keine Zugangsdaten für Paywall-Seiten.",
+            text = stringResource(R.string.android_siteCredentials_noDomainsMessage),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 4.dp),
@@ -227,7 +229,7 @@ private fun ConnectedSiteCredentialRow(
                 Box(modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
                     Icon(
                         Icons.Filled.Delete,
-                        contentDescription = "Entfernen",
+                        contentDescription = stringResource(R.string.android_common_remove),
                         tint = MaterialTheme.colorScheme.onErrorContainer,
                         modifier = Modifier.align(
                             if (dismissState.dismissDirection == SwipeToDismissBoxValue.StartToEnd) {
@@ -252,7 +254,8 @@ private fun ConnectedSiteCredentialRow(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(credential.domain, style = MaterialTheme.typography.bodyMedium)
-                    val (statusLabel, statusColor) = statusLabelAndColor(credential.statusEnum)
+                    val (statusLabelRes, statusColor) = statusLabelAndColor(credential.statusEnum)
+                    val statusLabel = stringResource(statusLabelRes)
                     Text(
                         statusLabel,
                         style = MaterialTheme.typography.bodySmall,
@@ -261,10 +264,10 @@ private fun ConnectedSiteCredentialRow(
                     )
                 }
                 IconButton(onClick = onEdit) {
-                    Icon(Icons.Filled.Refresh, contentDescription = "Zugangsdaten bearbeiten")
+                    Icon(Icons.Filled.Refresh, contentDescription = stringResource(R.string.android_siteCredentials_edit))
                 }
                 IconButton(onClick = onDelete) {
-                    Icon(Icons.Filled.Delete, contentDescription = "Entfernen")
+                    Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.android_common_remove))
                 }
             }
         }
@@ -298,11 +301,11 @@ private fun ConnectableDomainRow(domain: String, onClick: () -> Unit) {
     }
 }
 
-private fun statusLabelAndColor(status: SiteCredentialInfo.Status): Pair<String, Color> = when (status) {
-    SiteCredentialInfo.Status.OK -> "Verbunden" to Color(0xFF34C759)
-    SiteCredentialInfo.Status.INVALID_CREDENTIALS -> "Ungültige Zugangsdaten" to Color(0xFFFF9800)
-    SiteCredentialInfo.Status.LOGIN_FLOW_BROKEN -> "Login fehlgeschlagen" to Color(0xFFFF9800)
-    SiteCredentialInfo.Status.PENDING -> "Ausstehend" to Color.Gray
+private fun statusLabelAndColor(status: SiteCredentialInfo.Status): Pair<Int, Color> = when (status) {
+    SiteCredentialInfo.Status.OK -> R.string.siteCredentials_status_ok to Color(0xFF34C759)
+    SiteCredentialInfo.Status.INVALID_CREDENTIALS -> R.string.siteCredentials_status_invalidCredentials to Color(0xFFFF9800)
+    SiteCredentialInfo.Status.LOGIN_FLOW_BROKEN -> R.string.siteCredentials_status_loginFlowBroken to Color(0xFFFF9800)
+    SiteCredentialInfo.Status.PENDING -> R.string.siteCredentials_status_pending to Color.Gray
 }
 
 /**
@@ -332,7 +335,7 @@ private fun SiteCredentialEditDialog(
                 OutlinedTextField(
                     value = username,
                     onValueChange = { username = it; savedSuccessfully = false },
-                    label = { Text("Benutzername") },
+                    label = { Text(stringResource(R.string.siteCredentials_usernamePlaceholder)) },
                     singleLine = true,
                     enabled = !isSaving,
                     modifier = Modifier.fillMaxWidth(),
@@ -340,7 +343,7 @@ private fun SiteCredentialEditDialog(
                 OutlinedTextField(
                     value = password,
                     onValueChange = { password = it; savedSuccessfully = false },
-                    label = { Text("Passwort") },
+                    label = { Text(stringResource(R.string.siteCredentials_passwordPlaceholder)) },
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
                     enabled = !isSaving,
@@ -348,7 +351,7 @@ private fun SiteCredentialEditDialog(
                 )
                 if (savedSuccessfully) {
                     Text(
-                        "Erfolgreich gespeichert.",
+                        stringResource(R.string.siteCredentials_savedHint),
                         color = MaterialTheme.colorScheme.primary,
                         style = MaterialTheme.typography.bodySmall,
                     )
@@ -372,12 +375,12 @@ private fun SiteCredentialEditDialog(
                 if (isSaving) {
                     CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
                 } else {
-                    Text("Speichern")
+                    Text(stringResource(R.string.common_save))
                 }
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss, enabled = !isSaving) { Text("Schließen") }
+            TextButton(onClick = onDismiss, enabled = !isSaving) { Text(stringResource(R.string.common_close)) }
         },
     )
 }

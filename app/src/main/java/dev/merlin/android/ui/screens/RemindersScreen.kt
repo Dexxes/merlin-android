@@ -37,12 +37,16 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import dev.merlin.android.R
 import dev.merlin.android.models.Reminder
+import dev.merlin.android.ui.appLocale
 import dev.merlin.android.viewmodel.RemindersViewModel
 import java.text.DateFormat
 import java.util.Date
+import java.util.Locale
 
 /**
  * Äquivalent zu `RemindersView.swift`: Übersicht aller wartenden Erinnerungen.
@@ -64,10 +68,10 @@ fun RemindersScreen(
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("Erinnerungen") },
+                title = { Text(stringResource(R.string.reminders_list_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "Zurück")
+                        Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.common_back))
                     }
                 },
             )
@@ -114,12 +118,12 @@ private fun EmptyRemindersState(modifier: Modifier = Modifier) {
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Text(
-            text = "Keine Erinnerungen",
+            text = stringResource(R.string.reminders_list_emptyTitle),
             style = MaterialTheme.typography.titleMedium,
             modifier = Modifier.padding(top = 12.dp),
         )
         Text(
-            text = "Tippe im Artikelmenü auf „Erinnern“, um eine Erinnerung zu setzen.",
+            text = stringResource(R.string.reminders_list_emptyMessage),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 4.dp),
@@ -156,7 +160,7 @@ private fun ReminderRow(
                 Box(modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
                     Icon(
                         Icons.Filled.Delete,
-                        contentDescription = "Löschen",
+                        contentDescription = stringResource(R.string.common_delete),
                         tint = MaterialTheme.colorScheme.onErrorContainer,
                         modifier = Modifier.align(
                             if (dismissState.dismissDirection == SwipeToDismissBoxValue.StartToEnd) {
@@ -207,7 +211,7 @@ private fun ReminderRow(
                         maxLines = 2,
                     )
                     Text(
-                        text = formatTriggerAt(reminder.triggerAt),
+                        text = formatTriggerAt(reminder.triggerAt, appLocale()),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 3.dp),
@@ -219,9 +223,9 @@ private fun ReminderRow(
 }
 
 /** Datum + Uhrzeit getrennt durch „·“, analog zu `Text(_, style: .date)`/`.time` im iOS-Original. */
-private fun formatTriggerAt(triggerAt: Long): String {
+private fun formatTriggerAt(triggerAt: Long, locale: Locale): String {
     val date = Date(triggerAt)
-    val dateStr = DateFormat.getDateInstance(DateFormat.MEDIUM).format(date)
-    val timeStr = DateFormat.getTimeInstance(DateFormat.SHORT).format(date)
+    val dateStr = DateFormat.getDateInstance(DateFormat.MEDIUM, locale).format(date)
+    val timeStr = DateFormat.getTimeInstance(DateFormat.SHORT, locale).format(date)
     return "$dateStr · $timeStr"
 }

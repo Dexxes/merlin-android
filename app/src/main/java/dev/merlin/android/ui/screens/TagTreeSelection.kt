@@ -30,9 +30,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import dev.merlin.android.R
 import dev.merlin.android.models.TagTree
 
 /**
@@ -91,7 +93,7 @@ private fun TagSelectionRow(
     ) {
         Icon(
             if (selected) Icons.Filled.CheckCircle else Icons.Outlined.Circle,
-            contentDescription = if (selected) "Ausgewählt" else null,
+            contentDescription = if (selected) stringResource(R.string.android_common_selected) else null,
             tint = if (selected) tagColor else MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.width(10.dp))
@@ -113,15 +115,15 @@ fun TagParentPicker(
     enabled: Boolean = true,
 ) {
     var open by remember { mutableStateOf(false) }
-    val selectedName = selection?.let { tree.tag(it) }?.let { tree.path(it) } ?: "Oberste Ebene"
+    val selectedName = selection?.let { tree.tag(it) }?.let { tree.path(it) } ?: stringResource(R.string.tagParentPicker_topLevel)
     Box(modifier = modifier) {
         TextButton(onClick = { open = true }, enabled = enabled) {
-            Text("Unter: $selectedName", maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text("${stringResource(R.string.tagParentPicker_label)}: $selectedName", maxLines = 1, overflow = TextOverflow.Ellipsis)
             Icon(Icons.Filled.ArrowDropDown, contentDescription = null)
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             DropdownMenuItem(
-                text = { Text("Oberste Ebene", fontStyle = FontStyle.Italic) },
+                text = { Text(stringResource(R.string.tagParentPicker_topLevel), fontStyle = FontStyle.Italic) },
                 onClick = { open = false; onSelect(null) },
             )
             tree.rows().forEach { row ->

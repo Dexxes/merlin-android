@@ -25,9 +25,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import dev.merlin.android.R
 import dev.merlin.android.viewmodel.ArticleReaderViewModel
 import dev.merlin.android.viewmodel.ReportFeedback
 
@@ -56,10 +58,10 @@ fun ReportArticleSheet(
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
         Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) {
-            Text("Artikel melden", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.report_title), style = MaterialTheme.typography.titleMedium)
 
             Text(
-                "Artikel",
+                stringResource(R.string.report_articleLabel),
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 16.dp, bottom = 2.dp),
@@ -73,7 +75,7 @@ fun ReportArticleSheet(
             )
 
             Text(
-                "Kommentar (optional)",
+                stringResource(R.string.report_commentLabel),
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 16.dp, bottom = 6.dp),
@@ -81,7 +83,7 @@ fun ReportArticleSheet(
             OutlinedTextField(
                 value = comment,
                 onValueChange = { comment = it },
-                placeholder = { Text("Was stimmt nicht?") },
+                placeholder = { Text(stringResource(R.string.report_commentPlaceholder)) },
                 enabled = !isSending && feedback == null,
                 minLines = 3,
                 maxLines = 5,
@@ -90,7 +92,7 @@ fun ReportArticleSheet(
 
             feedback?.let { fb ->
                 val (msg, color) = when (fb) {
-                    is ReportFeedback.Success -> "Danke – Artikel wurde gemeldet." to MaterialTheme.colorScheme.primary
+                    is ReportFeedback.Success -> stringResource(R.string.report_successMessage) to MaterialTheme.colorScheme.primary
                     is ReportFeedback.Failure -> fb.message to MaterialTheme.colorScheme.error
                 }
                 Text(
@@ -105,12 +107,12 @@ fun ReportArticleSheet(
                 horizontalArrangement = Arrangement.End,
                 modifier = Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 16.dp),
             ) {
-                TextButton(onClick = onDismiss, enabled = !isSending) { Text("Abbrechen") }
+                TextButton(onClick = onDismiss, enabled = !isSending) { Text(stringResource(R.string.common_cancel)) }
                 Spacer(Modifier.width(8.dp))
                 when {
                     isSending -> CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                    feedback != null -> Button(onClick = onDismiss) { Text("Schließen") }
-                    else -> Button(onClick = { viewModel.sendReport(comment) }) { Text("Melden") }
+                    feedback != null -> Button(onClick = onDismiss) { Text(stringResource(R.string.common_close)) }
+                    else -> Button(onClick = { viewModel.sendReport(comment) }) { Text(stringResource(R.string.report_submitButton)) }
                 }
             }
         }

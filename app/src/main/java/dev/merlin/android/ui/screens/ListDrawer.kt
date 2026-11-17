@@ -63,6 +63,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.imageResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
@@ -94,6 +95,7 @@ val ArticleFilter.icon: ImageVector
  * Filter-Beschriftung mit Server-Zähler, wie `filterLabel(_:)` in `ListFlyoutModifier.swift`.
  * „Weiterlesen/-schauen/-hören“ wird rein client-seitig gefiltert und hat keinen Zähler.
  */
+@Composable
 private fun filterLabel(filter: ArticleFilter, counts: ArticleCounts): String {
     val group = when (filter.group) {
         ContentGroup.PAGES -> counts.pages
@@ -102,12 +104,12 @@ private fun filterLabel(filter: ArticleFilter, counts: ArticleCounts): String {
         ContentGroup.FILES -> counts.files
     }
     val count = when (filter.kind) {
-        ArticleFilter.Kind.CONTINUE -> return filter.label
+        ArticleFilter.Kind.CONTINUE -> return stringResource(filter.label)
         ArticleFilter.Kind.UNREAD -> group.unread
         ArticleFilter.Kind.FAVORITES -> group.favorites
         ArticleFilter.Kind.ARCHIVE -> group.archived
     }
-    return "${filter.label} ($count)"
+    return stringResource(R.string.navigationMenu_filterWithCount, stringResource(filter.label), count)
 }
 
 /**
@@ -172,7 +174,7 @@ fun ListDrawerContent(
                         // Beschriftung einzeilig, damit „Dateien“ nicht umbricht.
                         contentPadding = PaddingValues(horizontal = 4.dp),
                     ) {
-                        Text(group.label, maxLines = 1, softWrap = false, overflow = TextOverflow.Clip)
+                        Text(stringResource(group.label), maxLines = 1, softWrap = false, overflow = TextOverflow.Clip)
                     }
                 }
             }
@@ -197,10 +199,10 @@ fun ListDrawerContent(
                 ) {
                     Icon(Icons.Outlined.Tag, contentDescription = null, modifier = Modifier.size(24.dp))
                     Spacer(Modifier.width(14.dp))
-                    Text("Tags", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                    Text(stringResource(R.string.navigationMenu_tagsHeader), style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
                     Icon(
                         Icons.Filled.ChevronRight,
-                        contentDescription = if (tagsExpanded) "Zuklappen" else "Aufklappen",
+                        contentDescription = stringResource(if (tagsExpanded) R.string.android_common_collapse else R.string.android_common_expand),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.rotate(if (tagsExpanded) 90f else 0f),
                     )
@@ -224,7 +226,7 @@ fun ListDrawerContent(
                         if (selectedTagId != null) {
                             DrawerRow(
                                 icon = Icons.Filled.Cancel,
-                                label = "Tag-Filter aufheben",
+                                label = stringResource(R.string.navigationMenu_clearTagFilter),
                                 tint = MaterialTheme.colorScheme.error,
                                 indented = true,
                                 onClick = { onSelectTag(null) },
@@ -237,13 +239,13 @@ fun ListDrawerContent(
             DrawerDivider()
             DrawerRow(
                 icon = if (isCardView) Icons.AutoMirrored.Filled.ViewList else Icons.Filled.GridView,
-                label = if (isCardView) "Listenansicht" else "Kartenansicht",
+                label = stringResource(if (isCardView) R.string.navigationMenu_listView else R.string.navigationMenu_cardView),
                 onClick = onToggleCardView,
             )
 
             DrawerDivider()
-            DrawerRow(icon = Icons.Filled.Notifications, label = "Erinnerungen", onClick = onRemindersClick)
-            DrawerRow(icon = Icons.Filled.Settings, label = "Einstellungen", onClick = onSettingsClick)
+            DrawerRow(icon = Icons.Filled.Notifications, label = stringResource(R.string.reminders_list_title), onClick = onRemindersClick)
+            DrawerRow(icon = Icons.Filled.Settings, label = stringResource(R.string.common_settings), onClick = onSettingsClick)
         }
 
         // Merlin-Logo, immer am unteren Rand sichtbar (wie im iOS-Seitenmenü).
@@ -311,13 +313,16 @@ private fun TagTreeDrawerRow(
                 .padding(start = 12.dp + 20.dp * row.depth),
         ) {
             if (row.hasChildren) {
+                val expandLabel = stringResource(
+                    if (expanded) R.string.navigationMenu_collapseSubTags else R.string.navigationMenu_expandSubTags,
+                )
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier
                         .size(width = 28.dp, height = 48.dp)
                         .clickable(onClick = onToggleExpanded)
                         .semantics {
-                            contentDescription = if (expanded) "Unter-Tags einklappen" else "Unter-Tags ausklappen"
+                            contentDescription = expandLabel
                         },
                 ) {
                     Icon(
@@ -355,19 +360,19 @@ private fun TagTreeDrawerRow(
         }
         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
             DropdownMenuItem(
-                text = { Text("Umbenennen…") },
+                text = { Text(stringResource(R.string.android_tags_renameMenu)) },
                 leadingIcon = { Icon(Icons.Filled.Edit, contentDescription = null) },
                 onClick = { menuOpen = false; onRename() },
             )
             if (canMove) {
                 DropdownMenuItem(
-                    text = { Text("Verschieben nach…") },
+                    text = { Text(stringResource(R.string.navigationMenu_moveTag)) },
                     leadingIcon = { Icon(Icons.Outlined.Folder, contentDescription = null) },
                     onClick = { menuOpen = false; onMove() },
                 )
             }
             DropdownMenuItem(
-                text = { Text("Tag löschen", color = MaterialTheme.colorScheme.error) },
+                text = { Text(stringResource(R.string.navigationMenu_deleteTagAction), color = MaterialTheme.colorScheme.error) },
                 leadingIcon = { Icon(Icons.Filled.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
                 onClick = { menuOpen = false; onDelete() },
             )

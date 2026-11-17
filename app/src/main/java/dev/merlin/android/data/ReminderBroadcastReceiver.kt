@@ -10,6 +10,7 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import dagger.hilt.android.AndroidEntryPoint
 import dev.merlin.android.MainActivity
+import dev.merlin.android.R
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -69,7 +70,7 @@ class ReminderBroadcastReceiver : BroadcastReceiver() {
             // (siehe Structure.md "Bekannte offene Punkte").
             .setSmallIcon(android.R.drawable.ic_popup_reminder)
             .setContentTitle(articleTitle)
-            .setContentText("Dein gespeicherter Artikel wartet auf dich.")
+            .setContentText(context.getString(R.string.reminders_notification_body))
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setAutoCancel(true)
             .setContentIntent(contentPendingIntent)
@@ -82,10 +83,15 @@ class ReminderBroadcastReceiver : BroadcastReceiver() {
     private fun ensureChannel(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        if (manager.getNotificationChannel(CHANNEL_ID) != null) return
+        // Bewusst auch bei bestehendem Kanal aufrufen: Android übernimmt dann Name und
+        // Beschreibung neu, sodass sie nach einem Sprachwechsel zur App-Sprache passen.
         manager.createNotificationChannel(
-            NotificationChannel(CHANNEL_ID, "Erinnerungen", NotificationManager.IMPORTANCE_DEFAULT).apply {
-                description = "Erinnerungen an gespeicherte Artikel"
+            NotificationChannel(
+                CHANNEL_ID,
+                context.getString(R.string.reminders_list_title),
+                NotificationManager.IMPORTANCE_DEFAULT,
+            ).apply {
+                description = context.getString(R.string.android_reminders_channelDescription)
             },
         )
     }

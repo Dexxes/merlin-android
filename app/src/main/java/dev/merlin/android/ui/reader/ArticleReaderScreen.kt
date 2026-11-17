@@ -127,7 +127,9 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
+import dev.merlin.android.R
 import kotlinx.coroutines.delay
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -443,7 +445,7 @@ fun ArticleReaderScreen(
             ModalDrawerSheet {
                 Column(modifier = Modifier.padding(vertical = 12.dp)) {
                     NavigationDrawerItem(
-                        label = { Text(if (article?.isFavorite == true) "Favorit entfernen" else "Zu Favoriten hinzufügen") },
+                        label = { Text(stringResource(if (article?.isFavorite == true) R.string.articleReader_sideMenu_removeFavorite else R.string.articleReader_sideMenu_addFavorite)) },
                         icon = { Icon(if (article?.isFavorite == true) Icons.Filled.Star else Icons.Outlined.Star, contentDescription = null) },
                         selected = false,
                         onClick = { scope.launch { drawerState.close() }; viewModel.toggleFavorite() },
@@ -451,7 +453,7 @@ fun ArticleReaderScreen(
                     )
                     if (article?.isPdf != true) {
                         NavigationDrawerItem(
-                            label = { Text("Erscheinungsbild") },
+                            label = { Text(stringResource(R.string.articleReader_sideMenu_appearance)) },
                             icon = { Icon(Icons.Filled.Palette, contentDescription = null) },
                             selected = false,
                             onClick = { scope.launch { drawerState.close() }; showAppearanceSheet = true },
@@ -460,7 +462,7 @@ fun ArticleReaderScreen(
                     }
                     // Datei-Einträge teilen die Datei selbst, alles andere den Link (FileShareService).
                     NavigationDrawerItem(
-                        label = { Text("Teilen") },
+                        label = { Text(stringResource(R.string.common_share)) },
                         icon = { Icon(Icons.Filled.Share, contentDescription = null) },
                         selected = false,
                         onClick = {
@@ -473,7 +475,7 @@ fun ArticleReaderScreen(
                     // anderen Einträgen unter dem Inhalt, der native PDF-Reader nicht (wie iOS).
                     pdfFileMetadata?.let { metadata ->
                         NavigationDrawerItem(
-                            label = { Text(metadata.title.ifEmpty { "Metadaten" }) },
+                            label = { Text(metadata.title.ifEmpty { stringResource(R.string.android_articleReader_metadata) }) },
                             icon = { Icon(Icons.Outlined.Info, contentDescription = null) },
                             selected = false,
                             onClick = {
@@ -484,7 +486,7 @@ fun ArticleReaderScreen(
                         )
                     }
                     NavigationDrawerItem(
-                        label = { Text("Im Browser öffnen") },
+                        label = { Text(stringResource(R.string.articleReader_sideMenu_openInBrowser)) },
                         icon = { Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null) },
                         selected = false,
                         onClick = {
@@ -496,7 +498,7 @@ fun ArticleReaderScreen(
                     )
                     if (article?.isPdf != true) {
                         NavigationDrawerItem(
-                            label = { Text("archive.ph öffnen") },
+                            label = { Text(stringResource(R.string.articleReader_sideMenu_openViaArchive)) },
                             icon = { Icon(Icons.Filled.History, contentDescription = null) },
                             selected = false,
                             onClick = {
@@ -509,7 +511,7 @@ fun ArticleReaderScreen(
                         )
                     }
                     NavigationDrawerItem(
-                        label = { Text("Link kopieren") },
+                        label = { Text(stringResource(R.string.articleReader_sideMenu_copyLink)) },
                         icon = { Icon(Icons.Filled.Link, contentDescription = null) },
                         selected = false,
                         onClick = {
@@ -521,7 +523,7 @@ fun ArticleReaderScreen(
                         modifier = Modifier.padding(horizontal = 12.dp),
                     )
                     NavigationDrawerItem(
-                        label = { Text("Öffentlicher Link…") },
+                        label = { Text(stringResource(R.string.android_shareLink_menu)) },
                         icon = { Icon(Icons.Filled.Public, contentDescription = null) },
                         selected = false,
                         onClick = {
@@ -534,7 +536,7 @@ fun ArticleReaderScreen(
                     if (commentState.isAvailable) {
                         val count = commentState.totalCount
                         NavigationDrawerItem(
-                            label = { Text(if (count > 0) "Kommentare ($count)" else "Kommentare") },
+                            label = { Text(if (count > 0) stringResource(R.string.articleReader_comments_countLabel, count) else stringResource(R.string.articleReader_comments_title)) },
                             icon = { Icon(Icons.AutoMirrored.Outlined.Comment, contentDescription = null) },
                             selected = false,
                             onClick = {
@@ -548,7 +550,7 @@ fun ArticleReaderScreen(
                     val canFind = article?.let { if (it.isPdf) it.pdfSourceUrl != null else !it.content.isNullOrEmpty() } == true
                     if (canFind) {
                         NavigationDrawerItem(
-                            label = { Text("Im Artikel suchen") },
+                            label = { Text(stringResource(R.string.articleReader_sideMenu_find)) },
                             icon = { Icon(Icons.Filled.Search, contentDescription = null) },
                             selected = false,
                             onClick = {
@@ -561,14 +563,14 @@ fun ArticleReaderScreen(
                         )
                     }
                     NavigationDrawerItem(
-                        label = { Text(if (article?.isArchived == true) "Aus Archiv entfernen" else "Archivieren") },
+                        label = { Text(stringResource(if (article?.isArchived == true) R.string.articleReader_sideMenu_moveToReadingList else R.string.articleReader_sideMenu_archive)) },
                         icon = { Icon(if (article?.isArchived == true) Icons.Filled.Inventory2 else Icons.Filled.Archive, contentDescription = null) },
                         selected = false,
                         onClick = { scope.launch { drawerState.close() }; viewModel.toggleArchive() },
                         modifier = Modifier.padding(horizontal = 12.dp),
                     )
                     NavigationDrawerItem(
-                        label = { Text("Tags bearbeiten…") },
+                        label = { Text(stringResource(R.string.articleReader_sideMenu_editTags)) },
                         icon = { Icon(Icons.Filled.Tag, contentDescription = null) },
                         selected = false,
                         onClick = {
@@ -580,7 +582,7 @@ fun ArticleReaderScreen(
                     )
                     if (article?.fileId != null) {
                         NavigationDrawerItem(
-                            label = { Text("Umbenennen…") },
+                            label = { Text(stringResource(R.string.fileRename_menu)) },
                             icon = { Icon(Icons.Filled.Edit, contentDescription = null) },
                             selected = false,
                             onClick = { scope.launch { drawerState.close() }; showRenameDialog = true },
@@ -588,21 +590,21 @@ fun ArticleReaderScreen(
                         )
                     }
                     NavigationDrawerItem(
-                        label = { Text("Erinnern…") },
+                        label = { Text(stringResource(R.string.articleReader_sideMenu_setReminder)) },
                         icon = { Icon(Icons.Filled.NotificationAdd, contentDescription = null) },
                         selected = false,
                         onClick = { scope.launch { drawerState.close() }; showReminderSheet = true },
                         modifier = Modifier.padding(horizontal = 12.dp),
                     )
                     NavigationDrawerItem(
-                        label = { Text("Artikel melden…") },
+                        label = { Text(stringResource(R.string.articleReader_sideMenu_reportArticle)) },
                         icon = { Icon(Icons.Filled.Flag, contentDescription = null) },
                         selected = false,
                         onClick = { scope.launch { drawerState.close() }; showReportSheet = true },
                         modifier = Modifier.padding(horizontal = 12.dp),
                     )
                     NavigationDrawerItem(
-                        label = { Text("Löschen") },
+                        label = { Text(stringResource(R.string.common_delete)) },
                         icon = { Icon(Icons.Filled.Delete, contentDescription = null) },
                         selected = false,
                         onClick = { scope.launch { drawerState.close() }; viewModel.delete() },
@@ -637,7 +639,7 @@ fun ArticleReaderScreen(
                     }
                     currentArticle == null -> {
                         Text(
-                            error ?: "Artikel konnte nicht geladen werden",
+                            error ?: stringResource(R.string.android_articleReader_loadFailed),
                             modifier = Modifier.align(Alignment.Center).padding(24.dp),
                         )
                     }
@@ -1071,16 +1073,16 @@ fun ArticleReaderScreen(
     highlightToDelete?.let { highlight ->
         AlertDialog(
             onDismissRequest = { highlightToDelete = null },
-            title = { Text("Markierung mit Kommentaren entfernen?") },
-            text = { Text("Die Kommentare bleiben mit der zitierten Textstelle erhalten.") },
+            title = { Text(stringResource(R.string.articleReader_comments_deleteHighlightTitle)) },
+            text = { Text(stringResource(R.string.articleReader_comments_deleteHighlightMessage)) },
             confirmButton = {
                 TextButton(onClick = {
                     viewModel.deleteHighlight(highlight)
                     highlightToDelete = null
-                }) { Text("Markierung entfernen", color = MaterialTheme.colorScheme.error) }
+                }) { Text(stringResource(R.string.articleReader_comments_removeHighlight), color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = {
-                TextButton(onClick = { highlightToDelete = null }) { Text("Abbrechen") }
+                TextButton(onClick = { highlightToDelete = null }) { Text(stringResource(R.string.common_cancel)) }
             },
         )
     }
@@ -1145,7 +1147,7 @@ private fun ReaderBottomBar(
     ) {
         BottomBarButton(
             icon = Icons.Filled.Archive,
-            contentDescription = "Archivieren und zurück",
+            contentDescription = stringResource(R.string.android_articleReader_archiveAndBack),
             onClick = onArchiveAndBack,
             tint = onAccentColor,
             modifier = Modifier.weight(1f),
@@ -1154,7 +1156,7 @@ private fun ReaderBottomBar(
         if (onStartHandsFree != null) {
             BottomBarButton(
                 icon = Icons.Filled.KeyboardDoubleArrowDown,
-                contentDescription = "Freihand-Lesen",
+                contentDescription = stringResource(R.string.articleReader_handsFree_start),
                 onClick = onStartHandsFree,
                 tint = onAccentColor,
                 modifier = Modifier.weight(1f),
@@ -1163,7 +1165,7 @@ private fun ReaderBottomBar(
         }
         BottomBarButton(
             icon = Icons.Filled.Menu,
-            contentDescription = "Menü",
+            contentDescription = stringResource(R.string.android_common_menu),
             onClick = onOpenMenu,
             tint = onAccentColor,
             modifier = Modifier.weight(1f),
@@ -1192,11 +1194,14 @@ private fun HandsFreeBar(
 ) {
     val divider = onAccentColor.copy(alpha = 0.25f)
     val paused = controller.isPaused
-    val speedDescription = when {
-        controller.slider < 0.34f -> "langsam"
-        controller.slider < 0.67f -> "mittel"
-        else -> "schnell"
-    }
+    val speedDescription = stringResource(
+        when {
+            controller.slider < 0.34f -> R.string.articleReader_handsFree_slow
+            controller.slider < 0.67f -> R.string.articleReader_handsFree_medium
+            else -> R.string.articleReader_handsFree_fast
+        },
+    )
+    val speedLabel = stringResource(R.string.articleReader_handsFree_speed)
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -1206,7 +1211,7 @@ private fun HandsFreeBar(
     ) {
         BottomBarButton(
             icon = if (paused) Icons.Filled.PlayArrow else Icons.Filled.Pause,
-            contentDescription = if (paused) "Weiter" else "Pause",
+            contentDescription = stringResource(if (paused) R.string.articleReader_handsFree_resume else R.string.articleReader_handsFree_pause),
             onClick = { controller.togglePause() },
             tint = onAccentColor,
             modifier = Modifier.width(60.dp),
@@ -1237,7 +1242,7 @@ private fun HandsFreeBar(
                 modifier = Modifier
                     .weight(1f)
                     .semantics {
-                        contentDescription = "Scrollgeschwindigkeit"
+                        contentDescription = speedLabel
                         stateDescription = speedDescription
                     },
             )
@@ -1251,7 +1256,7 @@ private fun HandsFreeBar(
         VerticalDivider(thickness = 0.5.dp, color = divider)
         BottomBarButton(
             icon = Icons.Filled.Close,
-            contentDescription = "Freihand-Lesen beenden",
+            contentDescription = stringResource(R.string.articleReader_handsFree_stop),
             onClick = onStop,
             tint = onAccentColor,
             modifier = Modifier.width(60.dp),
@@ -1452,12 +1457,12 @@ private fun HighlightColorToolbar(
         }
         if (onComment != null) {
             IconButton(onClick = onComment, modifier = Modifier.size(36.dp)) {
-                Icon(Icons.Outlined.AddComment, contentDescription = "Kommentieren")
+                Icon(Icons.Outlined.AddComment, contentDescription = stringResource(R.string.articleReader_comments_comment))
             }
         }
         if (onDelete != null) {
             IconButton(onClick = onDelete, modifier = Modifier.size(36.dp)) {
-                Icon(Icons.Outlined.Delete, contentDescription = "Markierung entfernen")
+                Icon(Icons.Outlined.Delete, contentDescription = stringResource(R.string.articleReader_comments_removeHighlight))
             }
         }
     }
@@ -1490,7 +1495,7 @@ private fun FindBar(
             OutlinedTextField(
                 value = query,
                 onValueChange = onQueryChange,
-                placeholder = { Text("Im Artikel suchen") },
+                placeholder = { Text(stringResource(R.string.articleReader_find_placeholder)) },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                 keyboardActions = KeyboardActions(onSearch = { onStep(true) }),
@@ -1498,20 +1503,20 @@ private fun FindBar(
             )
             val label = when {
                 query.isBlank() || result == null -> ""
-                result.count > 0 -> "${result.index + 1} von ${result.count}"
-                else -> "Keine Treffer"
+                result.count > 0 -> stringResource(R.string.articleReader_find_position, result.index + 1, result.count)
+                else -> stringResource(R.string.articleReader_find_noMatches)
             }
             if (label.isNotEmpty()) {
                 Text(label, style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(horizontal = 6.dp))
             }
             val hasMatches = (result?.count ?: 0) > 0
             IconButton(onClick = { onStep(false) }, enabled = hasMatches) {
-                Icon(Icons.Filled.KeyboardArrowUp, contentDescription = "Vorheriger Treffer")
+                Icon(Icons.Filled.KeyboardArrowUp, contentDescription = stringResource(R.string.articleReader_find_previous))
             }
             IconButton(onClick = { onStep(true) }, enabled = hasMatches) {
-                Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "Nächster Treffer")
+                Icon(Icons.Filled.KeyboardArrowDown, contentDescription = stringResource(R.string.articleReader_find_next))
             }
-            TextButton(onClick = onClose) { Text("Fertig") }
+            TextButton(onClick = onClose) { Text(stringResource(R.string.articleReader_find_close)) }
         }
     }
 }

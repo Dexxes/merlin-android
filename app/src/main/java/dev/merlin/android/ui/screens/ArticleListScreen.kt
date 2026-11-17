@@ -63,7 +63,9 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.imageResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -148,11 +150,13 @@ fun ArticleListScreen(
 
     // Snackbar mit "Rückgängig"-Action, sobald eine Mutation passiert ist (Android hat keine
     // Shake-Geste, daher ersetzt der Snackbar-Button iOS' Shake-to-Undo).
+    val context = LocalContext.current
+    val undoLabel = stringResource(R.string.articleList_archiveToast_undoButton)
     LaunchedEffect(lastUndoableAction) {
         val action = lastUndoableAction ?: return@LaunchedEffect
         val result = snackbarHostState.showSnackbar(
-            message = action.promptDescription,
-            actionLabel = "Rückgängig",
+            message = context.getString(action.promptDescription),
+            actionLabel = undoLabel,
             withDismissAction = true,
         )
         if (result == SnackbarResult.ActionPerformed) viewModel.undo()
@@ -261,7 +265,7 @@ fun ArticleListScreen(
                                 )
                             } else {
                                 Text(
-                                    selectedFilter.label,
+                                    stringResource(selectedFilter.label),
                                     // Wie der kompakte Inline-Titel auf iOS: kleiner als titleLarge, damit
                                     // auch „Nicht geöffnet“ zwischen Menü/Suche und Auge/Plus passt.
                                     style = MaterialTheme.typography.titleMedium,
@@ -275,7 +279,7 @@ fun ArticleListScreen(
                     navigationIcon = {
                         Row {
                             IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                                Icon(Icons.Filled.Menu, contentDescription = "Menü")
+                                Icon(Icons.Filled.Menu, contentDescription = stringResource(R.string.android_common_menu))
                             }
                             // Suchfeld ein-/ausblenden; beim Ausblenden wird die Suche geleert,
                             // damit kein unsichtbarer Filter auf der Liste liegen bleibt.
@@ -287,7 +291,7 @@ fun ArticleListScreen(
                             ) {
                                 Icon(
                                     Icons.Filled.Search,
-                                    contentDescription = if (searchVisible) "Suche schließen" else "Suchen",
+                                    contentDescription = stringResource(if (searchVisible) R.string.android_articleList_closeSearch else R.string.android_common_search),
                                     tint = if (searchVisible) MaterialTheme.colorScheme.primary else LocalContentColor.current,
                                 )
                             }
@@ -308,7 +312,7 @@ fun ArticleListScreen(
                             if (selectedTagId != null) {
                                 Icon(
                                     imageVector = if (showArchivedInTagView) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
-                                    contentDescription = if (showArchivedInTagView) "Archiv ausblenden" else "Archiv einblenden",
+                                    contentDescription = stringResource(if (showArchivedInTagView) R.string.android_articleList_hideArchived else R.string.android_articleList_showArchived),
                                 )
                             } else {
                                 BadgedBox(
@@ -318,12 +322,12 @@ fun ArticleListScreen(
                                         }
                                     },
                                 ) {
-                                    Icon(Icons.Filled.VisibilityOff, contentDescription = "Tag-Filter")
+                                    Icon(Icons.Filled.VisibilityOff, contentDescription = stringResource(R.string.tagFilterSheet_title))
                                 }
                             }
                         }
                         IconButton(onClick = { showAddSheet = true }) {
-                            Icon(Icons.Filled.Add, contentDescription = "Artikel hinzufügen")
+                            Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.addArticle_title))
                         }
                     },
                     colors = TopAppBarDefaults.centerAlignedTopAppBarColors(),
@@ -343,12 +347,12 @@ fun ArticleListScreen(
                     OutlinedTextField(
                         value = searchQuery,
                         onValueChange = viewModel::setSearchQuery,
-                        placeholder = { Text("Artikel suchen") },
+                        placeholder = { Text(stringResource(R.string.articleList_searchPlaceholder)) },
                         leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
                         trailingIcon = {
                             if (searchQuery.isNotEmpty()) {
                                 IconButton(onClick = { viewModel.setSearchQuery("") }) {
-                                    Icon(Icons.Filled.Clear, contentDescription = "Suche leeren")
+                                    Icon(Icons.Filled.Clear, contentDescription = stringResource(R.string.android_articleList_clearSearch))
                                 }
                             }
                         },
@@ -368,7 +372,7 @@ fun ArticleListScreen(
                     ) {
                         Icon(Icons.Filled.CloudOff, contentDescription = null, modifier = Modifier.size(16.dp))
                         Text(
-                            text = "Offline – zeige zwischengespeicherte Artikel",
+                            text = stringResource(R.string.android_articleList_offlineBanner),
                             style = MaterialTheme.typography.bodySmall,
                             modifier = Modifier.padding(start = 6.dp),
                         )
@@ -453,7 +457,7 @@ fun ArticleListScreen(
                                     if (loadMoreFailed) {
                                         item(key = "loadMoreRetry") {
                                             Box(Modifier.fillMaxWidth().padding(vertical = 12.dp), contentAlignment = Alignment.Center) {
-                                                TextButton(onClick = { viewModel.retryLoadMore() }) { Text("Ältere Artikel laden") }
+                                                TextButton(onClick = { viewModel.retryLoadMore() }) { Text(stringResource(R.string.articleList_loadMore_retryButton)) }
                                             }
                                         }
                                     } else if (hasMoreArticles) {
@@ -528,18 +532,18 @@ fun ArticleListScreen(
     tagToDelete?.let { tag ->
         AlertDialog(
             onDismissRequest = { tagToDelete = null },
-            title = { Text("Tag löschen?") },
+            title = { Text(stringResource(R.string.navigationMenu_deleteTag_title)) },
             text = {
-                Text("„${tag.name}“ wird von allen Artikeln entfernt, Unter-Tags werden mitgelöscht. Die Artikel selbst bleiben erhalten.")
+                Text(stringResource(R.string.navigationMenu_deleteTag_message, tag.name))
             },
             confirmButton = {
                 TextButton(onClick = {
                     tagToDelete = null
                     viewModel.deleteTag(tag)
-                }) { Text("Löschen", color = MaterialTheme.colorScheme.error) }
+                }) { Text(stringResource(R.string.common_delete), color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = {
-                TextButton(onClick = { tagToDelete = null }) { Text("Abbrechen") }
+                TextButton(onClick = { tagToDelete = null }) { Text(stringResource(R.string.common_cancel)) }
             },
         )
     }
@@ -567,21 +571,22 @@ private fun EmptyState(
     modifier: Modifier = Modifier,
 ) {
     val message = when {
-        tagName != null -> "Keine Artikel mit Tag \"$tagName\"."
-        else -> when (filter) {
-            ArticleFilter.PAGES_CONTINUE -> "Nichts zum Weiterlesen. Angefangene Artikel erscheinen hier."
-            ArticleFilter.PAGES_UNREAD -> "Keine Artikel gespeichert. Tippe auf +, um einen hinzuzufügen."
-            ArticleFilter.VIDEOS_CONTINUE -> "Nichts zum Weiterschauen. Angefangene Videos erscheinen hier."
-            ArticleFilter.VIDEOS_UNREAD -> "Noch keine ungesehenen Videos. Füge einen YouTube- oder Video-Link hinzu, um ihn hier zu sehen."
-            ArticleFilter.AUDIO_CONTINUE -> "Nichts zum Weiterhören. Angefangene Audios erscheinen hier."
-            ArticleFilter.AUDIO_UNREAD -> "Noch keine ungehörten Audios. Füge einen Podcast- oder Audio-Link hinzu, um ihn hier zu finden."
-            ArticleFilter.FILES_UNREAD -> "Noch keine Dateien. Hier erscheinen Bilder, PDFs und andere Dateien, die in Nextcloud unter „Merlin Dateien“ gespeichert wurden (z. B. über die iOS-App)."
-            ArticleFilter.PAGES_FAVORITES, ArticleFilter.VIDEOS_FAVORITES, ArticleFilter.AUDIO_FAVORITES,
-            ArticleFilter.FILES_FAVORITES ->
-                "Noch keine Favoriten. Markiere Artikel mit einem Stern, um sie hier zu finden."
-            ArticleFilter.PAGES_ARCHIVE, ArticleFilter.VIDEOS_ARCHIVE, ArticleFilter.AUDIO_ARCHIVE,
-            ArticleFilter.FILES_ARCHIVE -> "Dein Archiv ist leer."
-        }
+        tagName != null -> stringResource(R.string.articleList_emptyState_taggedMessage, tagName)
+        else -> stringResource(
+            when (filter) {
+                ArticleFilter.PAGES_CONTINUE -> R.string.articleList_emptyState_continueReadingMessage
+                ArticleFilter.PAGES_UNREAD -> R.string.articleList_emptyState_allMessage
+                ArticleFilter.VIDEOS_CONTINUE -> R.string.articleList_emptyState_continueWatchingMessage
+                ArticleFilter.VIDEOS_UNREAD -> R.string.articleList_emptyState_unseenMessage
+                ArticleFilter.AUDIO_CONTINUE -> R.string.articleList_emptyState_continueListeningMessage
+                ArticleFilter.AUDIO_UNREAD -> R.string.articleList_emptyState_unheardMessage
+                ArticleFilter.FILES_UNREAD -> R.string.articleList_emptyState_filesMessage
+                ArticleFilter.PAGES_FAVORITES, ArticleFilter.VIDEOS_FAVORITES, ArticleFilter.AUDIO_FAVORITES,
+                ArticleFilter.FILES_FAVORITES -> R.string.articleList_emptyState_favoritesMessage
+                ArticleFilter.PAGES_ARCHIVE, ArticleFilter.VIDEOS_ARCHIVE, ArticleFilter.AUDIO_ARCHIVE,
+                ArticleFilter.FILES_ARCHIVE -> R.string.articleList_emptyState_archiveMessage
+            },
+        )
     }
     Column(
         modifier = modifier.padding(horizontal = 24.dp),
@@ -594,7 +599,7 @@ private fun EmptyState(
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.size(48.dp),
         )
-        Text("Noch nichts hier", style = MaterialTheme.typography.titleMedium)
+        Text(stringResource(R.string.articleList_emptyState_title), style = MaterialTheme.typography.titleMedium)
         Text(
             message,
             style = MaterialTheme.typography.bodyMedium,
@@ -602,7 +607,7 @@ private fun EmptyState(
             textAlign = TextAlign.Center,
         )
         OutlinedButton(onClick = onRefresh, modifier = Modifier.padding(top = 4.dp)) {
-            Text("Aktualisieren")
+            Text(stringResource(R.string.articleList_emptyState_refreshButton))
         }
     }
 }
