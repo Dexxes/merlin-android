@@ -1054,8 +1054,10 @@ fun ArticleReaderScreen(
     LaunchedEffect(quoteActive) {
         if (view.isInEditMode) return@LaunchedEffect
         val window = (view.context as Activity).window
-        // Ohne Statusleiste blieb oben der Streifen der Kamera-Aussparung leer (weiß): solange die
-        // Tafel offen ist, darf das Fenster bis in die Aussparung reichen.
+        // Merlin läuft nicht edge-to-edge: auch mit ausgeblendeter Statusleiste hält das Fenster
+        // oben deren Platz frei (weißer Streifen). Solange die Tafel offen ist, läuft es daher
+        // randlos und reicht bis in die Kamera-Aussparung; danach wieder wie vorher.
+        WindowCompat.setDecorFitsSystemWindows(window, !quoteActive)
         window.setCutoutShortEdges(quoteActive)
         val controller = WindowCompat.getInsetsController(window, view)
         if (quoteActive) {
@@ -1069,6 +1071,7 @@ fun ArticleReaderScreen(
         onDispose {
             if (!view.isInEditMode) {
                 val window = (view.context as Activity).window
+                WindowCompat.setDecorFitsSystemWindows(window, true)
                 window.setCutoutShortEdges(false)
                 WindowCompat.getInsetsController(window, view)
                     .show(WindowInsetsCompat.Type.statusBars())
