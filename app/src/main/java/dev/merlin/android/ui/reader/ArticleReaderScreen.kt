@@ -4,7 +4,9 @@ import android.app.Activity
 import android.content.ClipData
 import android.content.Intent
 import android.graphics.Typeface
+import android.os.Build
 import android.view.Window
+import android.view.WindowManager
 import android.webkit.WebView
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
@@ -1051,7 +1053,11 @@ fun ArticleReaderScreen(
     val quoteActive = quoteSession != null
     LaunchedEffect(quoteActive) {
         if (view.isInEditMode) return@LaunchedEffect
-        val controller = WindowCompat.getInsetsController((view.context as Activity).window, view)
+        val window = (view.context as Activity).window
+        // Ohne Statusleiste blieb oben der Streifen der Kamera-Aussparung leer (weiß): solange die
+        // Tafel offen ist, darf das Fenster bis in die Aussparung reichen.
+        window.setCutoutShortEdges(quoteActive)
+        val controller = WindowCompat.getInsetsController(window, view)
         if (quoteActive) {
             controller.hide(WindowInsetsCompat.Type.systemBars())
         } else {
@@ -1062,7 +1068,9 @@ fun ArticleReaderScreen(
     DisposableEffect(Unit) {
         onDispose {
             if (!view.isInEditMode) {
-                WindowCompat.getInsetsController((view.context as Activity).window, view)
+                val window = (view.context as Activity).window
+                window.setCutoutShortEdges(false)
+                WindowCompat.getInsetsController(window, view)
                     .show(WindowInsetsCompat.Type.statusBars())
             }
         }
@@ -1706,4 +1714,17 @@ private fun Window.setStatusBarColorCompat(argb: Int) {
 @Suppress("DEPRECATION")
 private fun Window.setNavigationBarColorCompat(argb: Int) {
     navigationBarColor = argb
+}
+
+/** Fenster bis in die Kamera-Aussparung (an den kurzen Kanten) ziehen bzw. zurück zum Standard. */
+private fun Window.setCutoutShortEdges(enabled: Boolean) {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return
+    val mode = if (enabled) {
+        WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+    } else {
+        WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_DEFAULT
+    }
+    if (attributes.layoutInDisplayCutoutMode != mode) {
+        attributes = attributes.apply { layoutInDisplayCutoutMode = mode }
+    }
 }
