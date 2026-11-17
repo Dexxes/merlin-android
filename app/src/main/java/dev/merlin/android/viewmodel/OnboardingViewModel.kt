@@ -1,9 +1,13 @@
 package dev.merlin.android.viewmodel
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
+import dev.merlin.android.R
 import dev.merlin.android.auth.LoginFlowService
+import dev.merlin.android.auth.loginErrorMessage
 import dev.merlin.android.network.CredentialsStore
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
@@ -22,6 +26,7 @@ import kotlinx.coroutines.launch
  */
 @HiltViewModel
 class OnboardingViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val loginFlowService: LoginFlowService,
     private val credentialsStore: CredentialsStore,
 ) : ViewModel() {
@@ -65,7 +70,7 @@ class OnboardingViewModel @Inject constructor(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                _error.value = e.message ?: "Login fehlgeschlagen"
+                _error.value = loginErrorMessage(context, e)
             } finally {
                 // Ein abgelöster Vorgang darf den Ladezustand des neuen nicht zurücksetzen.
                 if (loginJob == null || loginJob === coroutineContext[Job]) _isLoading.value = false

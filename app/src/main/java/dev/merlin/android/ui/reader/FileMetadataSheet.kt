@@ -23,8 +23,10 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import dev.merlin.android.R
 import dev.merlin.android.models.FileMetadata
 
 /**
@@ -64,7 +66,7 @@ fun FileMetadataSheet(metadata: FileMetadata, onDismiss: () -> Unit) {
                         )
                         Icon(
                             if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                            contentDescription = if (expanded) "Zuklappen" else "Aufklappen",
+                            contentDescription = stringResource(if (expanded) R.string.android_common_collapse else R.string.android_common_expand),
                         )
                     }
                     if (expanded) {

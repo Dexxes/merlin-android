@@ -1,15 +1,20 @@
 package dev.merlin.android.viewmodel
 
+import android.content.Context
+import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import coil.ImageLoader
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
+import dev.merlin.android.R
 import dev.merlin.android.data.ArticleCacheService
 import dev.merlin.android.data.HapticUtil
 import dev.merlin.android.data.ImageCacheService
 import dev.merlin.android.data.OfflineMutationQueue
 import dev.merlin.android.data.PdfCacheService
 import dev.merlin.android.data.PreferencesStore
+import dev.merlin.android.data.userMessage
 import dev.merlin.android.models.Article
 import dev.merlin.android.models.ArticleFilter
 import dev.merlin.android.models.Tag
@@ -48,17 +53,19 @@ import retrofit2.HttpException
 data class UndoableAction(val kind: Kind, val article: Article) {
     enum class Kind { TOGGLE_FAVORITE, TOGGLE_ARCHIVE }
 
-    val description: String
+    @get:StringRes
+    val description: Int
         get() = when (kind) {
-            Kind.TOGGLE_FAVORITE -> if (article.isFavorite) "Favorit entfernen rückgängig" else "Zu Favoriten hinzufügen rückgängig"
-            Kind.TOGGLE_ARCHIVE -> if (article.isArchived) "Aus Archiv entfernen rückgängig" else "Archivieren rückgängig"
+            Kind.TOGGLE_FAVORITE -> if (article.isFavorite) R.string.articleList_undo_unfavorite else R.string.articleList_undo_favorite
+            Kind.TOGGLE_ARCHIVE -> if (article.isArchived) R.string.articleList_undo_unarchive else R.string.articleList_undo_archive
         }
 
     /** Text für den Snackbar, der direkt NACH der Mutation erscheint (Android hat keine Shake-Geste für [undo]). */
-    val promptDescription: String
+    @get:StringRes
+    val promptDescription: Int
         get() = when (kind) {
-            Kind.TOGGLE_FAVORITE -> if (article.isFavorite) "Favorit entfernt" else "Zu Favoriten hinzugefügt"
-            Kind.TOGGLE_ARCHIVE -> if (article.isArchived) "Aus Archiv entfernt" else "Archiviert"
+            Kind.TOGGLE_FAVORITE -> if (article.isFavorite) R.string.android_articleList_favoriteRemoved else R.string.android_articleList_favoriteAdded
+            Kind.TOGGLE_ARCHIVE -> if (article.isArchived) R.string.articleList_archiveToast_unarchived else R.string.articleList_archiveToast_archived
         }
 }
 
@@ -72,6 +79,7 @@ data class UndoableAction(val kind: Kind, val article: Article) {
  */
 @HiltViewModel
 class ArticlesViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val api: MerlinApi,
     private val articleCacheService: ArticleCacheService,
     private val imageCacheService: ImageCacheService,
@@ -202,7 +210,7 @@ class ArticlesViewModel @Inject constructor(
                 UndoableAction.Kind.TOGGLE_ARCHIVE -> doToggleArchive(action.article, recordUndo = false)
             }
             load()
-            _undoToast.value = action.description
+            _undoToast.value = context.getString(action.description)
             delay(2_500)
             _undoToast.value = null
         }
@@ -445,7 +453,7 @@ class ArticlesViewModel @Inject constructor(
                     _isOffline.value = true
                 } else {
                     _isOffline.value = false
-                    _error.value = e.message ?: "Unbekannter Fehler"
+                    _error.value = e.userMessage(context) ?: context.getString(R.string.api_error_unknown)
                 }
             }
 
@@ -631,7 +639,7 @@ class ArticlesViewModel @Inject constructor(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                _error.value = if (isNetworkError(e)) "Keine Verbindung – Tag nicht verschoben." else e.message ?: "Unbekannter Fehler"
+                _error.value = if (isNetworkError(e)) context.getString(R.string.android_tags_error_moveOffline) else e.userMessage(context) ?: context.getString(R.string.api_error_unknown)
                 return@launch
             }
             refreshTags()
@@ -648,14 +656,14 @@ class ArticlesViewModel @Inject constructor(
         val newName = name.trim()
         if (newName.isEmpty() || newName == tag.name) return null
         if (_allTags.value.any { it.id != tag.id && it.name.equals(newName, ignoreCase = true) }) {
-            return "Es gibt schon einen Tag mit diesem Namen."
+            return context.getString(R.string.android_tags_error_nameExists)
         }
         val renamed = try {
             api.renameTag(tag.id, RenameTagRequest(newName))
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            return if (isNetworkError(e)) "Keine Verbindung – bitte später erneut versuchen." else e.message ?: "Unbekannter Fehler"
+            return if (isNetworkError(e)) context.getString(R.string.android_common_error_offlineRetryLater) else e.userMessage(context) ?: context.getString(R.string.api_error_unknown)
         }
         val finalName = renamed.name.ifEmpty { newName }
         _allTags.value = _allTags.value.map { if (it.id == tag.id) it.copy(name = finalName) else it }
@@ -682,7 +690,7 @@ class ArticlesViewModel @Inject constructor(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                _error.value = if (isNetworkError(e)) "Keine Verbindung – Tag nicht gelöscht." else e.message ?: "Unbekannter Fehler"
+                _error.value = if (isNetworkError(e)) context.getString(R.string.android_tags_error_deleteOffline) else e.userMessage(context) ?: context.getString(R.string.api_error_unknown)
                 return@launch
             }
 
@@ -793,9 +801,9 @@ class ArticlesViewModel @Inject constructor(
     } catch (e: CancellationException) {
         throw e
     } catch (e: HttpException) {
-        if (e.code() == 409) RENAME_ERROR_EXISTS else e.message ?: "Unbekannter Fehler"
+        if (e.code() == 409) context.getString(R.string.fileRename_errorExists) else e.userMessage(context) ?: context.getString(R.string.api_error_unknown)
     } catch (e: Exception) {
-        if (isNetworkError(e)) "Keine Verbindung – bitte später erneut versuchen." else e.message ?: "Unbekannter Fehler"
+        if (isNetworkError(e)) context.getString(R.string.android_common_error_offlineRetryLater) else e.userMessage(context) ?: context.getString(R.string.api_error_unknown)
     }
 
     // MARK: – Processing-Listener
@@ -856,7 +864,7 @@ class ArticlesViewModel @Inject constructor(
                 offlineMutationQueue.enqueueToggleFavorite(article.id)
             } else {
                 reinsertIfMissing(article)
-                _error.value = e.message ?: "Unbekannter Fehler"
+                _error.value = e.userMessage(context) ?: context.getString(R.string.api_error_unknown)
             }
         }
     }
@@ -889,7 +897,7 @@ class ArticlesViewModel @Inject constructor(
                 offlineMutationQueue.enqueueToggleArchive(article.id)
             } else {
                 reinsertIfMissing(article)
-                _error.value = e.message ?: "Unbekannter Fehler"
+                _error.value = e.userMessage(context) ?: context.getString(R.string.api_error_unknown)
             }
         }
     }
@@ -917,7 +925,7 @@ class ArticlesViewModel @Inject constructor(
                             it.add(minOf(removedIndex, it.size), article)
                         }
                     }
-                    _error.value = e.message ?: "Unbekannter Fehler"
+                    _error.value = e.userMessage(context) ?: context.getString(R.string.api_error_unknown)
                 }
             }
         }
@@ -967,7 +975,7 @@ class ArticlesViewModel @Inject constructor(
                 }
             } else {
                 applyUpdate(article) // rollback
-                _error.value = e.message ?: "Unbekannter Fehler"
+                _error.value = e.userMessage(context) ?: context.getString(R.string.api_error_unknown)
             }
         }
     }
@@ -1049,8 +1057,5 @@ class ArticlesViewModel @Inject constructor(
     companion object {
         /** Artikel pro Server-Abruf (Erstladen und jedes Nachladen), wie `pageSize` in ArticlesViewModel.swift. */
         const val PAGE_SIZE = 50
-
-        /** 409 von `PUT api/articles/{id}/file-name` (Text wie `fileRename.errorExists` auf iOS). */
-        const val RENAME_ERROR_EXISTS = "Im Ordner gibt es schon eine Datei mit diesem Namen."
     }
 }

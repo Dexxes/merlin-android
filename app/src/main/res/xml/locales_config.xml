@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Sprachen der App für die Android-13+-Spracheinstellung pro App (Einstellungen → Apps →
+     Merlin → Sprache). Englisch steht im Default-Ordner res/values/ und ist damit auch der
+     Fallback für jede Gerätesprache, die hier nicht aufgeführt ist. -->
+<locale-config xmlns:android="http://schemas.android.com/apk/res/android">
+    <locale android:name="en" />
+    <locale android:name="de" />
+</locale-config>

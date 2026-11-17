@@ -19,7 +19,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import dev.merlin.android.R
 
 /**
  * Äquivalent zum Paywall-Hinweis-Banner in `ArticleReaderView.swift`: erscheint, sobald
@@ -53,8 +55,7 @@ fun PaywallWarningBanner(
                     modifier = Modifier.padding(top = 2.dp, end = 8.dp),
                 )
                 Text(
-                    "Dieser Artikel liegt möglicherweise hinter einer Paywall auf $domain. " +
-                        "Verbinde dein Abo, um ihn freizuschalten.",
+                    stringResource(R.string.articleReader_paywallBanner_message, domain),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onErrorContainer,
                     modifier = Modifier.weight(1f),
@@ -62,7 +63,7 @@ fun PaywallWarningBanner(
                 IconButton(onClick = onDismiss) {
                     Icon(
                         Icons.Filled.Close,
-                        contentDescription = "Ausblenden",
+                        contentDescription = stringResource(R.string.android_common_dismiss),
                         tint = MaterialTheme.colorScheme.onErrorContainer,
                     )
                 }
@@ -71,8 +72,8 @@ fun PaywallWarningBanner(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.padding(top = 8.dp),
             ) {
-                OutlinedButton(onClick = onConnect) { Text("Verbinden") }
-                TextButton(onClick = onRetry) { Text("Erneut versuchen") }
+                OutlinedButton(onClick = onConnect) { Text(stringResource(R.string.articleReader_paywallBanner_connectButton)) }
+                TextButton(onClick = onRetry) { Text(stringResource(R.string.articleReader_paywallBanner_retryButton)) }
             }
         }
     }

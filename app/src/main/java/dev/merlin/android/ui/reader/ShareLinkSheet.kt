@@ -46,9 +46,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import dev.merlin.android.R
+import dev.merlin.android.ui.appLocale
 import dev.merlin.android.viewmodel.ArticleReaderViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -96,9 +99,10 @@ fun ShareLinkSheet(
         viewModel.loadShare()
     }
 
+    val locale = appLocale()
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
         Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) {
-            Text("Öffentlicher Link", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.android_shareLink_title), style = MaterialTheme.typography.titleMedium)
 
             error?.let { msg ->
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 12.dp)) {
@@ -118,20 +122,20 @@ fun ShareLinkSheet(
             } else if (!share.enabled) {
                 // ── Anlegen ────────────────────────────────────────────────
                 Text(
-                    "Jeder mit diesem Link kann den Artikel lesen – inklusive deiner Markierungen.",
+                    stringResource(R.string.android_shareLink_explainer),
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.padding(top = 12.dp, bottom = 12.dp),
                 )
 
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                    Text("Mit Passwort schützen", modifier = Modifier.weight(1f))
+                    Text(stringResource(R.string.articleReader_shareLink_protectWithPassword), modifier = Modifier.weight(1f))
                     Switch(checked = createPasswordEnabled, onCheckedChange = { createPasswordEnabled = it })
                 }
                 if (createPasswordEnabled) {
                     OutlinedTextField(
                         value = createPassword,
                         onValueChange = { createPassword = it },
-                        label = { Text("Passwort") },
+                        label = { Text(stringResource(R.string.articleReader_shareLink_password)) },
                         visualTransformation = PasswordVisualTransformation(),
                         keyboardOptions = KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Password),
                         modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 8.dp),
@@ -139,7 +143,7 @@ fun ShareLinkSheet(
                 }
 
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                    Text("Link läuft an einem bestimmten Datum ab", modifier = Modifier.weight(1f))
+                    Text(stringResource(R.string.android_shareLink_expiryToggle), modifier = Modifier.weight(1f))
                     Switch(
                         checked = createExpiryEnabled,
                         onCheckedChange = {
@@ -150,7 +154,7 @@ fun ShareLinkSheet(
                 }
                 if (createExpiryEnabled) {
                     OutlinedButton(onClick = { showCreateExpiryPicker = true }, modifier = Modifier.padding(top = 4.dp, bottom = 8.dp)) {
-                        Text(createExpiryMillis?.let { isoDateFormatter.format(Date(it)) } ?: "Datum wählen")
+                        Text(createExpiryMillis?.let { displayDate(Date(it), locale) } ?: stringResource(R.string.android_shareLink_chooseDate))
                     }
                 }
 
@@ -171,7 +175,7 @@ fun ShareLinkSheet(
                                 expiresAt = if (createExpiryEnabled) createExpiryMillis?.let { isoDateFormatter.format(Date(it)) } else null,
                                 allowComments = if (commentsAvailable) createAllowComments else null,
                             )
-                        }) { Text("Öffentlichen Link erstellen") }
+                        }) { Text(stringResource(R.string.articleReader_sideMenu_publicLink)) }
                     }
                 }
             } else {
@@ -187,25 +191,26 @@ fun ShareLinkSheet(
                         modifier = Modifier.weight(1f),
                     )
                     IconButton(onClick = { share.url?.let { clipboard.setText(AnnotatedString(it)) } }) {
-                        Icon(Icons.Filled.ContentCopy, contentDescription = "Link kopieren")
+                        Icon(Icons.Filled.ContentCopy, contentDescription = stringResource(R.string.articleReader_sideMenu_copyLink))
                     }
+                    val shareLinkLabel = stringResource(R.string.android_shareLink_shareLink)
                     IconButton(onClick = {
                         share.url?.let { url ->
                             val intent = Intent(Intent.ACTION_SEND).apply {
                                 type = "text/plain"
                                 putExtra(Intent.EXTRA_TEXT, url)
                             }
-                            context.startActivity(Intent.createChooser(intent, "Link teilen"))
+                            context.startActivity(Intent.createChooser(intent, shareLinkLabel))
                         }
                     }) {
-                        Icon(Icons.Filled.Share, contentDescription = "Link teilen")
+                        Icon(Icons.Filled.Share, contentDescription = shareLinkLabel)
                     }
                 }
 
                 Divider(modifier = Modifier.padding(vertical = 12.dp))
 
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                    Text("Mit Passwort schützen", modifier = Modifier.weight(1f))
+                    Text(stringResource(R.string.articleReader_shareLink_protectWithPassword), modifier = Modifier.weight(1f))
                     Switch(
                         checked = share.hasPassword == true,
                         onCheckedChange = { isOn ->
@@ -224,7 +229,7 @@ fun ShareLinkSheet(
                         OutlinedTextField(
                             value = newPassword,
                             onValueChange = { newPassword = it },
-                            label = { Text("Neues Passwort") },
+                            label = { Text(stringResource(R.string.articleReader_shareLink_newPassword)) },
                             visualTransformation = PasswordVisualTransformation(),
                             modifier = Modifier.weight(1f),
                         )
@@ -236,14 +241,14 @@ fun ShareLinkSheet(
                                 editingPassword = false
                                 newPassword = ""
                             },
-                        ) { Text("Speichern") }
+                        ) { Text(stringResource(R.string.common_save)) }
                     }
                 }
 
                 Divider(modifier = Modifier.padding(vertical = 12.dp))
 
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                    Text("Link läuft an einem bestimmten Datum ab", modifier = Modifier.weight(1f))
+                    Text(stringResource(R.string.android_shareLink_expiryToggle), modifier = Modifier.weight(1f))
                     Switch(
                         checked = share.expiresAt != null,
                         onCheckedChange = { isOn ->
@@ -258,7 +263,7 @@ fun ShareLinkSheet(
                 share.expiresAt?.let { expiresAt ->
                     parseIsoDate(expiresAt)?.let { date ->
                         Text(
-                            "Läuft ab am ${isoDateFormatter.format(date)}",
+                            "${stringResource(R.string.articleReader_shareLink_expiresOn)} ${displayDate(date, locale)}",
                             style = MaterialTheme.typography.bodySmall,
                             modifier = Modifier.padding(top = 4.dp),
                         )
@@ -280,7 +285,7 @@ fun ShareLinkSheet(
                     OutlinedButton(onClick = { viewModel.regenerateShare() }, enabled = !busy) {
                         Icon(Icons.Filled.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text("Erneuern")
+                        Text(stringResource(R.string.articleReader_shareLink_regenerateButton))
                     }
                     OutlinedButton(
                         onClick = { viewModel.revokeShare() },
@@ -289,7 +294,7 @@ fun ShareLinkSheet(
                     ) {
                         Icon(Icons.Filled.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text("Widerrufen")
+                        Text(stringResource(R.string.articleReader_shareLink_revokeButton))
                     }
                 }
             }
@@ -309,13 +314,13 @@ fun ShareLinkSheet(
                 TextButton(onClick = {
                     datePickerState.selectedDateMillis?.let { createExpiryMillis = it }
                     showCreateExpiryPicker = false
-                }) { Text("OK") }
+                }) { Text(stringResource(R.string.common_ok)) }
             },
             dismissButton = {
                 TextButton(onClick = {
                     showCreateExpiryPicker = false
                     if (createExpiryMillis == null) createExpiryEnabled = false
-                }) { Text("Abbrechen") }
+                }) { Text(stringResource(R.string.common_cancel)) }
             },
         ) { DatePicker(state = datePickerState) }
     }
@@ -334,9 +339,9 @@ fun ShareLinkSheet(
                         viewModel.setShareExpiry(isoDateFormatter.format(Date(millis)))
                     }
                     showExpiryPicker = false
-                }) { Text("OK") }
+                }) { Text(stringResource(R.string.common_ok)) }
             },
-            dismissButton = { TextButton(onClick = { showExpiryPicker = false }) { Text("Abbrechen") } },
+            dismissButton = { TextButton(onClick = { showExpiryPicker = false }) { Text(stringResource(R.string.common_cancel)) } },
         ) { DatePicker(state = datePickerState) }
     }
 }
@@ -348,7 +353,12 @@ fun ShareLinkSheet(
 // Tages, und es ist dasselbe Format, das die Web-UI über `<input type="date">`
 // sendet.
 
-private val isoDateFormatter = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+// Locale.US, damit immer ASCII-Ziffern im API-Wert landen (nicht z. B. arabische).
+private val isoDateFormatter = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+
+/** Anzeigeformat in der Sprache der App (siehe [appLocale]), z. B. "17.11.2026" / "Nov 17, 2026". */
+private fun displayDate(date: Date, locale: Locale): String =
+    java.text.DateFormat.getDateInstance(java.text.DateFormat.MEDIUM, locale).format(date)
 
 private fun parseIsoDate(value: String): Date? =
     runCatching {
@@ -371,11 +381,11 @@ private fun startOfTodayUtcMillis(): Long {
 private fun AllowCommentsRow(checked: Boolean, enabled: Boolean, onCheckedChange: (Boolean) -> Unit) {
     Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            Text("Besucher dürfen markieren und kommentieren", modifier = Modifier.weight(1f))
+            Text(stringResource(R.string.articleReader_comments_visitorsCanComment), modifier = Modifier.weight(1f))
             Switch(checked = checked, enabled = enabled, onCheckedChange = onCheckedChange)
         }
         Text(
-            "Besucher wählen einen Namen. Wer denselben Namen nutzt, kann alles bearbeiten und löschen, was darunter geschrieben wurde.",
+            stringResource(R.string.articleReader_comments_nameExplainer),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 2.dp),

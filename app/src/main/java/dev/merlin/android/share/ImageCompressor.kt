@@ -6,7 +6,9 @@ import android.graphics.Canvas
 import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.Rect
+import androidx.annotation.StringRes
 import androidx.exifinterface.media.ExifInterface
+import dev.merlin.android.R
 import java.io.File
 import kotlin.math.max
 import kotlin.math.min
@@ -20,11 +22,12 @@ enum class ImageCompression(
     val maxPixelSize: Int?,
     /** JPEG-Qualität 0…100. */
     val quality: Int,
-    val title: String,
+    /** Beschriftung der Kachel (String-Ressource, siehe merlin-translations `share.files.compression.*`). */
+    @StringRes val titleRes: Int,
 ) {
-    STRONG(1600, 55, "Stark komprimieren"),
-    LIGHT(4096, 80, "Schwach komprimieren"),
-    ORIGINAL(null, 100, "Unkomprimiert"),
+    STRONG(1600, 55, R.string.share_files_compression_strong),
+    LIGHT(4096, 80, R.string.share_files_compression_light),
+    ORIGINAL(null, 100, R.string.share_files_compression_original),
 }
 
 /**

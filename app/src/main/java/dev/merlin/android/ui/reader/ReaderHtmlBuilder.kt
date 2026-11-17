@@ -5,6 +5,7 @@ import dev.merlin.android.models.Highlight
 import dev.merlin.android.models.ReaderTheme
 import dev.merlin.android.models.SupportBox
 import dev.merlin.android.viewmodel.ArticleReaderViewModel
+import java.util.Locale
 
 /**
  * Äquivalent zum HTML/CSS/JS-Template-Teil von `ArticleReaderView.swift`.
@@ -59,8 +60,23 @@ object ReaderHtmlBuilder {
         val donateLabel: String,
     )
 
+    /**
+     * Vorab aufgelöste Texte und Locale für Header und Platzhalter (wie [SupportBoxTexts]: der
+     * Builder hat keinen Context). [locale] bestimmt das Datumsformat der Metazeile, damit es zur
+     * angezeigten Sprache passt (siehe `AppLocale`).
+     */
+    data class ReaderTexts(
+        val authorLabel: String,
+        val savedLabel: String,
+        /** Lesezeit mit Platzhalter `%1${'$'}d`, z. B. "%1${'$'}d min". */
+        val readingTimeFormat: String,
+        val imageUnavailable: String,
+        val locale: Locale,
+    )
+
     fun build(
         article: Article,
+        texts: ReaderTexts,
         appearance: ArticleReaderViewModel.Appearance,
         // System-Dark-Mode-Signal von außen (Compose `isSystemInDarkTheme()`) – die WebView selbst
         // kennt den App-weiten Dark-Mode-Status nicht, siehe `buildCss`-Kommentar zu AUTO.
@@ -88,7 +104,7 @@ object ReaderHtmlBuilder {
         )
         val leadsWithHero = leadsWithHero(bodyHtml, article)
         val css = buildCss(appearance, isSystemDark, transparentBackground)
-        val headerHtml = buildHeaderHtml(article, leadsWithHero)
+        val headerHtml = buildHeaderHtml(article, leadsWithHero, texts)
         val footerHtml = buildFooterHtml(article)
         // Markierungen kommen erst nach dem Laden per [highlightsScript] (siehe ReaderWebView), damit
         // neue Markierungen und Kommentar-Pushes die Seite nicht neu laden. Die Support-Infobox ist ein
@@ -109,6 +125,7 @@ object ReaderHtmlBuilder {
             <body${if (leadsWithHero) " class=\"merlin-leads-hero\"" else ""}>
               $headerHtml
               <div id="merlin-content">$bodyHtml$footerHtml</div>
+              <script>window.MERLIN_I18N = ${i18nJson(texts)};</script>
               <script>$READER_JS</script>
               <script>${ReaderMediaRewriter.YOUTUBE_JS}</script>
               <script>${ReaderMediaRewriter.INLINE_MEDIA_JS}</script>
@@ -156,6 +173,10 @@ object ReaderHtmlBuilder {
      * mehr weiß, von wem/woher der Artikel stammt. Reiner Text (keine eigene Verlinkung), fällt
      * weg, wenn weder Autor noch Site-Name bekannt sind.
      */
+    /** Texte, die `READER_JS` zur Laufzeit braucht, als JSON (über [jsonForScript] sicher maskiert). */
+    private fun i18nJson(texts: ReaderTexts): String =
+        "{\"imageUnavailable\":${jsonForScript(texts.imageUnavailable)}}"
+
     private fun buildFooterHtml(article: Article): String {
         val parts = listOfNotNull(
             article.author?.takeIf { it.isNotBlank() },
@@ -194,7 +215,7 @@ object ReaderHtmlBuilder {
      * ([leadsWithHero]), setzt das CSS die Fläche randlos um das Bild fort und zeichnet die
      * Tonstufen unter der Bildunterschrift; sonst zeichnet der Header die Stufen selbst.
      */
-    private fun buildHeaderHtml(article: Article, leadsWithHero: Boolean): String {
+    private fun buildHeaderHtml(article: Article, leadsWithHero: Boolean, texts: ReaderTexts): String {
         val site = article.displaySiteName.trim()
         val firstTag = article.tags.firstOrNull()?.name?.trim().orEmpty()
         val toplineHtml = if (site.isNotEmpty() || firstTag.isNotEmpty()) {
@@ -221,18 +242,18 @@ object ReaderHtmlBuilder {
         // Gespeichert-Datum da, ein Popover wäre dort redundant (wie iOS).
         val segments = mutableListOf<MetaSegment>()
         article.author?.trim()?.takeIf { it.isNotEmpty() }?.let { author ->
-            segments.add(MetaSegment("Von $author", kind = "author", tapKind = "author", popoverLabel = "Von", popoverValue = author))
+            segments.add(MetaSegment("${texts.authorLabel} $author", kind = "author", tapKind = "author", popoverLabel = texts.authorLabel, popoverValue = author))
         }
-        if (article.readingTime > 0) segments.add(MetaSegment("${article.readingTime} min", kind = "time"))
-        val publishedFormatted = formatHeaderDate(article.publishedAt)
-        val createdFormatted = formatHeaderDate(article.createdAt)
+        if (article.readingTime > 0) segments.add(MetaSegment(String.format(texts.locale, texts.readingTimeFormat, article.readingTime), kind = "time"))
+        val publishedFormatted = formatHeaderDate(article.publishedAt, texts.locale)
+        val createdFormatted = formatHeaderDate(article.createdAt, texts.locale)
         if (publishedFormatted != null) {
             segments.add(
                 MetaSegment(
                     publishedFormatted,
                     kind = "date",
                     tapKind = if (createdFormatted != null) "date" else null,
-                    popoverLabel = "Gespeichert",
+                    popoverLabel = texts.savedLabel,
                     popoverValue = createdFormatted,
                 ),
             )
@@ -296,10 +317,11 @@ object ReaderHtmlBuilder {
         return head.startsWith("<figure") || head.startsWith("<img")
     }
 
-    /** `dd.MM.yy` analog zur Kurzdatumsdarstellung im iOS-Original (`shortDate`). */
-    private val headerDateFormatter = java.text.SimpleDateFormat("dd.MM.yy", java.util.Locale.GERMANY)
-
-    private fun formatHeaderDate(iso: String?): String? {
+    /**
+     * Kurzdatum analog zu `shortDate` im iOS-Original, in der Sprache der App: `dd.MM.yy` auf
+     * Deutsch, `M/d/yy` (US) bzw. `dd/MM/yyyy` (GB) auf Englisch.
+     */
+    private fun formatHeaderDate(iso: String?, locale: Locale): String? {
         if (iso.isNullOrBlank()) return null
         // Das PHP-Backend liefert Daten über `DateTime::format('c')`, also mit echtem
         // Zonen-Offset (z. B. "+02:00"), nicht mit 'Z'-Suffix. `Instant.parse` versteht nur
@@ -309,7 +331,9 @@ object ReaderHtmlBuilder {
         val instant = runCatching { java.time.OffsetDateTime.parse(iso).toInstant() }
             .getOrElse { runCatching { java.time.Instant.parse(iso) }.getOrNull() }
             ?: return null
-        return runCatching { headerDateFormatter.format(java.util.Date.from(instant)) }.getOrNull()
+        return runCatching {
+            java.text.DateFormat.getDateInstance(java.text.DateFormat.SHORT, locale).format(java.util.Date.from(instant))
+        }.getOrNull()
     }
 
     private fun buildCss(
@@ -643,7 +667,7 @@ object ReaderHtmlBuilder {
                 c == '\\' -> sb.append("\\\\")
                 c == '"' -> sb.append("\\\"")
                 c == '<' || c == '>' || c == '&' || c == '\u2028' || c == '\u2029' || c < ' ' ->
-                    sb.append("\\u").append(String.format("%04x", c.code))
+                    sb.append("\\u").append(String.format(Locale.ROOT, "%04x", c.code))
                 else -> sb.append(c)
             }
         }
@@ -1134,7 +1158,7 @@ window.MerlinReader = (function() {
       if (el.closest('.merlin-yt-embed')) { el.remove(); return; }
       var placeholder = document.createElement('div');
       placeholder.className = 'merlin-img-error';
-      placeholder.textContent = 'Bild nicht verfügbar';
+      placeholder.textContent = (window.MERLIN_I18N && window.MERLIN_I18N.imageUnavailable) || 'Image not available';
       el.replaceWith(placeholder);
     }
   }, true);

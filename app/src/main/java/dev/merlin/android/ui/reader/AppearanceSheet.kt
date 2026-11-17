@@ -1,5 +1,6 @@
 package dev.merlin.android.ui.reader
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -39,11 +40,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import dev.merlin.android.R
 import dev.merlin.android.models.ProgressEdge
 import dev.merlin.android.models.ReaderFont
 import dev.merlin.android.models.ReaderTheme
+import dev.merlin.android.ui.appLocale
+import dev.merlin.android.ui.screens.labelRes
 import dev.merlin.android.viewmodel.ArticleReaderViewModel
 import kotlinx.coroutines.launch
 
@@ -93,9 +98,9 @@ fun AppearanceSheet(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp, vertical = 8.dp),
         ) {
-            Text("Erscheinungsbild", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.articleReader_sideMenu_appearance), style = MaterialTheme.typography.titleMedium)
             Text(
-                "Theme",
+                stringResource(R.string.articleReader_appearance_theme),
                 style = MaterialTheme.typography.labelLarge,
                 modifier = Modifier.padding(top = 16.dp, bottom = 8.dp),
             )
@@ -104,21 +109,21 @@ fun AppearanceSheet(
                     FilterChip(
                         selected = entry == theme,
                         onClick = { scope.launch { viewModel.preferencesStore.setReaderTheme(entry); viewModel.syncAppearanceToServer() } },
-                        label = { Text(entry.themeLabel()) },
+                        label = { Text(stringResource(entry.themeLabel())) },
                     )
                 }
             }
             // Seit der Verdrahtung in MainActivity.kt steuert diese Auswahl nicht mehr nur die
             // Lese-Ansicht, sondern das gesamte App-Theme (Menüs, Artikelübersicht, Einstellungen).
             Text(
-                "Gilt auch für Menüs und die Artikelübersicht außerhalb der Lese-Ansicht.",
+                stringResource(R.string.android_appearance_themeFooter),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 4.dp),
             )
 
             Text(
-                "Schriftart",
+                stringResource(R.string.articleReader_appearance_font),
                 style = MaterialTheme.typography.labelLarge,
                 modifier = Modifier.padding(top = 16.dp, bottom = 8.dp),
             )
@@ -128,7 +133,7 @@ fun AppearanceSheet(
                         // Ist eine installierte Schrift gewählt, ist keine Voreinstellung aktiv markiert.
                         selected = entry == font && customFontFamily == null,
                         onClick = { viewModel.selectPresetFont(entry) },
-                        label = { Text(entry.fontLabel()) },
+                        label = { Text(stringResource(entry.fontLabel())) },
                     )
                 }
             }
@@ -143,48 +148,48 @@ fun AppearanceSheet(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("Installierte Schrift", style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(R.string.articleReader_appearance_installedFont), style = MaterialTheme.typography.bodyMedium)
                     Text(
-                        customFontFamily ?: "Keine – Voreinstellung oben",
+                        customFontFamily ?: stringResource(R.string.android_appearance_installedFontNoneAbove),
                         style = MaterialTheme.typography.bodySmall,
                         color = if (customFontFamily != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Schrift auswählen")
+                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = stringResource(R.string.android_appearance_chooseFont))
             }
 
             Text(
-                "Schriftgröße",
+                stringResource(R.string.articleReader_appearance_fontSize),
                 style = MaterialTheme.typography.labelLarge,
                 modifier = Modifier.padding(top = 16.dp, bottom = 8.dp),
             )
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 IconButton(onClick = { scope.launch { viewModel.preferencesStore.setReaderFontSize((fontSize - 1).coerceIn(12, 28)); viewModel.syncAppearanceToServer() } }) {
-                    Icon(Icons.Filled.Remove, contentDescription = "Kleiner")
+                    Icon(Icons.Filled.Remove, contentDescription = stringResource(R.string.android_appearance_smaller))
                 }
                 Text("${fontSize}px", style = MaterialTheme.typography.bodyLarge)
                 IconButton(onClick = { scope.launch { viewModel.preferencesStore.setReaderFontSize((fontSize + 1).coerceIn(12, 28)); viewModel.syncAppearanceToServer() } }) {
-                    Icon(Icons.Filled.Add, contentDescription = "Größer")
+                    Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.android_appearance_larger))
                 }
             }
 
             Text(
-                "Zeilenhöhe",
+                stringResource(R.string.articleReader_appearance_lineSpacing),
                 style = MaterialTheme.typography.labelLarge,
                 modifier = Modifier.padding(top = 16.dp, bottom = 8.dp),
             )
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 IconButton(onClick = { scope.launch { viewModel.preferencesStore.setLineHeight((lineHeight - 0.1).coerceIn(1.2, 2.2)); viewModel.syncAppearanceToServer() } }) {
-                    Icon(Icons.Filled.Remove, contentDescription = "Kompakter")
+                    Icon(Icons.Filled.Remove, contentDescription = stringResource(R.string.android_appearance_tighter))
                 }
-                Text(String.format("%.1f", lineHeight), style = MaterialTheme.typography.bodyLarge)
+                Text(String.format(appLocale(), "%.1f", lineHeight), style = MaterialTheme.typography.bodyLarge)
                 IconButton(onClick = { scope.launch { viewModel.preferencesStore.setLineHeight((lineHeight + 0.1).coerceIn(1.2, 2.2)); viewModel.syncAppearanceToServer() } }) {
-                    Icon(Icons.Filled.Add, contentDescription = "Luftiger")
+                    Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.android_appearance_looser))
                 }
             }
 
             Text(
-                "Akzentfarbe",
+                stringResource(R.string.articleReader_appearance_accentColor),
                 style = MaterialTheme.typography.labelLarge,
                 modifier = Modifier.padding(top = 16.dp, bottom = 8.dp),
             )
@@ -210,7 +215,7 @@ fun AppearanceSheet(
                         if (selected) {
                             Icon(
                                 Icons.Filled.Check,
-                                contentDescription = "Ausgewählt",
+                                contentDescription = stringResource(R.string.android_common_selected),
                                 tint = Color.White,
                                 modifier = Modifier.size(18.dp),
                             )
@@ -220,7 +225,7 @@ fun AppearanceSheet(
             }
 
             Text(
-                "Fortschrittsbalken",
+                stringResource(R.string.settings_preferences_progressBarLabel),
                 style = MaterialTheme.typography.labelLarge,
                 modifier = Modifier.padding(top = 16.dp, bottom = 16.dp),
             )
@@ -229,7 +234,7 @@ fun AppearanceSheet(
                     FilterChip(
                         selected = entry == progressEdge,
                         onClick = { scope.launch { viewModel.preferencesStore.setProgressEdge(entry); viewModel.syncAppearanceToServer() } },
-                        label = { Text(entry.edgeLabel()) },
+                        label = { Text(stringResource(entry.labelRes())) },
                     )
                 }
             }
@@ -245,12 +250,12 @@ fun AppearanceSheet(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        "Papierstruktur",
+                        stringResource(R.string.articleReader_appearance_paperTexture),
                         style = MaterialTheme.typography.labelLarge,
                         color = if (paperApplies) Color.Unspecified else MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Text(
-                        "Leichte Papierfasern im Hintergrund. Nur bei Hell und Sepia, Dunkel bleibt reines Schwarz.",
+                        stringResource(R.string.android_appearance_paperTextureFooter),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 2.dp),
@@ -271,9 +276,9 @@ fun AppearanceSheet(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("Freihand-Lesemodus", style = MaterialTheme.typography.labelLarge)
+                    Text(stringResource(R.string.articleReader_appearance_handsFree), style = MaterialTheme.typography.labelLarge)
                     Text(
-                        "Zeigt in der unteren Leiste einen Button, der den Artikel von selbst scrollen lässt.",
+                        stringResource(R.string.articleReader_appearance_handsFreeFooter),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 2.dp),
@@ -288,26 +293,20 @@ fun AppearanceSheet(
     }
 }
 
-private fun ReaderTheme.themeLabel(): String = when (this) {
-    ReaderTheme.AUTO -> "Automatisch"
-    ReaderTheme.LIGHT -> "Hell"
-    ReaderTheme.DARK -> "Dunkel"
-    ReaderTheme.SEPIA -> "Sepia"
+@StringRes
+private fun ReaderTheme.themeLabel(): Int = when (this) {
+    ReaderTheme.AUTO -> R.string.android_appearance_theme_auto
+    ReaderTheme.LIGHT -> R.string.android_appearance_theme_light
+    ReaderTheme.DARK -> R.string.android_appearance_theme_dark
+    ReaderTheme.SEPIA -> R.string.android_appearance_theme_sepia
 }
 
-private fun ReaderFont.fontLabel(): String = when (this) {
-    ReaderFont.SYSTEM -> "Standard"
-    ReaderFont.SERIF -> "Serif"
-    ReaderFont.SANS_SERIF -> "Sans-Serif"
-    ReaderFont.MONO -> "Mono"
-}
-
-private fun ProgressEdge.edgeLabel(): String = when (this) {
-    ProgressEdge.LEFT -> "Links"
-    ProgressEdge.RIGHT -> "Rechts"
-    ProgressEdge.TOP -> "Oben"
-    ProgressEdge.BOTTOM -> "Unten"
-    ProgressEdge.OFF -> "Aus"
+@StringRes
+private fun ReaderFont.fontLabel(): Int = when (this) {
+    ReaderFont.SYSTEM -> R.string.android_appearance_font_system
+    ReaderFont.SERIF -> R.string.android_appearance_font_serif
+    ReaderFont.SANS_SERIF -> R.string.android_appearance_font_sansSerif
+    ReaderFont.MONO -> R.string.android_appearance_font_mono
 }
 
 /** Feste Akzentfarb-Auswahl, identisch zur iOS-Palette im Erscheinungsbild-Sheet. */

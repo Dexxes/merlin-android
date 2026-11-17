@@ -55,10 +55,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.ImageLoader
+import dev.merlin.android.R
 import dev.merlin.android.models.Article
 import dev.merlin.android.models.Tag
 import dev.merlin.android.share.rememberArticleSharer
@@ -138,7 +140,7 @@ fun ArticleRow(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         MetaText(article.displaySiteName, modifier = Modifier.weight(1f, fill = false))
                         if (article.readingTime > 0) {
-                            MetaText(" · ${article.readingTime} min")
+                            MetaText(" · " + stringResource(R.string.android_articleList_readingTimeMinutes, article.readingTime))
                         }
                         if (progress.isVisibleProgress()) {
                             Spacer(Modifier.width(6.dp))
@@ -154,7 +156,7 @@ fun ArticleRow(
                         }
                         if (article.isFavorite) {
                             Spacer(Modifier.width(6.dp))
-                            Icon(Icons.Filled.Star, contentDescription = "Favorit", tint = FavoriteYellow, modifier = Modifier.size(12.dp))
+                            Icon(Icons.Filled.Star, contentDescription = stringResource(R.string.articleActions_favoriteAdd), tint = FavoriteYellow, modifier = Modifier.size(12.dp))
                         }
                         if (isMarkedArchived) {
                             Spacer(Modifier.width(6.dp))
@@ -165,7 +167,7 @@ fun ArticleRow(
                                 modifier = Modifier.size(11.dp),
                             )
                             Spacer(Modifier.width(2.dp))
-                            MetaText("Archiviert", small = true)
+                            MetaText(stringResource(R.string.articleList_archivedBadge), small = true)
                         }
                     }
                     if (article.tags.isNotEmpty()) {
@@ -282,11 +284,11 @@ fun ArticleGridCard(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     MetaText(article.displaySiteName, small = true, modifier = Modifier.weight(1f, fill = false))
                     if (article.readingTime > 0) {
-                        MetaText(" · ${article.readingTime} min", small = true)
+                        MetaText(" · " + stringResource(R.string.android_articleList_readingTimeMinutes, article.readingTime), small = true)
                     }
                     if (article.isFavorite) {
                         Spacer(Modifier.width(4.dp))
-                        Icon(Icons.Filled.Star, contentDescription = "Favorit", tint = FavoriteYellow, modifier = Modifier.size(12.dp))
+                        Icon(Icons.Filled.Star, contentDescription = stringResource(R.string.articleActions_favoriteAdd), tint = FavoriteYellow, modifier = Modifier.size(12.dp))
                     }
                 }
                 if (article.tags.isNotEmpty()) {
@@ -329,11 +331,11 @@ private fun TitleLine(article: Article, maxLines: Int, modifier: Modifier = Modi
         }
         if (article.requiresLoginDomain != null || article.isPaywalled) {
             Spacer(Modifier.width(6.dp))
-            Icon(Icons.Filled.Lock, contentDescription = "Paywall", tint = LockOrange, modifier = Modifier.size(12.dp))
+            Icon(Icons.Filled.Lock, contentDescription = stringResource(R.string.android_articleList_paywall), tint = LockOrange, modifier = Modifier.size(12.dp))
         }
         if (article.unsupportedSiteDomain != null) {
             Spacer(Modifier.width(6.dp))
-            Icon(Icons.Filled.Block, contentDescription = "Seite nicht unterstützt", tint = LockOrange, modifier = Modifier.size(12.dp))
+            Icon(Icons.Filled.Block, contentDescription = stringResource(R.string.android_articleList_unsupportedSite), tint = LockOrange, modifier = Modifier.size(12.dp))
         }
     }
 }
@@ -378,7 +380,7 @@ private fun ArchivedBadge(modifier: Modifier = Modifier) {
     ) {
         Icon(Icons.Filled.Inventory2, contentDescription = null, tint = Color.White, modifier = Modifier.size(11.dp))
         Spacer(Modifier.width(3.dp))
-        Text("Archiviert", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold, color = Color.White)
+        Text(stringResource(R.string.articleList_archivedBadge), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold, color = Color.White)
     }
 }
 
@@ -404,30 +406,30 @@ private fun ArticleContextMenu(
     val shareArticle = rememberArticleSharer()
     DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
         if (article.isFavorite) {
-            MenuItem("Aus Favoriten entfernen", Icons.Filled.StarBorder) { onDismiss(); onToggleFavorite() }
+            MenuItem(stringResource(R.string.articleActions_menu_removeFromFavorites), Icons.Filled.StarBorder) { onDismiss(); onToggleFavorite() }
         } else if (showFavoriteAction) {
-            MenuItem("Zu Favoriten hinzufügen", Icons.Filled.Star) { onDismiss(); onToggleFavorite() }
+            MenuItem(stringResource(R.string.articleActions_menu_addToFavorites), Icons.Filled.Star) { onDismiss(); onToggleFavorite() }
         }
         if (article.isArchived) {
-            MenuItem("Als ungelesen markieren", Icons.Filled.Unarchive) { onDismiss(); onToggleArchive() }
+            MenuItem(stringResource(R.string.articleActions_menu_markAsUnread), Icons.Filled.Unarchive) { onDismiss(); onToggleArchive() }
         } else if (showArchiveAction) {
-            MenuItem("Archivieren", Icons.Filled.Archive) { onDismiss(); onToggleArchive() }
+            MenuItem(stringResource(R.string.articleActions_menu_archive), Icons.Filled.Archive) { onDismiss(); onToggleArchive() }
         }
         HorizontalDivider()
-        MenuItem("Tags bearbeiten", Icons.Filled.Tag) { onDismiss(); onEditTags() }
+        MenuItem(stringResource(R.string.articleReader_tagSheet_title), Icons.Filled.Tag) { onDismiss(); onEditTags() }
         if (article.fileId != null && onRename != null) {
-            MenuItem("Umbenennen…", Icons.Filled.Edit) { onDismiss(); onRename() }
+            MenuItem(stringResource(R.string.fileRename_menu), Icons.Filled.Edit) { onDismiss(); onRename() }
         }
         HorizontalDivider()
-        MenuItem("Link kopieren", Icons.Filled.Link) {
+        MenuItem(stringResource(R.string.articleActions_menu_copyLink), Icons.Filled.Link) {
             onDismiss()
             val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
             clipboard.setPrimaryClip(android.content.ClipData.newPlainText(article.displayTitle, article.url))
         }
-        MenuItem("Teilen", Icons.Filled.Share) { onDismiss(); shareArticle(article) }
+        MenuItem(stringResource(R.string.articleActions_share), Icons.Filled.Share) { onDismiss(); shareArticle(article) }
         HorizontalDivider()
         DropdownMenuItem(
-            text = { Text("Löschen", color = MaterialTheme.colorScheme.error) },
+            text = { Text(stringResource(R.string.common_delete), color = MaterialTheme.colorScheme.error) },
             leadingIcon = { Icon(Icons.Filled.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
             onClick = { onDismiss(); onDelete() },
         )
@@ -456,12 +458,12 @@ private fun buildTrailingActions(
     onToggleFavorite: () -> Unit,
     onDelete: () -> Unit,
 ): List<SwipeAction> = buildList {
-    add(SwipeAction(icon = Icons.Filled.Delete, label = "Löschen", color = Color(0xFFD32F2F), onClick = onDelete))
+    add(SwipeAction(icon = Icons.Filled.Delete, label = R.string.common_delete, color = Color(0xFFD32F2F), onClick = onDelete))
     if (article.isFavorite || showFavoriteAction) {
         add(
             SwipeAction(
                 icon = if (article.isFavorite) Icons.Filled.StarBorder else Icons.Filled.Star,
-                label = if (article.isFavorite) "Entfernen" else "Favorit",
+                label = if (article.isFavorite) R.string.articleActions_favoriteRemove else R.string.articleActions_favoriteAdd,
                 color = FavoriteYellow,
                 onClick = onToggleFavorite,
             ),
@@ -471,7 +473,7 @@ private fun buildTrailingActions(
         add(
             SwipeAction(
                 icon = if (article.isArchived) Icons.Filled.Unarchive else Icons.Filled.Archive,
-                label = if (article.isArchived) "Ungelesen" else "Archiv",
+                label = if (article.isArchived) R.string.android_articleActions_markUnreadShort else R.string.articleActions_archiveAdd,
                 color = Color(0xFFF57C00),
                 onClick = onToggleArchive,
             ),
@@ -485,7 +487,7 @@ private fun buildTrailingActions(
  */
 private fun buildShareAction(onShare: () -> Unit): SwipeAction = SwipeAction(
     icon = Icons.Filled.Share,
-    label = "Teilen",
+    label = R.string.articleActions_share,
     color = Color(0xFF1976D2),
     onClick = onShare,
 )

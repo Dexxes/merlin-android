@@ -1,8 +1,12 @@
 package dev.merlin.android.viewmodel
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
+import dev.merlin.android.R
+import dev.merlin.android.data.userMessage
 import dev.merlin.android.models.SiteCredentialErrorResponse
 import dev.merlin.android.models.SiteCredentialInfo
 import dev.merlin.android.models.SiteCredentialUpdateRequest
@@ -31,6 +35,7 @@ import retrofit2.HttpException
  */
 @HiltViewModel
 class SiteCredentialsViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val api: MerlinApi,
     private val json: Json,
 ) : ViewModel() {
@@ -65,7 +70,7 @@ class SiteCredentialsViewModel @Inject constructor(
                 _credentials.value = response.credentials
                 _availableDomains.value = response.availableDomains
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "Zugangsdaten konnten nicht geladen werden."
+                _errorMessage.value = e.userMessage(context) ?: context.getString(R.string.android_siteCredentials_error_loadFailed)
             } finally {
                 _isLoading.value = false
             }
@@ -89,10 +94,10 @@ class SiteCredentialsViewModel @Inject constructor(
             load()
             true
         } catch (e: HttpException) {
-            _errorMessage.value = parseErrorMessage(e) ?: "Zugangsdaten konnten nicht gespeichert werden."
+            _errorMessage.value = parseErrorMessage(e) ?: context.getString(R.string.android_siteCredentials_error_saveFailed)
             false
         } catch (e: Exception) {
-            _errorMessage.value = e.message ?: "Zugangsdaten konnten nicht gespeichert werden."
+            _errorMessage.value = e.userMessage(context) ?: context.getString(R.string.android_siteCredentials_error_saveFailed)
             false
         }
     }
@@ -110,10 +115,10 @@ class SiteCredentialsViewModel @Inject constructor(
                 if (response.isSuccessful) {
                     _credentials.value = _credentials.value.filterNot { it.domain == domain }
                 } else {
-                    _errorMessage.value = "Zugangsdaten konnten nicht entfernt werden (HTTP ${response.code()})."
+                    _errorMessage.value = context.getString(R.string.android_siteCredentials_error_deleteFailedCode, response.code())
                 }
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "Zugangsdaten konnten nicht entfernt werden."
+                _errorMessage.value = e.userMessage(context) ?: context.getString(R.string.android_siteCredentials_error_deleteFailed)
             }
         }
     }

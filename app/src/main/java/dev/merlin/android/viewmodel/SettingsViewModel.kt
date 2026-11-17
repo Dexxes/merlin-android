@@ -1,15 +1,20 @@
 package dev.merlin.android.viewmodel
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
+import dev.merlin.android.R
 import dev.merlin.android.auth.LoginFlowService
+import dev.merlin.android.auth.loginErrorMessage
 import dev.merlin.android.data.ArticleCacheService
 import dev.merlin.android.data.HighlightCacheService
 import dev.merlin.android.data.ImageCacheService
 import dev.merlin.android.data.PdfCacheService
 import dev.merlin.android.data.PreferencesStore
 import dev.merlin.android.data.SettingsSyncQueue
+import dev.merlin.android.data.userMessage
 import dev.merlin.android.models.ArticleFilter
 import dev.merlin.android.models.ProgressEdge
 import dev.merlin.android.network.CredentialsStore
@@ -42,6 +47,7 @@ import kotlinx.coroutines.launch
  */
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     val preferencesStore: PreferencesStore,
     private val credentialsStore: CredentialsStore,
     private val api: MerlinApi,
@@ -134,7 +140,7 @@ class SettingsViewModel @Inject constructor(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                _loginError.value = e.message ?: "Login fehlgeschlagen"
+                _loginError.value = loginErrorMessage(context, e)
             } finally {
                 // Ein abgelöster Vorgang darf den Ladezustand des neuen nicht zurücksetzen.
                 if (loginJob == null || loginJob === coroutineContext[Job]) _isLoginLoading.value = false
@@ -175,9 +181,9 @@ class SettingsViewModel @Inject constructor(
                 // auf iOS ruft ebenfalls nur einen leichten, bereits authentifizierten
                 // GET-Call auf) – `getSettings()` validiert hier Basic-Auth + Erreichbarkeit.
                 api.getSettings()
-                TestResult.Success("Verbindung erfolgreich!")
+                TestResult.Success(context.getString(R.string.android_settings_testConnection_success))
             } catch (e: Exception) {
-                TestResult.Failure(e.message ?: "Verbindung fehlgeschlagen")
+                TestResult.Failure(e.userMessage(context) ?: context.getString(R.string.android_settings_testConnection_failed))
             }
             _isTestingConnection.value = false
         }

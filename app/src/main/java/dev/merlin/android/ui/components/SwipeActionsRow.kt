@@ -1,5 +1,6 @@
 package dev.merlin.android.ui.components
 
+import androidx.annotation.StringRes
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
@@ -33,6 +34,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -42,7 +44,7 @@ import kotlin.math.roundToInt
 /** Eine einzelne Swipe-Aktion: Icon + Label + Akzentfarbe + Callback. */
 data class SwipeAction(
     val icon: ImageVector,
-    val label: String,
+    @StringRes val label: Int,
     val color: Color,
     val onClick: () -> Unit,
 )
@@ -193,7 +195,8 @@ private fun ActionPill(action: SwipeAction, width: Dp) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Icon(imageVector = action.icon, contentDescription = action.label, tint = Color.White)
-        Text(text = action.label, color = Color.White, style = MaterialTheme.typography.labelSmall)
+        val label = stringResource(action.label)
+        Icon(imageVector = action.icon, contentDescription = label, tint = Color.White)
+        Text(text = label, color = Color.White, style = MaterialTheme.typography.labelSmall)
     }
 }

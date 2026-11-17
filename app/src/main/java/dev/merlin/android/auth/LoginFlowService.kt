@@ -1,5 +1,7 @@
 package dev.merlin.android.auth
 
+import android.content.Context
+import dev.merlin.android.R
 import dev.merlin.android.network.CredentialsStore
 import dev.merlin.android.network.HttpsUrls
 import javax.inject.Inject
@@ -185,4 +187,15 @@ class LoginFlowService @Inject constructor(
         pollEndpoint = null
         _loginUrl.value = null
     }
+}
+
+/**
+ * Fehlermeldung eines fehlgeschlagenen Logins für die Oberfläche (Einstellungen/Onboarding), in
+ * der Sprache der App. Server-Fehlertexte ([LoginFlowService.LoginFlowException.ServerError])
+ * werden unverändert durchgereicht.
+ */
+fun loginErrorMessage(context: Context, e: Exception): String = when (e) {
+    LoginFlowService.LoginFlowException.InvalidServerUrl -> context.getString(R.string.android_login_error_invalidServerUrl)
+    LoginFlowService.LoginFlowException.Timeout -> context.getString(R.string.android_login_error_timeout)
+    else -> e.message ?: context.getString(R.string.android_login_error_failed)
 }

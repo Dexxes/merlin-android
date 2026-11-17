@@ -1,5 +1,6 @@
 package dev.merlin.android.data
 
+import dev.merlin.android.R
 import dev.merlin.android.network.MerlinApi
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
@@ -101,13 +102,17 @@ class ReportService @Inject constructor(
 
     // MARK: – Errors
 
-    sealed class ReportError(message: String) : Exception(message) {
+    /** Meldung für Nutzer über [userMessage] (String-Ressourcen `report.error.*`). */
+    sealed class ReportError(message: String, override val messageRes: Int) : Exception(message), LocalizedError {
         object BackendUrlNotConfigured : ReportError(
-            "Kein Report-Backend konfiguriert. Bitte die URL unter Einstellungen → Reporting hinterlegen.",
+            "No report backend configured",
+            R.string.report_error_backendNotConfigured,
         )
 
-        data class BackendUrlInvalid(val url: String) : ReportError("Ungültige Backend-URL: $url")
+        data class BackendUrlInvalid(val url: String) : ReportError("Invalid backend URL: $url", R.string.report_error_backendURLInvalid) {
+            override val messageArgs: Array<out Any> get() = arrayOf(url)
+        }
 
-        object ServerError : ReportError("Der Server hat die Meldung abgelehnt.")
+        object ServerError : ReportError("Server rejected the report", R.string.report_error_serverRejected)
     }
 }

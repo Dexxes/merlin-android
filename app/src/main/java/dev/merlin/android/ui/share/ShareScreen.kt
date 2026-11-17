@@ -60,6 +60,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.imageResource
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
@@ -207,7 +209,7 @@ fun ShareScreen(
                         Mode.EXTRACTING, Mode.SAVING -> StatusContent(message = null, showSpinner = true)
                         Mode.UPLOADING -> UploadingContent(uploadProgress)
                         Mode.ERROR -> StatusContent(
-                            message = (statusMessage ?: "Unbekannter Fehler") + "\n\nTippen zum Schließen",
+                            message = (statusMessage ?: stringResource(R.string.api_error_unknown)) + "\n\n" + stringResource(R.string.share_result_tapToClose),
                             showSpinner = false,
                         )
                         Mode.RATE_LIMITED -> StatusContent(message = statusMessage, showSpinner = false)
@@ -223,7 +225,7 @@ fun ShareScreen(
                             .padding(start = 20.dp, end = 20.dp, top = 10.dp, bottom = 12.dp)
                             .height(56.dp),
                     ) {
-                        Text("In Merlin speichern", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(R.string.share_staging_saveButton), fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
@@ -235,13 +237,13 @@ fun ShareScreen(
 @Composable
 private fun Header(mode: Mode, isFiles: Boolean) {
     val subtitle = when (mode) {
-        Mode.EXTRACTING -> "Geteilter Inhalt wird gelesen…"
-        Mode.STAGING -> if (isFiles) "Dateien in Merlin speichern" else "Zur Leseliste hinzufügen"
-        Mode.SAVING -> "Wird zur Leseliste hinzugefügt…"
-        Mode.UPLOADING -> "Wird hochgeladen…"
-        Mode.ERROR -> "Konnte nicht gespeichert werden"
-        Mode.RATE_LIMITED -> "Rate-Limit erreicht"
-        Mode.ONBOARDING -> "Einrichtung erforderlich"
+        Mode.EXTRACTING -> stringResource(R.string.share_extracting_subtitle)
+        Mode.STAGING -> stringResource(if (isFiles) R.string.share_files_subtitle else R.string.share_staging_subtitle)
+        Mode.SAVING -> stringResource(R.string.share_saving_subtitle)
+        Mode.UPLOADING -> stringResource(R.string.share_files_uploadingSubtitle)
+        Mode.ERROR -> stringResource(R.string.share_result_errorTitle)
+        Mode.RATE_LIMITED -> stringResource(R.string.share_rateLimited_subtitle)
+        Mode.ONBOARDING -> stringResource(R.string.share_settings_subtitle)
     }
     Row(verticalAlignment = Alignment.Top) {
         when (mode) {
@@ -256,7 +258,7 @@ private fun Header(mode: Mode, isFiles: Boolean) {
         }
         Spacer(Modifier.width(12.dp))
         Column {
-            Text("Merlin", fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.app_name), fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
             Text(
                 subtitle,
                 fontSize = 14.sp,
@@ -300,8 +302,8 @@ private fun UploadingContent(progress: ShareViewModel.UploadProgress?) {
         Spacer(Modifier.height(12.dp))
         val text = progress?.let {
             val percent = java.text.NumberFormat.getPercentInstance().format(it.fraction.coerceIn(0.0, 1.0))
-            "Datei ${it.index + 1} von ${it.total} · $percent"
-        } ?: "Wird vorbereitet…"
+            stringResource(R.string.share_files_progress, it.index + 1, it.total, percent)
+        } ?: stringResource(R.string.share_files_preparing)
         Text(text, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
         Spacer(Modifier.height(12.dp))
         LinearProgressIndicator(
@@ -335,8 +337,8 @@ private fun StagingContent(
         } else {
             val shown = if (hasPhotos) compressionOptions[selectedCompression]?.files ?: files else files
             val size = Formatter.formatShortFileSize(context, shown.sumOf { it.size })
-            shown.singleOrNull()?.let { "${it.name} · $size" }
-                ?: "${shown.size} ${if (shown.size == 1) "Datei" else "Dateien"} · $size"
+            val fileCount = pluralStringResource(R.plurals.share_files_count, shown.size, shown.size)
+            stringResource(R.string.share_files_summary, shown.singleOrNull()?.name ?: fileCount, size)
         }
         Text(
             preview,
@@ -365,7 +367,7 @@ private fun StagingContent(
         OutlinedTextField(
             value = newTagText,
             onValueChange = onNewTagTextChange,
-            placeholder = { Text("Neuer Tag (optional)") },
+            placeholder = { Text(stringResource(R.string.share_staging_newTagPlaceholder)) },
             singleLine = true,
             keyboardOptions = KeyboardOptions(
                 capitalization = KeyboardCapitalization.None,
@@ -387,8 +389,8 @@ private fun StagingContent(
 @Composable
 private fun TagTreeList(tags: List<Tag>?, selectedTagIds: Set<Int>, onToggleTag: (Int) -> Unit) {
     when {
-        tags == null -> HintRow("Tags werden geladen…")
-        tags.isEmpty() -> HintRow("Noch keine Tags")
+        tags == null -> HintRow(stringResource(R.string.share_staging_loadingTags))
+        tags.isEmpty() -> HintRow(stringResource(R.string.share_staging_noTags))
         else -> {
             val rows = remember(tags) { TagTree(tags).rows() }
             val visible = rows.size.coerceIn(1, MAX_VISIBLE_TAG_ROWS)
@@ -459,6 +461,7 @@ private fun CompressionTile(
     val context = LocalContext.current
     val primary = MaterialTheme.colorScheme.primary
     val shape = RoundedCornerShape(10.dp)
+    val title = stringResource(level.titleRes)
     val sizeText = option?.let { Formatter.formatShortFileSize(context, it.totalSize) } ?: "…"
     val preview = remember(option) { option?.preview?.asImageBitmap() }
     Column(
@@ -471,7 +474,7 @@ private fun CompressionTile(
             .clickable(role = Role.RadioButton, onClick = onClick)
             .semantics(mergeDescendants = true) {
                 this.selected = selected
-                contentDescription = "${level.title}, $sizeText"
+                contentDescription = "$title, $sizeText"
             }
             .padding(6.dp),
     ) {
@@ -496,7 +499,7 @@ private fun CompressionTile(
         }
         Spacer(Modifier.height(4.dp))
         Text(
-            level.title,
+            title,
             fontSize = 12.sp,
             fontWeight = FontWeight.SemiBold,
             textAlign = TextAlign.Center,

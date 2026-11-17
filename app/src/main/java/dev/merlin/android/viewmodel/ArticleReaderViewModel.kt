@@ -1,10 +1,13 @@
 package dev.merlin.android.viewmodel
 
+import android.content.Context
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import coil.ImageLoader
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
+import dev.merlin.android.R
 import dev.merlin.android.data.ArticleCacheService
 import dev.merlin.android.data.HighlightCacheService
 import dev.merlin.android.data.OfflineHighlightQueue
@@ -14,6 +17,7 @@ import dev.merlin.android.data.PreferencesStore
 import dev.merlin.android.data.ReminderService
 import dev.merlin.android.data.ReportService
 import dev.merlin.android.data.SettingsSyncQueue
+import dev.merlin.android.data.userMessage
 import dev.merlin.android.di.ApplicationScope
 import dev.merlin.android.models.Article
 import dev.merlin.android.models.Highlight
@@ -67,6 +71,7 @@ import kotlinx.coroutines.launch
  */
 @HiltViewModel
 class ArticleReaderViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     savedStateHandle: SavedStateHandle,
     private val api: MerlinApi,
     private val articleCacheService: ArticleCacheService,
@@ -354,7 +359,7 @@ class ArticleReaderViewModel @Inject constructor(
                     _article.value = cached
                     reconcileInitialScroll(cached)
                 } else {
-                    _error.value = e.message ?: "Artikel konnte nicht geladen werden"
+                    _error.value = e.userMessage(context) ?: context.getString(R.string.android_articleReader_loadFailed)
                     // Ohne Artikel keine sinnvolle Server-Position – von oben starten,
                     // damit der Reader nicht ewig im Lade-Branch (initialScrollProgress == null) hängt.
                     _initialScrollProgress.value = 0f
@@ -409,7 +414,7 @@ class ArticleReaderViewModel @Inject constructor(
                 reminderService.schedule(current, triggerAtMillis)
                 _currentReminder.value = reminderService.reminder(articleId)
             } catch (e: Exception) {
-                _reminderError.value = e.message ?: "Erinnerung konnte nicht gesetzt werden"
+                _reminderError.value = e.userMessage(context) ?: context.getString(R.string.android_reminders_error_setFailed)
             }
         }
     }
@@ -435,7 +440,7 @@ class ArticleReaderViewModel @Inject constructor(
                 reportService.report(url = current.url, comment = comment.trim())
                 _reportFeedback.value = ReportFeedback.Success
             } catch (e: Exception) {
-                _reportFeedback.value = ReportFeedback.Failure(e.message ?: "Unbekannter Fehler")
+                _reportFeedback.value = ReportFeedback.Failure(e.userMessage(context) ?: context.getString(R.string.api_error_unknown))
             }
             _reportSending.value = false
         }
@@ -477,7 +482,7 @@ class ArticleReaderViewModel @Inject constructor(
                     offlineHighlightQueue.scheduleDrain()
                 } else {
                     // z. B. ein älterer Server ohne PDF-Markierungen (400).
-                    _error.value = "Die Markierung konnte nicht gespeichert werden."
+                    _error.value = context.getString(R.string.android_highlights_error_saveFailed)
                 }
             }
         }
@@ -525,7 +530,7 @@ class ArticleReaderViewModel @Inject constructor(
                     offlineHighlightQueue.scheduleDrain()
                 } else {
                     highlightEdits.value = highlightEdits.value - highlight.id
-                    _error.value = "Die Markierung konnte nicht geändert werden."
+                    _error.value = context.getString(R.string.android_highlights_error_updateFailed)
                 }
             }
         }
@@ -552,7 +557,7 @@ class ArticleReaderViewModel @Inject constructor(
                     // Echter Serverfehler: Highlight wieder anzeigen.
                     removedHighlightIds.value = removedHighlightIds.value - highlight.id
                     _highlights.value = _highlights.value + highlight
-                    _error.value = e.message ?: "Highlight konnte nicht gelöscht werden"
+                    _error.value = e.userMessage(context) ?: context.getString(R.string.android_highlights_error_deleteFailed)
                 }
             }
         }
@@ -606,7 +611,7 @@ class ArticleReaderViewModel @Inject constructor(
                     offlineMutationQueue.scheduleDrain()
                 } else {
                     _article.value = current
-                    _error.value = e.message ?: "Unbekannter Fehler"
+                    _error.value = e.userMessage(context) ?: context.getString(R.string.api_error_unknown)
                 }
             }
         }
@@ -633,7 +638,7 @@ class ArticleReaderViewModel @Inject constructor(
                     offlineMutationQueue.scheduleDrain()
                 } else {
                     _article.value = current
-                    _error.value = e.message ?: "Unbekannter Fehler"
+                    _error.value = e.userMessage(context) ?: context.getString(R.string.api_error_unknown)
                 }
             }
         }
@@ -660,7 +665,7 @@ class ArticleReaderViewModel @Inject constructor(
                     offlineMutationQueue.scheduleDrain()
                     _deleted.value = true
                 } else {
-                    _error.value = e.message ?: "Unbekannter Fehler"
+                    _error.value = e.userMessage(context) ?: context.getString(R.string.api_error_unknown)
                 }
             }
         }
@@ -724,7 +729,7 @@ class ArticleReaderViewModel @Inject constructor(
                     offlineMutationQueue.scheduleDrain()
                 }
             } else {
-                _error.value = e.message ?: "Unbekannter Fehler"
+                _error.value = e.userMessage(context) ?: context.getString(R.string.api_error_unknown)
             }
         }
     }
@@ -774,11 +779,11 @@ class ArticleReaderViewModel @Inject constructor(
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: retrofit2.HttpException) {
-            if (e.code() == 409) ArticlesViewModel.RENAME_ERROR_EXISTS else e.message ?: "Unbekannter Fehler"
+            if (e.code() == 409) context.getString(R.string.fileRename_errorExists) else e.userMessage(context) ?: context.getString(R.string.api_error_unknown)
         } catch (e: IOException) {
-            "Keine Verbindung – bitte später erneut versuchen."
+            context.getString(R.string.android_common_error_offlineRetryLater)
         } catch (e: Exception) {
-            e.message ?: "Unbekannter Fehler"
+            e.userMessage(context) ?: context.getString(R.string.api_error_unknown)
         }
     }
 
@@ -806,7 +811,7 @@ class ArticleReaderViewModel @Inject constructor(
             try {
                 _share.value = api.getShare(articleId)
             } catch (e: Exception) {
-                _shareError.value = e.message ?: "Share-Status konnte nicht geladen werden"
+                _shareError.value = e.userMessage(context) ?: context.getString(R.string.android_shareLink_error_loadFailed)
             }
             _shareLoading.value = false
         }
@@ -819,26 +824,26 @@ class ArticleReaderViewModel @Inject constructor(
             try {
                 _share.value = api.createShare(articleId, CreateShareRequest(password = password, expiresAt = expiresAt, allowComments = allowComments))
             } catch (e: Exception) {
-                _shareError.value = e.message ?: "Link konnte nicht erstellt werden"
+                _shareError.value = e.userMessage(context) ?: context.getString(R.string.android_shareLink_error_createFailed)
             }
             _shareBusy.value = false
         }
     }
 
     fun setSharePassword(password: String) {
-        updateShare(mapOf("password" to password), "Passwort konnte nicht gespeichert werden")
+        updateShare(mapOf("password" to password), context.getString(R.string.android_shareLink_error_passwordSaveFailed))
     }
 
     fun removeSharePassword() {
-        updateShare(mapOf("password" to null), "Passwortschutz konnte nicht entfernt werden")
+        updateShare(mapOf("password" to null), context.getString(R.string.android_shareLink_error_passwordRemoveFailed))
     }
 
     fun setShareExpiry(expiresAt: String) {
-        updateShare(mapOf("expiresAt" to expiresAt), "Ablaufdatum konnte nicht gespeichert werden")
+        updateShare(mapOf("expiresAt" to expiresAt), context.getString(R.string.android_shareLink_error_expirySaveFailed))
     }
 
     fun removeShareExpiry() {
-        updateShare(mapOf("expiresAt" to null), "Ablaufdatum konnte nicht entfernt werden")
+        updateShare(mapOf("expiresAt" to null), context.getString(R.string.android_shareLink_error_expiryRemoveFailed))
     }
 
     private fun updateShare(body: Map<String, String?>, errorMessage: String) {
@@ -848,7 +853,7 @@ class ArticleReaderViewModel @Inject constructor(
             try {
                 _share.value = api.updateShare(articleId, body)
             } catch (e: Exception) {
-                _shareError.value = e.message ?: errorMessage
+                _shareError.value = e.userMessage(context) ?: errorMessage
             }
             _shareBusy.value = false
         }
@@ -862,7 +867,7 @@ class ArticleReaderViewModel @Inject constructor(
             try {
                 _share.value = api.updateShareAllowComments(articleId, AllowCommentsRequest(allow))
             } catch (e: Exception) {
-                _shareError.value = e.message ?: "Einstellung konnte nicht gespeichert werden"
+                _shareError.value = e.userMessage(context) ?: context.getString(R.string.android_shareLink_error_settingSaveFailed)
             }
             _shareBusy.value = false
         }
@@ -875,7 +880,7 @@ class ArticleReaderViewModel @Inject constructor(
             try {
                 _share.value = api.regenerateShare(articleId)
             } catch (e: Exception) {
-                _shareError.value = e.message ?: "Link konnte nicht erneuert werden"
+                _shareError.value = e.userMessage(context) ?: context.getString(R.string.android_shareLink_error_regenerateFailed)
             }
             _shareBusy.value = false
         }
@@ -889,7 +894,7 @@ class ArticleReaderViewModel @Inject constructor(
                 api.deleteShare(articleId)
                 _share.value = ArticleShareResponse(enabled = false)
             } catch (e: Exception) {
-                _shareError.value = e.message ?: "Link konnte nicht widerrufen werden"
+                _shareError.value = e.userMessage(context) ?: context.getString(R.string.android_shareLink_error_revokeFailed)
             }
             _shareBusy.value = false
         }

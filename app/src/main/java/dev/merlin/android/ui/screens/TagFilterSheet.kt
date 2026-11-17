@@ -27,7 +27,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import dev.merlin.android.R
 import dev.merlin.android.models.TagTree
 
 /**
@@ -65,9 +68,9 @@ fun TagFilterSheet(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
             ) {
-                Text("Tag-Filter", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                Text(stringResource(R.string.tagFilterSheet_title), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
                 if (excludedTagIds.isNotEmpty()) {
-                    TextButton(onClick = onClearAll) { Text("Alle einblenden") }
+                    TextButton(onClick = onClearAll) { Text(stringResource(R.string.tagFilterSheet_clearAll)) }
                 }
             }
 
@@ -100,11 +103,13 @@ fun TagFilterSheet(
                             )
                             Icon(
                                 imageVector = if (isExcluded || isInherited) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
-                                contentDescription = when {
-                                    isExcluded -> "Ausgeblendet"
-                                    isInherited -> "Mit Eltern-Tag ausgeblendet"
-                                    else -> "Eingeblendet"
-                                },
+                                contentDescription = stringResource(
+                                    when {
+                                        isExcluded -> R.string.android_tagFilter_hidden
+                                        isInherited -> R.string.android_tagFilter_hiddenWithParent
+                                        else -> R.string.android_tagFilter_shown
+                                    },
+                                ),
                                 tint = if (isExcluded || isInherited) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary,
                             )
                         }
@@ -127,7 +132,7 @@ fun TagFilterSheet(
                         Spacer(Modifier.width(6.dp))
                         val count = excludedTagIds.size
                         Text(
-                            if (count == 1) "1 Tag ausgeblendet" else "$count Tags ausgeblendet",
+                            pluralStringResource(R.plurals.tagFilterSheet_hiddenSummary, count, count),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -152,12 +157,12 @@ private fun EmptyTagFilterState() {
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Text(
-            "Keine Tags vorhanden",
+            stringResource(R.string.tagFilterSheet_emptyTitle),
             style = MaterialTheme.typography.titleSmall,
             modifier = Modifier.padding(top = 12.dp),
         )
         Text(
-            "Füge Artikel mit Tags hinzu, um sie hier filtern zu können.",
+            stringResource(R.string.tagFilterSheet_emptyMessage),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 4.dp),

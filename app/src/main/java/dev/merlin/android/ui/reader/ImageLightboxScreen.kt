@@ -35,6 +35,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -42,6 +43,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import coil.ImageLoader
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import dev.merlin.android.R
 import dev.merlin.android.viewmodel.ArticleReaderViewModel
 import kotlin.math.abs
 import kotlinx.coroutines.launch
@@ -174,7 +176,7 @@ private fun LightboxContent(state: LightboxState, onDismiss: () -> Unit, imageLo
         ) {
             Icon(
                 Icons.Filled.Close,
-                contentDescription = "Schließen",
+                contentDescription = stringResource(R.string.common_close),
                 tint = Color.White,
                 modifier = Modifier.size(32.dp),
             )
