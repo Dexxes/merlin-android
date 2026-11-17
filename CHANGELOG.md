@@ -16,7 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   "Design" offers font, size, color, blur strength and a glow behind the text;
   "Author"/"Source" add a "— Author · site.com" line. "Save Image" stores a PNG
   in Pictures/Merlin, "Share" opens the share sheet; both use exactly what is
-  on screen, minus the buttons. Tap the glass, ✕ or Back to close. The button
+  on screen, minus the buttons. A few seconds after opening, a hint suggests
+  turning the phone for the other format ("Rotate phone for 16:9" in portrait,
+  "… for 9:16" in landscape); the card stays open when the phone is turned and
+  re-captures the article in the new format. Tap the glass, ✕ or Back to close. The button
   can be turned off in the Appearance sheet; all choices are stored on the
   device only. Text articles only.
 - The app is now fully available in English and German. All screens, menus,

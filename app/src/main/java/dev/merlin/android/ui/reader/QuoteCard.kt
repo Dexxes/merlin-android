@@ -75,6 +75,8 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.FormatQuote
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.StayCurrentLandscape
+import androidx.compose.material.icons.filled.StayCurrentPortrait
 import androidx.compose.material.icons.filled.TextDecrease
 import androidx.compose.material.icons.filled.TextIncrease
 import androidx.compose.material.icons.filled.WaterDrop
@@ -193,6 +195,8 @@ data class QuoteSession(
     val text: String,
     val sourceInWindow: Rect?,
     val style: QuoteStyle,
+    /** Hinweise schon gezeigt (nach einer Drehung nicht wiederholen). */
+    val hintsShown: Boolean = false,
 )
 
 /**
@@ -679,6 +683,7 @@ fun QuoteCardOverlay(
     showHint: Boolean,
     accent: Color,
     onAccent: Color,
+    onShown: () -> Unit,
     onClosed: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -713,6 +718,7 @@ fun QuoteCardOverlay(
     var dragging by remember { mutableStateOf(false) }
     var showStylePanel by remember { mutableStateOf(false) }
     var hintVisible by remember { mutableStateOf(false) }
+    var rotateHintVisible by remember { mutableStateOf(false) }
     var saved by remember { mutableStateOf(false) }
     var saving by remember { mutableStateOf(false) }
     var showDenied by remember { mutableStateOf(false) }
@@ -735,13 +741,20 @@ fun QuoteCardOverlay(
         val dpH = with(density) { canvasH.toDp().value }.roundToInt()
 
         // Artikel abfotografieren, sobald Leisten und Auswahl weg sind (bei jeder Größenänderung neu).
-        LaunchedEffect(canvasW, canvasH, overlayOrigin != null) {
+        // Nach einer Drehung ist die WebView neu und lädt den Artikel erst: dann später noch einmal.
+        LaunchedEffect(canvasW, canvasH, overlayOrigin != null, webView) {
             val origin = overlayOrigin ?: return@LaunchedEffect
             delay(if (article == null) 250 else 150)
             article = webView?.let {
                 QuoteRenderer.captureArticle(it, dpW, dpH, overlayOrigin ?: origin, density.density, style.tint)
             }
             captured = true
+            if (session.hintsShown) {
+                delay(1200)
+                webView?.let {
+                    QuoteRenderer.captureArticle(it, dpW, dpH, overlayOrigin ?: origin, density.density, style.tint)
+                }?.let { article = it }
+            }
         }
         // Glas: Hintergrund (Artikel oder gezeichnet) weichgezeichnet, ohne Tönung.
         val glass by produceState<Bitmap?>(null, backdrop, article, blur.roundToInt(), dpW, dpH) {
@@ -815,15 +828,30 @@ fun QuoteCardOverlay(
         }
         BackHandler { if (showStylePanel) showStylePanel = false else close() }
 
-        // Einblenden, sobald der Hintergrund da ist; Hinweis beim ersten Mal kurz zeigen.
+        // Einblenden, sobald der Hintergrund da ist; Hinweis beim ersten Mal kurz zeigen, danach
+        // bei jedem Öffnen ein paar Sekunden den Hinweis aufs andere Format (16:9 bzw. 9:16).
         LaunchedEffect(ready) {
             if (!ready || closing) return@LaunchedEffect
-            lift.animateTo(1f, spring(dampingRatio = 0.86f, stiffness = Spring.StiffnessLow))
-            if (showHint) {
-                hintVisible = true
-                delay(1500)
-                hintVisible = false
+            if (session.sourceInWindow == null && session.hintsShown) {
+                lift.snapTo(1f)
+                return@LaunchedEffect
             }
+            lift.animateTo(1f, spring(dampingRatio = 0.86f, stiffness = Spring.StiffnessLow))
+            val hints = !session.hintsShown
+            val tapHint = showHint
+            onShown()
+            if (!hints) return@LaunchedEffect
+            delay(600)
+            if (tapHint) {
+                hintVisible = true
+                delay(900)
+                hintVisible = false
+                delay(300)
+            }
+            if (closing) return@LaunchedEffect
+            rotateHintVisible = true
+            delay(3000)
+            rotateHintVisible = false
         }
 
         fun stepBackdrop(delta: Int) {
@@ -1004,6 +1032,30 @@ fun QuoteCardOverlay(
                             .background(tint.copy(alpha = 0.75f), RoundedCornerShape(50))
                             .padding(horizontal = 14.dp, vertical = 8.dp),
                     )
+                }
+                // „Für 16:9 Handy drehen“ im Hochformat, „Für 9:16 …“ im Querformat.
+                AnimatedVisibility(visible = rotateHintVisible, enter = fadeIn(), exit = fadeOut()) {
+                    val landscape = canvasW > canvasH
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier
+                            .background(tint.copy(alpha = 0.75f), RoundedCornerShape(50))
+                            .padding(horizontal = 14.dp, vertical = 8.dp),
+                    ) {
+                        Icon(
+                            if (landscape) Icons.Filled.StayCurrentPortrait else Icons.Filled.StayCurrentLandscape,
+                            contentDescription = null,
+                            tint = fg,
+                            modifier = Modifier.size(16.dp),
+                        )
+                        Text(
+                            stringResource(if (landscape) R.string.articleReader_quote_rotateTo916 else R.string.articleReader_quote_rotateTo169),
+                            color = fg,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium,
+                        )
+                    }
                 }
             }
 

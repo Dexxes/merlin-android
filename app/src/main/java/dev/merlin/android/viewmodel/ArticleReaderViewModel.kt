@@ -15,6 +15,10 @@ import dev.merlin.android.data.OfflineMutationQueue
 import dev.merlin.android.data.PdfCacheService
 import dev.merlin.android.data.PreferencesStore
 import dev.merlin.android.data.QuotePrefs
+import dev.merlin.android.ui.reader.QuoteSession
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import dev.merlin.android.data.ReminderService
 import dev.merlin.android.data.ReportService
 import dev.merlin.android.data.SettingsSyncQueue
@@ -300,6 +304,15 @@ class ArticleReaderViewModel @Inject constructor(
     fun saveQuotePrefs(prefs: QuotePrefs) {
         viewModelScope.launch { preferencesStore.setReaderQuotePrefs(prefs) }
     }
+
+    /**
+     * Offene Zitat-Tafel. Liegt hier statt im Screen, damit sie eine Drehung übersteht: Android
+     * baut dabei die Activity neu, die Tafel greift dann im neuen Format neu ab (wie iOS).
+     */
+    var quoteSession by mutableStateOf<QuoteSession?>(null)
+
+    /** Hinweis „Tippen zum Schließen“ für die offene Tafel (nur beim allerersten Mal). */
+    var quoteHint by mutableStateOf(false)
 
     /** `true` nur beim allerersten Öffnen der Zitat-Tafel (Hinweis „Tippen zum Schließen“). */
     suspend fun consumeQuoteHint(): Boolean {

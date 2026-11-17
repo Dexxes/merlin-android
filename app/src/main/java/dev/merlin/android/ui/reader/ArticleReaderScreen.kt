@@ -286,9 +286,9 @@ fun ArticleReaderScreen(
     var tappedHighlightId by remember { mutableStateOf<Int?>(null) }
     // Markierung mit Kommentaren: erst nach Rückfrage entfernen (wie iOS).
     var highlightToDelete by remember { mutableStateOf<Highlight?>(null) }
-    // Zitat-Tafel (siehe QuoteCard.kt): offen, solange eine Sitzung besteht.
-    var quoteSession by remember { mutableStateOf<QuoteSession?>(null) }
-    var quoteHint by remember { mutableStateOf(false) }
+    // Zitat-Tafel (siehe QuoteCard.kt): offen, solange eine Sitzung besteht (im ViewModel, damit
+    // sie eine Drehung übersteht).
+    val quoteSession = viewModel.quoteSession
     var commentFocus by remember { mutableStateOf<CommentFocus?>(null) }
     // Markieren, Kommentieren, Suchen: an die WebView des Text- bzw. PDF-Readers.
     var documentActions by remember { mutableStateOf<ReaderDocumentActions?>(null) }
@@ -849,7 +849,7 @@ fun ArticleReaderScreen(
                                             loc[0] + (rect.x + rect.width) * d, loc[1] + (rect.y + rect.height) * d,
                                         ).takeIf { rect.width > 0f && rect.height > 0f }
                                         closeToolbar()
-                                        quoteSession = QuoteSession(
+                                        viewModel.quoteSession = QuoteSession(
                                             text = text,
                                             sourceInWindow = source,
                                             style = QuoteStyle(
@@ -862,7 +862,7 @@ fun ArticleReaderScreen(
                                                 readerTypeface = readerTypeface(appearance),
                                             ),
                                         )
-                                        scope.launch { quoteHint = viewModel.consumeQuoteHint() }
+                                        scope.launch { viewModel.quoteHint = viewModel.consumeQuoteHint() }
                                     }
                                     val onQuote: (() -> Unit)? = if (quoteMode && !currentArticle.isPdf && webViewRef != null) {
                                         {
@@ -1173,12 +1173,18 @@ fun ArticleReaderScreen(
             webView = webViewRef,
             prefs = quotePrefs,
             onPrefsChange = viewModel::saveQuotePrefs,
-            showHint = quoteHint,
+            showHint = viewModel.quoteHint,
             accent = accentColor,
             onAccent = onAccentColor,
+            // Eingeblendet: nach einer Drehung nicht noch einmal aus dem Artikel gleiten und
+            // die Hinweise nicht wiederholen.
+            onShown = {
+                viewModel.quoteSession = session.copy(sourceInWindow = null, hintsShown = true)
+                viewModel.quoteHint = false
+            },
             onClosed = {
-                quoteSession = null
-                quoteHint = false
+                viewModel.quoteSession = null
+                viewModel.quoteHint = false
             },
         )
     }
