@@ -65,6 +65,16 @@ class PreferencesStore @Inject constructor(
         val NEEDS_SETTINGS_SYNC = booleanPreferencesKey("needs_settings_sync")
         val CACHED_COUNTS = stringPreferencesKey("cached_article_counts")
         val CACHED_TAGS = stringPreferencesKey("cached_tags")
+        val READER_QUOTE_MODE = booleanPreferencesKey("reader_quote_mode")
+        val READER_QUOTE_HINT_SHOWN = booleanPreferencesKey("reader_quote_hint_shown")
+        val READER_QUOTE_SHOW_AUTHOR = booleanPreferencesKey("reader_quote_show_author")
+        val READER_QUOTE_SHOW_SOURCE = booleanPreferencesKey("reader_quote_show_source")
+        val READER_QUOTE_BACKDROP = stringPreferencesKey("reader_quote_backdrop")
+        val READER_QUOTE_FONT = stringPreferencesKey("reader_quote_font")
+        val READER_QUOTE_FONT_SIZE = doublePreferencesKey("reader_quote_font_size")
+        val READER_QUOTE_TEXT_COLOR = stringPreferencesKey("reader_quote_text_color")
+        val READER_QUOTE_GLOW = booleanPreferencesKey("reader_quote_glow")
+        val READER_QUOTE_BLUR = doublePreferencesKey("reader_quote_blur")
     }
 
     private fun positionKey(articleId: Int) = doublePreferencesKey("pos_$articleId")
@@ -135,6 +145,40 @@ class PreferencesStore @Inject constructor(
     }
     suspend fun setReaderHandsFreeSpeed(value: Double) =
         dataStore.edit { it[Keys.READER_HANDS_FREE_SPEED] = value.coerceIn(0.0, 1.0) }
+
+    // Zitat-Tafel (Äquivalent zu `readerQuoteMode` … `readerQuoteBlur` in iOS' PreferencesStore.swift,
+    // siehe `reader_quote_*` in merlin-featureset/SETTINGS.md). Wie unter iOS nur lokal, nicht gesynct.
+    /** Knopf „Zitat-Tafel“ an der Markierungsleiste einblenden (Standard: an). */
+    val readerQuoteMode: Flow<Boolean> = dataStore.data.map { it[Keys.READER_QUOTE_MODE] ?: true }
+    suspend fun setReaderQuoteMode(value: Boolean) = dataStore.edit { it[Keys.READER_QUOTE_MODE] = value }
+
+    /** Hinweis „Tippen zum Schließen“ schon einmal gezeigt. */
+    suspend fun readerQuoteHintShown(): Boolean = dataStore.data.first()[Keys.READER_QUOTE_HINT_SHOWN] ?: false
+    suspend fun setReaderQuoteHintShown() = dataStore.edit { it[Keys.READER_QUOTE_HINT_SHOWN] = true }
+
+    /** Gemerkte Gestaltung der Zitat-Tafel; Enum-Werte als Namen (siehe `QuoteCard.kt`). */
+    val readerQuotePrefs: Flow<QuotePrefs> = dataStore.data.map {
+        QuotePrefs(
+            showAuthor = it[Keys.READER_QUOTE_SHOW_AUTHOR] ?: false,
+            showSource = it[Keys.READER_QUOTE_SHOW_SOURCE] ?: false,
+            backdrop = it[Keys.READER_QUOTE_BACKDROP],
+            font = it[Keys.READER_QUOTE_FONT],
+            fontSize = it[Keys.READER_QUOTE_FONT_SIZE] ?: 0.0,
+            textColor = it[Keys.READER_QUOTE_TEXT_COLOR],
+            glow = it[Keys.READER_QUOTE_GLOW] ?: true,
+            blur = (it[Keys.READER_QUOTE_BLUR] ?: 16.0).coerceIn(0.0, 40.0),
+        )
+    }
+    suspend fun setReaderQuotePrefs(value: QuotePrefs) = dataStore.edit {
+        it[Keys.READER_QUOTE_SHOW_AUTHOR] = value.showAuthor
+        it[Keys.READER_QUOTE_SHOW_SOURCE] = value.showSource
+        value.backdrop?.let { v -> it[Keys.READER_QUOTE_BACKDROP] = v }
+        value.font?.let { v -> it[Keys.READER_QUOTE_FONT] = v }
+        it[Keys.READER_QUOTE_FONT_SIZE] = value.fontSize
+        value.textColor?.let { v -> it[Keys.READER_QUOTE_TEXT_COLOR] = v }
+        it[Keys.READER_QUOTE_GLOW] = value.glow
+        it[Keys.READER_QUOTE_BLUR] = value.blur.coerceIn(0.0, 40.0)
+    }
 
     /** Default `true`: konservativ, vermeidet unerwarteten Datenverbrauch. */
     val saveProgress: Flow<Boolean> = dataStore.data.map { it[Keys.SAVE_PROGRESS] ?: true }
@@ -305,3 +349,19 @@ class PreferencesStore @Inject constructor(
         )
     }
 }
+
+/**
+ * Gestaltung der Zitat-Tafel, wie sie [PreferencesStore] speichert. [backdrop]/[font]/[textColor]
+ * sind die Namen der Enums in `ui/reader/QuoteCard.kt` (`null` = Standard), [fontSize] in sp
+ * (0 = Schriftgröße des Readers), [blur] in dp (0…40).
+ */
+data class QuotePrefs(
+    val showAuthor: Boolean = false,
+    val showSource: Boolean = false,
+    val backdrop: String? = null,
+    val font: String? = null,
+    val fontSize: Double = 0.0,
+    val textColor: String? = null,
+    val glow: Boolean = true,
+    val blur: Double = 16.0,
+)

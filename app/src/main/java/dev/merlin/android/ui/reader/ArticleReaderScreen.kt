@@ -3,7 +3,10 @@ package dev.merlin.android.ui.reader
 import android.app.Activity
 import android.content.ClipData
 import android.content.Intent
+import android.graphics.Typeface
+import android.os.Build
 import android.view.Window
+import android.view.WindowManager
 import android.webkit.WebView
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
@@ -153,6 +156,7 @@ import dev.merlin.android.models.FileMetadataParser
 import dev.merlin.android.models.Highlight
 import dev.merlin.android.models.HighlightCreate
 import dev.merlin.android.models.ProgressEdge
+import dev.merlin.android.models.ReaderFont
 import dev.merlin.android.models.ReaderTheme
 import dev.merlin.android.share.rememberArticleSharer
 import dev.merlin.android.ui.screens.EditTagsDialog
@@ -206,6 +210,8 @@ fun ArticleReaderScreen(
     val appearance by viewModel.appearance.collectAsState()
     val progressEdge by viewModel.progressEdge.collectAsState()
     val accentColorHex by viewModel.accentColorHex.collectAsState()
+    val quoteMode by viewModel.quoteMode.collectAsState()
+    val quotePrefs by viewModel.quotePrefs.collectAsState()
 
     // Native Chrome (ReaderHeader/ReaderBottomBar) folgt bewusst dem gewählten
     // Reader-Theme statt `MaterialTheme.colorScheme` (System-Theme) – sonst klafft die Chrome
@@ -282,6 +288,9 @@ fun ArticleReaderScreen(
     var tappedHighlightId by remember { mutableStateOf<Int?>(null) }
     // Markierung mit Kommentaren: erst nach Rückfrage entfernen (wie iOS).
     var highlightToDelete by remember { mutableStateOf<Highlight?>(null) }
+    // Zitat-Tafel (siehe QuoteCard.kt): offen, solange eine Sitzung besteht (im ViewModel, damit
+    // sie eine Drehung übersteht).
+    val quoteSession = viewModel.quoteSession
     var commentFocus by remember { mutableStateOf<CommentFocus?>(null) }
     // Markieren, Kommentieren, Suchen: an die WebView des Text- bzw. PDF-Readers.
     var documentActions by remember { mutableStateOf<ReaderDocumentActions?>(null) }
@@ -824,11 +833,62 @@ fun ArticleReaderScreen(
                                     animationSpec = tween(200),
                                     label = "toolbarBottomPadding",
                                 )
-                                selectionRect?.let {
+                                selectionRect?.let { rect ->
                                     val tapped = tappedHighlightId?.let { id -> highlights.firstOrNull { it.id == id } }
                                     fun closeToolbar() {
                                         selectionRect = null
                                         tappedHighlightId = null
+                                    }
+                                    // Zitat-Tafel für die Auswahl bzw. die angetippte Markierung (wie auf
+                                    // iOS nur bei Text-Artikeln). Die Lage im Artikel (CSS-px ≈ dp, relativ
+                                    // zur WebView) dient als Startpunkt der Animation.
+                                    fun openQuote(text: String) {
+                                        val webView = webViewRef ?: return
+                                        val loc = IntArray(2).also { webView.getLocationInWindow(it) }
+                                        val d = density.density
+                                        val source = androidx.compose.ui.geometry.Rect(
+                                            loc[0] + rect.x * d, loc[1] + rect.y * d,
+                                            loc[0] + (rect.x + rect.width) * d, loc[1] + (rect.y + rect.height) * d,
+                                        ).takeIf { rect.width > 0f && rect.height > 0f }
+                                        closeToolbar()
+                                        viewModel.quoteSession = QuoteSession(
+                                            text = text,
+                                            sourceInWindow = source,
+                                            style = QuoteStyle(
+                                                tint = chromeColors.background.toArgb(),
+                                                isDark = chromeColors.background.luminance() < 0.5f,
+                                                textColor = chromeColors.foreground.toArgb(),
+                                                author = currentArticle.author?.trim()?.takeIf { it.isNotEmpty() },
+                                                source = QuoteStyle.source(currentArticle.url),
+                                                fontSize = appearance.fontSize.toFloat(),
+                                                readerTypeface = readerTypeface(appearance),
+                                            ),
+                                        )
+                                        scope.launch { viewModel.quoteHint = viewModel.consumeQuoteHint() }
+                                    }
+                                    val onQuote: (() -> Unit)? = if (quoteMode && !currentArticle.isPdf && webViewRef != null) {
+                                        {
+                                            if (tapped != null) {
+                                                openQuote(tapped.highlightedText)
+                                            } else {
+                                                documentActions?.quoteSelection { text -> text?.let(::openQuote) }
+                                            }
+                                        }
+                                    } else {
+                                        null
+                                    }
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                                        modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = toolbarBottomPadding),
+                                    ) {
+                                    if (onQuote != null) {
+                                        QuoteOpenButton(
+                                            background = MaterialTheme.colorScheme.surfaceVariant,
+                                            foreground = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            border = MaterialTheme.colorScheme.outlineVariant,
+                                            onClick = onQuote,
+                                        )
                                     }
                                     HighlightColorToolbar(
                                         // Gast-Markierungen und Kommentarstellen haben keine eigene Farbe zum Ändern.
@@ -860,8 +920,8 @@ fun ArticleReaderScreen(
                                                 closeToolbar()
                                             }
                                         },
-                                        modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = toolbarBottomPadding),
                                     )
+                                    }
                                 }
 
                                 if (showFind) {
@@ -960,7 +1020,7 @@ fun ArticleReaderScreen(
     val handsFreeShouldPause = selectionRect != null || infoPopover != null ||
         drawerState.targetValue == DrawerValue.Open || showAppearanceSheet || showReminderSheet ||
         showReportSheet || showTagsSheet || showRenameDialog || showShareLinkSheet ||
-        lightboxState != null || highlightToDelete != null || commentFocus != null ||
+        lightboxState != null || highlightToDelete != null || commentFocus != null || quoteSession != null ||
         !lifecycleState.isAtLeast(Lifecycle.State.RESUMED)
     LaunchedEffect(handsFreeShouldPause) {
         if (handsFreeShouldPause) autoScroll.pause()
@@ -985,6 +1045,36 @@ fun ArticleReaderScreen(
             if (!view.isInEditMode) {
                 WindowCompat.getInsetsController((view.context as Activity).window, view)
                     .show(WindowInsetsCompat.Type.navigationBars())
+            }
+        }
+    }
+
+    // Zitat-Tafel: Status- und Navigationsleiste weg, solange sie offen ist (wie auf iOS).
+    val quoteActive = quoteSession != null
+    LaunchedEffect(quoteActive) {
+        if (view.isInEditMode) return@LaunchedEffect
+        val window = (view.context as Activity).window
+        // Merlin läuft nicht edge-to-edge: auch mit ausgeblendeter Statusleiste hält das Fenster
+        // oben deren Platz frei (weißer Streifen). Solange die Tafel offen ist, läuft es daher
+        // randlos und reicht bis in die Kamera-Aussparung; danach wieder wie vorher.
+        WindowCompat.setDecorFitsSystemWindows(window, !quoteActive)
+        window.setCutoutShortEdges(quoteActive)
+        val controller = WindowCompat.getInsetsController(window, view)
+        if (quoteActive) {
+            controller.hide(WindowInsetsCompat.Type.systemBars())
+        } else {
+            controller.show(WindowInsetsCompat.Type.statusBars())
+            if (readerBarVisible) controller.show(WindowInsetsCompat.Type.navigationBars())
+        }
+    }
+    DisposableEffect(Unit) {
+        onDispose {
+            if (!view.isInEditMode) {
+                val window = (view.context as Activity).window
+                WindowCompat.setDecorFitsSystemWindows(window, true)
+                window.setCutoutShortEdges(false)
+                WindowCompat.getInsetsController(window, view)
+                    .show(WindowInsetsCompat.Type.statusBars())
             }
         }
     }
@@ -1086,8 +1176,41 @@ fun ArticleReaderScreen(
             },
         )
     }
+
+    // Zitat-Tafel über allem (auch Bottom-Bar und Fortschrittsbalken), siehe QuoteCard.kt.
+    quoteSession?.let { session ->
+        QuoteCardOverlay(
+            session = session,
+            webView = webViewRef,
+            prefs = quotePrefs,
+            onPrefsChange = viewModel::saveQuotePrefs,
+            showHint = viewModel.quoteHint,
+            accent = accentColor,
+            onAccent = onAccentColor,
+            // Eingeblendet: nach einer Drehung nicht noch einmal aus dem Artikel gleiten und
+            // die Hinweise nicht wiederholen.
+            onShown = {
+                viewModel.quoteSession = session.copy(sourceInWindow = null, hintsShown = true)
+                viewModel.quoteHint = false
+            },
+            onClosed = {
+                viewModel.quoteSession = null
+                viewModel.quoteHint = false
+            },
+        )
+    }
     } // Box (Modifier.fillMaxSize()) – siehe Kommentar an deren Öffnung weiter oben
 }
+
+/** Schrift des Readers als Typeface (für „Original“ auf der Zitat-Tafel). */
+private fun readerTypeface(appearance: ArticleReaderViewModel.Appearance): Typeface =
+    appearance.customFont?.previewFace?.path
+        ?.let { path -> runCatching { Typeface.createFromFile(path) }.getOrNull() }
+        ?: when (appearance.font) {
+            ReaderFont.SERIF -> Typeface.SERIF
+            ReaderFont.MONO -> Typeface.MONOSPACE
+            ReaderFont.SYSTEM, ReaderFont.SANS_SERIF -> Typeface.SANS_SERIF
+        }
 
 /**
  * Dünner Fortschrittsbalken entlang der per Einstellung gewählten Kante.
@@ -1594,4 +1717,17 @@ private fun Window.setStatusBarColorCompat(argb: Int) {
 @Suppress("DEPRECATION")
 private fun Window.setNavigationBarColorCompat(argb: Int) {
     navigationBarColor = argb
+}
+
+/** Fenster bis in die Kamera-Aussparung (an den kurzen Kanten) ziehen bzw. zurück zum Standard. */
+private fun Window.setCutoutShortEdges(enabled: Boolean) {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return
+    val mode = if (enabled) {
+        WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+    } else {
+        WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_DEFAULT
+    }
+    if (attributes.layoutInDisplayCutoutMode != mode) {
+        attributes = attributes.apply { layoutInDisplayCutoutMode = mode }
+    }
 }
