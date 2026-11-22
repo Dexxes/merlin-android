@@ -9,6 +9,7 @@ import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
+import dev.merlin.android.BuildConfig
 import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
 
@@ -43,14 +44,15 @@ object NetworkModule {
         authInterceptor: AuthInterceptor,
         baseUrlInterceptor: BaseUrlInterceptor,
     ): OkHttpClient {
-        val logging = HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.BASIC
-        }
-        return OkHttpClient.Builder()
+        val builder = OkHttpClient.Builder()
             .addInterceptor(baseUrlInterceptor)
             .addInterceptor(authInterceptor)
-            .addInterceptor(logging)
-            .build()
+        // Request-Zeilen (Methode + URL) nur im Debug-Build ins Logcat, im Release nicht:
+        // URLs können Server-Adresse, Artikel-Links und Login-Flow-Tokens enthalten.
+        if (BuildConfig.DEBUG) {
+            builder.addInterceptor(HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BASIC })
+        }
+        return builder.build()
     }
 
     @Provides
