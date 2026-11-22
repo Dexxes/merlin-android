@@ -131,14 +131,6 @@ data class Article(
     val displaySiteName: String
         get() = siteName ?: runCatching { java.net.URI(url).host }.getOrNull() ?: url
 
-    /** DuckDuckGo-Favicon-Service – funktioniert für praktisch jede Domain. */
-    val faviconUrl: String?
-        get() {
-            val host = runCatching { java.net.URI(url).host }.getOrNull()?.takeIf { it.isNotEmpty() }
-                ?: return null
-            return "https://icons.duckduckgo.com/ip3/$host.ico"
-        }
-
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other !is Article) return false

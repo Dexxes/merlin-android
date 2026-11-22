@@ -7,6 +7,7 @@ import android.graphics.Typeface
 import android.os.Build
 import android.view.Window
 import android.view.WindowManager
+import dev.merlin.android.ui.theme.LocalSystemBarColors
 import android.webkit.WebView
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
@@ -229,19 +230,19 @@ fun ArticleReaderScreen(
     // umfärben und beim Verlassen wieder auf die System-Theme-Farbe zurücksetzen.
     val isChromeDark = chromeColors.background.luminance() < 0.5f
     val view = LocalView.current
+    val systemBars = LocalSystemBarColors.current
     // Rücksetzwert beim Verlassen: bewusst NICHT `isSystemInDarkTheme()`, sondern das App-Theme
     // selbst (`MaterialTheme.colorScheme`, von der umschließenden `MerlinTheme` in Theme.kt anhand
     // der Nutzer-Auswahl gesetzt). Vorher wurde hier auf den rohen System-Modus zurückgesetzt –
     // weicht die Nutzer-Auswahl vom System ab (z.B. App-Theme "Dunkel" bei hellem System-Theme),
     // landete man nach dem Verlassen des Readers in genau der falschen Hell/Dunkel-Kombination
     // (Hintergrund vs. Icon-Kontrast), die als helle/weiße Leiste sichtbar wird.
-    val appBackgroundArgb = MaterialTheme.colorScheme.background.toArgb()
     val appIsDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     // Die Statusleiste färbt ein eigener SideEffect weiter unten (Akzentfarbe hinter dem Plakat-Header).
     SideEffect {
         if (!view.isInEditMode) {
             val window = (view.context as Activity).window
-            window.setNavigationBarColorCompat(chromeColors.background.toArgb())
+            systemBars?.navigationBar = chromeColors.background
             val insetsController = WindowCompat.getInsetsController(window, view)
             insetsController.isAppearanceLightNavigationBars = !isChromeDark
         }
@@ -250,8 +251,8 @@ fun ArticleReaderScreen(
         onDispose {
             if (!view.isInEditMode) {
                 val window = (view.context as Activity).window
-                window.setStatusBarColorCompat(appBackgroundArgb)
-                window.setNavigationBarColorCompat(appBackgroundArgb)
+                systemBars?.statusBar = null
+                systemBars?.navigationBar = null
                 val insetsController = WindowCompat.getInsetsController(window, view)
                 insetsController.isAppearanceLightStatusBars = !appIsDark
                 insetsController.isAppearanceLightNavigationBars = !appIsDark
@@ -317,8 +318,8 @@ fun ArticleReaderScreen(
     var scrollingDown by remember(viewModel.articleId) { mutableStateOf(false) }
 
     // Plakat-Header (siehe ReaderHtmlBuilder.buildHeaderHtml): Die Akzentfläche reicht unter iOS bis
-    // unter die Statusleiste. Merlin läuft hier nicht edge-to-edge, die Statusleiste nimmt deshalb die
-    // Akzentfarbe an, solange die Fläche direkt darunter liegt, sonst die Reader-Hintergrundfarbe.
+    // unter die Statusleiste. Merlin hält den Inhalt aus der Statusleiste heraus (SystemBarsFrame), die Fläche
+    // darunter nimmt deshalb die Akzentfarbe an, solange die Fläche direkt darunter liegt, sonst die Reader-Hintergrundfarbe.
     // `posterBottomPx` meldet die WebView (CSS-px ≈ dp, hier schon in echte Px umgerechnet);
     // derivedStateOf komponiert nur neu, wenn der Zustand umkippt, nicht bei jedem Scroll-Frame.
     var posterBottomPx by remember(viewModel.articleId) { mutableFloatStateOf(0f) }
@@ -334,7 +335,7 @@ fun ArticleReaderScreen(
     SideEffect {
         if (!view.isInEditMode) {
             val window = (view.context as Activity).window
-            window.setStatusBarColorCompat(statusBarColor.toArgb())
+            systemBars?.statusBar = statusBarColor
             WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !statusBarIsDark
         }
     }
@@ -627,12 +628,8 @@ fun ArticleReaderScreen(
         CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
         Scaffold(
             containerColor = chromeColors.background,
-            // Keine zusätzlichen Insets: Merlin läuft (noch) nicht edge-to-edge, das Fenster liegt
-            // also bereits unterhalb der Statusleiste und oberhalb der Navigationsleiste. Compose
-            // meldet die System-Insets trotzdem, sodass `Scaffold` sie standardmäßig ein zweites
-            // Mal als Padding addiert hätte – sichtbar als leerer Streifen in Statusleistenhöhe
-            // über dem Artikel, seit die TopAppBar (die diese Insets vorher selbst geschluckt hat)
-            // entfallen ist. Beim Umstieg auf edge-to-edge (targetSdk 35) muss das wieder rein.
+            // Keine zusätzlichen Insets: SystemBarsFrame (MainActivity) hält den Inhalt bereits aus
+            // Status- und Navigationsleiste heraus. Bei offener Zitat-Tafel läuft er bewusst randlos.
             contentWindowInsets = WindowInsets(0, 0, 0, 0),
             // Bewusst keine TopAppBar mehr: kein Zurück-Button (System-Zurück genügt), kein
             // Favoriten-Stern (Favorisieren über das Seitenmenü) und das Menü sitzt rechts in der
@@ -1054,10 +1051,10 @@ fun ArticleReaderScreen(
     LaunchedEffect(quoteActive) {
         if (view.isInEditMode) return@LaunchedEffect
         val window = (view.context as Activity).window
-        // Merlin läuft nicht edge-to-edge: auch mit ausgeblendeter Statusleiste hält das Fenster
-        // oben deren Platz frei (weißer Streifen). Solange die Tafel offen ist, läuft es daher
-        // randlos und reicht bis in die Kamera-Aussparung; danach wieder wie vorher.
-        WindowCompat.setDecorFitsSystemWindows(window, !quoteActive)
+        // SystemBarsFrame hält sonst oben Platz für Statusleiste/Kamera-Aussparung frei (weißer
+        // Streifen). Solange die Tafel offen ist, läuft der Inhalt daher randlos und reicht bis in
+        // die Kamera-Aussparung; danach wieder wie vorher.
+        systemBars?.fullBleed = quoteActive
         window.setCutoutShortEdges(quoteActive)
         val controller = WindowCompat.getInsetsController(window, view)
         if (quoteActive) {
@@ -1071,7 +1068,7 @@ fun ArticleReaderScreen(
         onDispose {
             if (!view.isInEditMode) {
                 val window = (view.context as Activity).window
-                WindowCompat.setDecorFitsSystemWindows(window, true)
+                systemBars?.fullBleed = false
                 window.setCutoutShortEdges(false)
                 WindowCompat.getInsetsController(window, view)
                     .show(WindowInsetsCompat.Type.statusBars())
@@ -1698,25 +1695,6 @@ private fun rememberReaderChromeColors(theme: ReaderTheme): ReaderChromeColors {
             }
         }
     }
-}
-
-/**
- * Färbt Status- und Navigationsleiste ein. `Window.statusBarColor`/`navigationBarColor` sind seit
- * API 35 deprecated, weil Apps mit `targetSdk >= 35` zwingend edge-to-edge laufen und die Setter
- * dort wirkungslos sind. Merlin zielt aktuell auf `targetSdk = 34` ohne `enableEdgeToEdge()`; hier
- * sind die Setter weiterhin der einzige Weg, die Leisten einzufärben (dasselbe Muster wie in
- * `MerlinTheme`, Theme.kt). Die Deprecation wird daher gebündelt an dieser einen Stelle
- * unterdrückt. Beim Umstieg auf `targetSdk 35` entfällt diese Funktion zugunsten von
- * edge-to-edge plus Hintergrund hinter den System-Insets.
- */
-@Suppress("DEPRECATION")
-private fun Window.setStatusBarColorCompat(argb: Int) {
-    statusBarColor = argb
-}
-
-@Suppress("DEPRECATION")
-private fun Window.setNavigationBarColorCompat(argb: Int) {
-    navigationBarColor = argb
 }
 
 /** Fenster bis in die Kamera-Aussparung (an den kurzen Kanten) ziehen bzw. zurück zum Standard. */

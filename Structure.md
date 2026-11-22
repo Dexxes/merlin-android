@@ -24,7 +24,7 @@ DataStore, WorkManager, Coil.
 | `settings.gradle.kts` | Modul-Einbindung (`:app`), Repository-Deklaration |
 | `build.gradle.kts` (root) | Plugin-Versionen (Android, Kotlin, Hilt) |
 | `gradle.properties` | JVM-Args, AndroxX/Kotlin-Flags |
-| `app/build.gradle.kts` | App-Modul: `applicationId dev.merlin.android`, minSdk 23 (siehe Begründung in todo.md, Abschnitt „Offene Fragen"), targetSdk/compileSdk 34, alle Dependencies (Compose, Retrofit, Room, Hilt, Media3, Coil) |
+| `app/build.gradle.kts` | App-Modul: `applicationId dev.merlin.android`, minSdk 23 (siehe Begründung in todo.md, Abschnitt „Offene Fragen"), targetSdk 36/compileSdk 37, alle Dependencies (Compose, Retrofit, Room, Hilt, Media3, Coil) |
 | `app/src/main/AndroidManifest.xml` | Permissions (Internet, Notifications, Exact Alarm), `android:icon`/`android:roundIcon` → `@mipmap/ic_launcher`/`ic_launcher_round` (siehe „App-Icon" unten), `MainActivity` als Launcher; `ShareActivity` mit `ACTION_SEND`/`ACTION_SEND_MULTIPLE`-Intent-Filter für `*/*` (Abschnitt 10), `excludeFromRecents`/`noHistory` da reine Overlay-Activity, transparentes `Theme.Merlin.Share` |
 
 ## Lokalisierung (`res/values(-de)/strings_i18n.xml`)
@@ -108,6 +108,7 @@ Adaptive-Vordergrund 108/162/216/324/432px (jeweils mdpi→xxxhdpi).
 | `MerlinApp.kt` | `Application`-Klasse mit `@HiltAndroidApp`; Äquivalent zu `MerlinApp.swift` (Splash-Logik liegt in `MainActivity.kt`; iOS-spezifische Credentials-Migration entfällt) |
 | `MainActivity.kt` | Einzige Activity, hostet Compose; zeigt `OnboardingScreen` solange `CredentialsStore.isConfigured == false`, sonst ein `NavHost` (Routen `list`/`reader/{articleId}`, Äquivalent zu `NavigationStack`) zwischen `ArticleListScreen` und `ArticleReaderScreen`. `articleId` als typisiertes Nav-Argument, damit `hiltViewModel()` die `SavedStateHandle` von `ArticleReaderViewModel` automatisch befüllt. `AppNavigator.articleIdToOpen` (Reminder-Deep-Link) wird per `LaunchedEffect` konsumiert und navigiert direkt zum Reader. Splash wie iOS' `SplashView`: der System-Splash (`Theme.Merlin.Starting`) zeigt das Logo über `drawable/splash_icon.xml` auf 96 dp verkleinert, damit die kreisförmige Icon-Maske der SplashScreen-API nichts abschneidet; danach übernimmt `ui/screens/MerlinSplash.kt` mit dem Logo an gleicher Stelle, Ladeindikator und nach 3 s „Im Offlinemodus starten?“ (`ArticlesViewModel.continueOffline()`); er verschwindet nach mind. 200 ms, sobald Server-Settings und erster Ladevorgang durch sind |
 | `ui/theme/Theme.kt` | `MerlinTheme`-Composable mit Platzhalter Light/Dark-Farbschema; wird mit der Settings-Portierung um Theme-Auswahl (light/dark/auto) erweitert |
+| `ui/theme/SystemBars.kt` | Edge-to-edge (Pflicht ab targetSdk 35): `SystemBarsFrame` hält den Inhalt aus Status-/Navigationsleiste, Kamera-Aussparung und Tastatur heraus und färbt die Flächen darunter; `SystemBarColors` (über `LocalSystemBarColors`) setzt der Reader für Akzent-/Reader-Farbe, `fullBleed` für die Zitat-Tafel |
 
 ## Models (`models/`)
 
@@ -115,7 +116,7 @@ Adaptive-Vordergrund 108/162/216/324/432px (jeweils mdpi→xxxhdpi).
 
 | Datei | Zweck |
 |---|---|
-| `Article.kt` | Wie iOS-Original inkl. `displayTitle`/`displaySiteName`/`faviconUrl`/`isPdf` (Kategorie `PDF` oder URL endet auf `.pdf`)/`pdfSourceUrl` (bei Datei-Einträgen `data-pdf-src` aus dem Inhalt, sonst `url`); eigene `equals`/`hashCode` (id + isProcessing + updatedAt + sortierte Tag-IDs, `equals` zusätzlich Titel wegen Umbenennen) statt Default-Datenklassen-Vergleich, aus demselben Grund wie im iOS-Original (Recomposition bei Server-Updates) |
+| `Article.kt` | Wie iOS-Original inkl. `displayTitle`/`displaySiteName`/`isPdf` (Kategorie `PDF` oder URL endet auf `.pdf`)/`pdfSourceUrl` (bei Datei-Einträgen `data-pdf-src` aus dem Inhalt, sonst `url`); eigene `equals`/`hashCode` (id + isProcessing + updatedAt + sortierte Tag-IDs, `equals` zusätzlich Titel wegen Umbenennen) statt Default-Datenklassen-Vergleich, aus demselben Grund wie im iOS-Original (Recomposition bei Server-Updates) |
 | `Tag.kt` | 1:1, inkl. `parentId` (verschachtelte Tags, nur merlin-nextcloud; fehlt das Feld, sind alle Tags oberste Ebene) |
 | `InstalledFonts.kt` | Kein iOS-Gegenstück als Model (dort `UIFont.familyNames`): listet installierte Schriftfamilien – ab API 29 über `SystemFonts.getAvailableFonts()`, darunter aus `/system/fonts`/`/product/fonts`; Familienname/Gewicht/Kursiv aus `name`-/`OS/2`-Tabelle der Datei. Nur Schriften mit lateinischen Grundzeichen, aus `.ttc` nur der erste Schnitt. Gecacht, Aufruf nur im Hintergrund |
 | `TagTree.kt` | Portierung von `TagTree.swift`: Baum über der flachen Tag-Liste – `rows(collapsed)` in Baumreihenfolge mit Tiefe, `scope`/`descendantIds`/`ancestorIds`, `toggling`/`selecting` (Unter-Tag wählt Eltern mit, Abwählen nimmt Unter-Tags mit), `path` („Reisen › Japan“), `canMove` (kein Kreis). Tags mit fehlendem Eltern-Tag gelten als oberste Ebene |
@@ -452,5 +453,5 @@ Siehe `todo.md` für die vollständige Liste; insbesondere fehlen noch: TTS-Pipe
 ## Bekannte offene Punkte für den ersten Android-Studio-Sync
 
 - Gradle-Wrapper-Dateien (`gradlew`, `gradlew.bat`, `gradle/wrapper/gradle-wrapper.jar`) fehlen noch – Android Studio bietet beim ersten Öffnen an, sie zu erzeugen; das sollte bestätigt werden.
-- `compileSdk`/`targetSdk 34` setzt voraus, dass die entsprechende SDK-Platform im SDK-Manager installiert ist.
+- `compileSdk 37`/`targetSdk 36` setzt voraus, dass die entsprechende SDK-Platform im SDK-Manager installiert ist.
 - Kein Launcher-Icon hinterlegt (`mipmap`-Ressourcen fehlen) – Android Studio nutzt sonst ein Default-Icon; kein Blocker für den Build.

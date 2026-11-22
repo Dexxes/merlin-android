@@ -61,6 +61,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- The app now targets Android 16 (API level 36), as Google Play requires for
+  new apps and updates. Android 15 and later always draw apps edge to edge, so
+  the app now does that too: the system bars are transparent and the app paints
+  the areas behind them itself (app background, or the reader's background or
+  accent color), keeping all content out of the bars, the camera cutout and the
+  keyboard as before. The share sheet dims the sharing app up to the top edge
+  and reaches down behind the navigation bar.
+- Site icons are no longer fetched from DuckDuckGo. They were downloaded and
+  cached for every article but never shown, and the request told DuckDuckGo
+  the domain of each saved article (as on iOS).
+- Privacy policy: removed the DuckDuckGo site icons, added archive.ph to the
+  German version and the storage permission (Android 9 and older) to both.
 - Highlights in text articles are applied by script instead of being baked into
   the HTML, so new highlights or comments no longer reload the page. Marks are
   wrapped in creation order like on iOS.
