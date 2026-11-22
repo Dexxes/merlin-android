@@ -50,7 +50,7 @@ layout.
 
 - Android Studio (current stable)
 - JDK 17
-- Android SDK with `compileSdk 37` / `targetSdk 34` platforms installed
+- Android SDK with `compileSdk 37` / `targetSdk 36` platforms installed
 - A running Nextcloud instance with the Merlin app, or a `merlin-server`
   instance to connect to
 

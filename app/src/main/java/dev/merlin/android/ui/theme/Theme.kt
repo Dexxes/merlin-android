@@ -8,7 +8,6 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 import dev.merlin.android.models.ReaderTheme
@@ -109,21 +108,14 @@ fun MerlinTheme(
         else -> if (isDark) DarkColors else LightColors
     }
 
-    // Status- UND Navigationsleiste an den App-Hintergrund anpassen (hell im Light-/Sepia-,
-    // dunkel im Dark-Theme) statt des grauen/weißen Plattform-Scrims aus dem alten
-    // android:Theme.Material.Light-Basistheme (siehe themes.xml, dort bewusst nur als Fenster-/
-    // Splash-Theme belassen). Vorher wurde hier nur `statusBarColor` gesetzt – die untere
-    // Systemleiste (`navigationBarColor`) blieb dadurch außerhalb des Readers (der das schon
-    // separat selbst fixt, siehe ArticleReaderScreen.kt) permanent auf dem hellen Fenster-Theme
-    // stehen, sichtbar als weiße Leiste am unteren Bildschirmrand z.B. in der Artikelübersicht.
-    // Icon-/Uhrzeitfarbe beider Leisten entsprechend mitschalten, sonst wären helle Icons auf
-    // hellem Grund (oder umgekehrt) unlesbar.
+    // Icon-/Uhrzeitfarbe von Status- und Navigationsleiste ans App-Theme anpassen (helle Icons
+    // auf dunklem Grund und umgekehrt). Die Flächen unter den Leisten färbt seit edge-to-edge
+    // (targetSdk 35+) nicht mehr das Fenster, sondern SystemBarsFrame (SystemBars.kt) im
+    // App-Hintergrund; `Window.statusBarColor`/`navigationBarColor` wirken dort nicht mehr.
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            window.statusBarColor = colors.background.toArgb()
-            window.navigationBarColor = colors.background.toArgb()
             val insetsController = WindowCompat.getInsetsController(window, view)
             insetsController.isAppearanceLightStatusBars = !isDark
             insetsController.isAppearanceLightNavigationBars = !isDark

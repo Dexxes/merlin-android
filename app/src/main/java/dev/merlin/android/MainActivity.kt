@@ -1,7 +1,15 @@
 package dev.merlin.android
 
 import android.content.Intent
+import android.graphics.Color as AndroidColor
+import android.os.Build
 import android.os.Bundle
+import androidx.activity.SystemBarStyle
+import androidx.activity.enableEdgeToEdge
+import androidx.compose.runtime.CompositionLocalProvider
+import dev.merlin.android.ui.theme.LocalSystemBarColors
+import dev.merlin.android.ui.theme.SystemBarColors
+import dev.merlin.android.ui.theme.SystemBarsFrame
 import kotlinx.coroutines.delay
 import dev.merlin.android.ui.screens.MerlinSplash
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -87,6 +95,15 @@ class MainActivity : ComponentActivity() {
         // ([MerlinSplash]) mit identischem Hintergrund und Logo an gleicher Stelle.
         installSplashScreen().setOnExitAnimationListener { it.remove() }
         super.onCreate(savedInstanceState)
+        // Ab targetSdk 35 Pflicht: Fenster randlos. Die Leisten selbst sind durchsichtig, die
+        // Flächen darunter färbt und freihält SystemBarsFrame (siehe ui/theme/SystemBars.kt).
+        // Icon-Hell/Dunkel stellt MerlinTheme bzw. der Reader passend zum Hintergrund ein.
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.auto(AndroidColor.TRANSPARENT, AndroidColor.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.auto(AndroidColor.TRANSPARENT, AndroidColor.TRANSPARENT),
+        )
+        // Kein grauer Kontrast-Schleier über der 3-Tasten-Navigation: dort liegt schon unsere Farbe.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) window.isNavigationBarContrastEnforced = false
         handleIntent(intent)
         setContent {
             // Bisher fehlte diese Verbindung komplett: `MerlinTheme` fiel ohne Parameter immer
@@ -94,6 +111,9 @@ class MainActivity : ComponentActivity() {
             // wirkte sich nur auf die Lese-Ansicht aus, nicht auf Menüs/Artikelübersicht/Settings.
             val appTheme by preferencesStore.readerTheme.collectAsState(initial = ReaderTheme.AUTO)
             MerlinTheme(theme = appTheme) {
+              val systemBarColors = remember { SystemBarColors() }
+              CompositionLocalProvider(LocalSystemBarColors provides systemBarColors) {
+              SystemBarsFrame(systemBarColors, MaterialTheme.colorScheme.background) {
                 // Lade-/Fehlerdialog beim Teilen von Datei-Einträgen (siehe FileShareService).
                 FileShareHost(fileShareService)
                 // Direkt aus dem CredentialsStore abgeleitet: sobald die Zugangsdaten weg sind
@@ -249,6 +269,8 @@ class MainActivity : ComponentActivity() {
                         )
                     }
                 }
+              }
+              }
             }
         }
     }

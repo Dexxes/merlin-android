@@ -98,11 +98,10 @@ class ImageCacheService @Inject constructor(
         return caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
     }
 
-    /** Hero-Bild, Favicon und alle `<img src="">` aus dem Artikel-HTML. */
+    /** Hero-Bild und alle `<img src="">` aus dem Artikel-HTML. */
     private fun extractImageUrls(article: Article): List<String> {
         val urls = LinkedHashSet<String>()
         article.imageUrl?.let { urls += it }
-        article.faviconUrl?.let { urls += it }
         article.content?.let { html ->
             IMG_SRC_REGEX.findAll(html).forEach { match -> urls += decodeHtmlEntities(match.groupValues[1]) }
         }

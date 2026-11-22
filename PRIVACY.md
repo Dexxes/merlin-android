@@ -2,7 +2,7 @@
 
 *English version below.*
 
-Stand: 15. November 2026
+Stand: 22. November 2026
 
 ## Kurz gesagt
 
@@ -48,7 +48,7 @@ Einige Funktionen laden Inhalte direkt von anderen Anbietern. Diese sehen dabei 
 - **YouTube-Videos:** Das Vorschaubild kommt von `i.ytimg.com`, das Video selbst wird erst geladen, wenn du es antippst, und läuft dann über `youtube-nocookie.com`. Dabei gilt die Datenschutzerklärung von Google.
 - **Videos aus Mediatheken und in Artikeln:** Videos von ARD, ZDF, 3sat und Arte sowie Videos im Artikeltext werden direkt von den Servern der Anbieter gestreamt, sobald du sie abspielst.
 - **Melden von Artikeln:** Wenn du einen Artikel meldest, gehen Adresse und Kommentar an das Melde-Backend, das dein Server-Administrator eingerichtet hat.
-- **Anmeldung und Links:** Die Anmeldeseite deines Servers und angeklickte Links öffnet sich im Browser bzw. auf der jeweiligen Website.
+- **Anmeldung und Links:** Die Anmeldeseite deines Servers, angeklickte Links und „Über archive.ph öffnen“ öffnen sich im Browser bzw. auf der jeweiligen Website. Bei „Über archive.ph öffnen“ erhält archive.ph die Adresse des Artikels.
 
 ## Was die App nicht tut
 
@@ -61,6 +61,7 @@ Einige Funktionen laden Inhalte direkt von anderen Anbietern. Diese sehen dabei 
 - **Internet und Netzwerkstatus:** für die Verbindung zu deinem Server und zum Erkennen, wann offline gespeicherte Änderungen übertragen werden können
 - **Mitteilungen, exakte Wecker, Start nach dem Hochfahren:** für Erinnerungen an Artikel
 - **Vibration:** für haptische Rückmeldungen
+- **Speicher (nur Android 9 und älter):** um ein Bild der Zitat-Tafel unter „Bilder/Merlin“ zu speichern, wenn du „Bild speichern“ wählst. Ab Android 10 braucht die App dafür keine Berechtigung.
 
 Du kannst die Berechtigung für Mitteilungen jederzeit in den Android-Einstellungen widerrufen.
 
@@ -76,7 +77,7 @@ Wenn sich die App ändert, wird diese Erklärung angepasst. Die jeweils aktuelle
 
 # Privacy Policy – Merlin for Android
 
-Last updated: November 15, 2026
+Last updated: November 22, 2026
 
 ## In short
 
@@ -121,9 +122,8 @@ Some features load content directly from other providers. They see your IP addre
 - **Images in articles:** they are loaded from the websites the articles come from.
 - **YouTube videos:** the preview image comes from `i.ytimg.com`; the video itself loads only when you tap it and then plays through `youtube-nocookie.com`. Google's privacy policy applies.
 - **Videos from broadcaster media libraries and in articles:** videos from ARD, ZDF, 3sat and Arte, and videos inside article text, are streamed directly from the providers' servers once you play them.
-- **Site icons:** they come from DuckDuckGo (`icons.duckduckgo.com`). This sends the domain name of the saved article, for example `example.com`, but not the full address.
 - **Reporting articles:** if you report an article, its address and your comment go to the reporting backend your server administrator set up.
-- **Login and links:** your server's login page, links and "Open via archive.ph" open in the browser or on the respective website.
+- **Login and links:** your server's login page, links and "Open via archive.ph" open in the browser or on the respective website. With "Open via archive.ph", archive.ph receives the article's address.
 
 ## What the app does not do
 
@@ -136,6 +136,7 @@ Some features load content directly from other providers. They see your IP addre
 - **Internet and network state:** to connect to your server and to know when changes saved offline can be sent
 - **Notifications, exact alarms, run at startup:** for article reminders
 - **Vibration:** for haptic feedback
+- **Storage (Android 9 and older only):** to save a quote card image to Pictures/Merlin when you choose "Save Image". From Android 10 on, the app needs no permission for this.
 
 You can revoke the notification permission at any time in Android settings.
 

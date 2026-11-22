@@ -1,5 +1,9 @@
 package dev.merlin.android.ui.share
 
+import android.graphics.Color as AndroidColor
+import android.os.Build
+import androidx.activity.SystemBarStyle
+import androidx.activity.enableEdgeToEdge
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
@@ -27,6 +31,13 @@ class ShareActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Ab targetSdk 35 Pflicht: randlos. Durchsichtige Leisten, Abdunkelung und Sheet zeichnet
+        // ShareScreen selbst darunter (siehe dort die Inset-Paddings).
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(AndroidColor.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.auto(AndroidColor.TRANSPARENT, AndroidColor.TRANSPARENT),
+        )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) window.isNavigationBarContrastEnforced = false
         val shared = extractSharedContent(intent)
         setContent {
             MerlinTheme {

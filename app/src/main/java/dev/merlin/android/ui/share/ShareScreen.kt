@@ -12,6 +12,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -54,7 +59,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
@@ -146,17 +150,14 @@ fun ShareScreen(
         }
     }
 
-    // Die teilende App scheint auch unter der Statusleiste abgedunkelt durch (MerlinTheme
-    // färbt sie sonst in der Hintergrundfarbe der App). Kein Edge-to-Edge (targetSdk 34),
-    // daher keine Inset-Paddings: die Tastatur verkleinert das Fenster (adjustResize).
+    // Edge-to-edge (targetSdk 35+, siehe ShareActivity): Die Abdunkelung reicht bis unter die
+    // Statusleiste, das Sheet bis unter die Navigationsleiste. Den Inhalt halten Inset-Paddings
+    // aus den Leisten und aus der Tastatur heraus (adjustResize verkleinert das Fenster hier nicht
+    // mehr). Helle Statusleisten-Icons auf der dunklen Abdunkelung.
     val view = LocalView.current
     val sheetColor = MaterialTheme.colorScheme.surface
     SideEffect {
         val window = (view.context as? Activity)?.window ?: return@SideEffect
-        @Suppress("DEPRECATION")
-        window.statusBarColor = Color.Black.copy(alpha = 0.4f).toArgb()
-        @Suppress("DEPRECATION")
-        window.navigationBarColor = sheetColor.toArgb()
         WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = false
     }
 
@@ -169,6 +170,7 @@ fun ShareScreen(
             .fillMaxSize()
             .background(Color.Black.copy(alpha = 0.4f))
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onBackgroundTap)
+            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top))
             .padding(top = 8.dp),
         contentAlignment = Alignment.BottomCenter,
     ) {
@@ -180,6 +182,7 @@ fun ShareScreen(
             shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
             color = sheetColor,
         ) {
+          Box(Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal))) {
             if (mode == Mode.ONBOARDING) {
                 OnboardingScreen(onLoginSuccess = { viewModel.onLoginSuccess() })
             } else Column {
@@ -229,6 +232,7 @@ fun ShareScreen(
                     }
                 }
             }
+          }
         }
     }
 }
