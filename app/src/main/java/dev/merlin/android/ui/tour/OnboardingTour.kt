@@ -32,12 +32,22 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuOpen
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material.icons.automirrored.outlined.Comment
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.Public
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.AddCircleOutline
 import androidx.compose.material.icons.filled.Archive
@@ -61,6 +71,10 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.NavigationDrawerItem
+import androidx.compose.material3.Snackbar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -68,6 +82,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateMapOf
@@ -106,6 +122,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.merlin.android.R
 import dev.merlin.android.ui.reader.ACCENT_COLORS
+import dev.merlin.android.ui.reader.PosterColors
+import dev.merlin.android.ui.reader.ReaderBottomBar
 
 /*
  * App-Tour beim ersten Start, Gegenstück zu `OnboardingTourView.swift` (merlin-ios).
@@ -120,6 +138,8 @@ import dev.merlin.android.ui.reader.ACCENT_COLORS
  * - Navigations- und Lesemenü öffnen per Button statt per Wisch vom Rand (eigene Texte im
  *   `android.onboarding`-Namespace von merlin-translations).
  * - Statt „Schütteln zum Rückgängigmachen“ erklärt die Tour den Rückgängig-Button der Snackbar.
+ * - Die Navigationsmenü-Schritte öffnen das echte Seitenmenü der Liste; Lesemenü und Bottom-Bar
+ *   sind dieselben wie im Reader ([ReaderBottomBar], Einträge wie in `ArticleReaderScreen`).
  * - Wischgesten gibt es nur in der Listenansicht, die beiden Wisch-Schritte entfallen in der
  *   Kartenansicht.
  * - Einen Löschfrist-Schritt gibt es (noch) nicht, die Android-App kennt die Server-Löschfrist nicht.
@@ -129,6 +149,10 @@ import dev.merlin.android.ui.reader.ACCENT_COLORS
 private enum class TourPhase {
     /** Die echte Artikelliste. */
     LIST,
+    /** Die echte Artikelliste mit geöffnetem Seitenmenü. */
+    LIST_DRAWER,
+    /** Die echte Artikelliste mit Rückgängig-Snackbar. */
+    UNDO,
     /** Demo-Reader mit Bottom-Bar. */
     READER,
     /** Demo-Reader mit geöffnetem Seitenmenü. */
@@ -142,6 +166,9 @@ enum class TourAnchor {
     PLUS_BUTTON,
     MENU_BUTTON,
     FIRST_ARTICLE,
+    LIST_DRAWER,
+    VIEW_TOGGLE,
+    DEMO_UNDO_SNACKBAR,
     DEMO_READER_MENU_BUTTON,
     DEMO_READER_MENU,
     DEMO_MENU_APPEARANCE,
@@ -168,8 +195,8 @@ private data class TourStep(
 private fun tourSteps(isCardView: Boolean): List<TourStep> = listOf(
     TourStep(Icons.Filled.WavingHand, R.string.onboarding_step1_title, R.string.onboarding_step1_body, TourPhase.LIST, null),
     TourStep(Icons.Filled.AddCircleOutline, R.string.onboarding_step2_title, R.string.onboarding_step2_body, TourPhase.LIST, TourAnchor.PLUS_BUTTON, circularSpotlight = true),
-    TourStep(Icons.Filled.Menu, R.string.onboarding_step3_title, R.string.android_onboarding_navigationMenu_body, TourPhase.LIST, TourAnchor.MENU_BUTTON, circularSpotlight = true),
-    TourStep(Icons.Filled.GridView, R.string.onboarding_step4_title, R.string.onboarding_step4_body, TourPhase.LIST, TourAnchor.MENU_BUTTON, circularSpotlight = true),
+    TourStep(Icons.Filled.Menu, R.string.onboarding_step3_title, R.string.android_onboarding_navigationMenu_body, TourPhase.LIST_DRAWER, TourAnchor.LIST_DRAWER),
+    TourStep(Icons.Filled.GridView, R.string.onboarding_step4_title, R.string.onboarding_step4_body, TourPhase.LIST_DRAWER, TourAnchor.VIEW_TOGGLE),
     TourStep(Icons.Filled.SwipeLeft, R.string.onboarding_step5_title, R.string.onboarding_step5_body, TourPhase.LIST, TourAnchor.FIRST_ARTICLE, listViewOnly = true),
     TourStep(Icons.Filled.SwipeRight, R.string.onboarding_step6_title, R.string.onboarding_step6_body, TourPhase.LIST, TourAnchor.FIRST_ARTICLE, listViewOnly = true),
     TourStep(Icons.AutoMirrored.Filled.MenuOpen, R.string.onboarding_step7_title, R.string.android_onboarding_readerMenu_body, TourPhase.READER, TourAnchor.DEMO_READER_MENU_BUTTON),
@@ -178,7 +205,7 @@ private fun tourSteps(isCardView: Boolean): List<TourStep> = listOf(
     TourStep(Icons.Filled.Notifications, R.string.onboarding_step10_title, R.string.onboarding_step10_body, TourPhase.READER_MENU, TourAnchor.DEMO_MENU_REMINDER),
     TourStep(Icons.Filled.Flag, R.string.onboarding_step11_title, R.string.onboarding_step11_body, TourPhase.READER_MENU, TourAnchor.DEMO_MENU_REPORT),
     TourStep(Icons.Filled.BorderColor, R.string.onboarding_step12_title, R.string.onboarding_step12_body, TourPhase.HIGHLIGHTS, TourAnchor.DEMO_HIGHLIGHT),
-    TourStep(Icons.AutoMirrored.Filled.Undo, R.string.android_onboarding_undo_title, R.string.android_onboarding_undo_body, TourPhase.LIST, null),
+    TourStep(Icons.AutoMirrored.Filled.Undo, R.string.android_onboarding_undo_title, R.string.android_onboarding_undo_body, TourPhase.UNDO, TourAnchor.DEMO_UNDO_SNACKBAR),
     TourStep(Icons.Filled.Palette, R.string.onboarding_accentColor_title, R.string.onboarding_accentColor_body, TourPhase.LIST, null, showsAccentPicker = true),
 ).filter { !(isCardView && it.listViewOnly) }
 
@@ -206,6 +233,12 @@ fun OnboardingTourOverlay(
     anchors: TourAnchors,
     isCardView: Boolean,
     accentColorHex: String,
+    /** Freihand-Button in der Reader-Bottom-Bar (Einstellung im Erscheinungsbild). */
+    showHandsFreeButton: Boolean,
+    /** Kommentare im Lesemenü (nur merlin-nextcloud). */
+    showComments: Boolean,
+    /** Öffnet bzw. schließt das echte Seitenmenü der Artikelliste. */
+    onListDrawerVisibleChange: (Boolean) -> Unit,
     onAccentColorChange: (String) -> Unit,
     onAccentColorCommit: () -> Unit,
     onFinish: () -> Unit,
@@ -225,6 +258,11 @@ fun OnboardingTourOverlay(
         if (accentChanged) onAccentColorCommit()
         onFinish()
     }
+
+    // Navigationsmenü-Schritte zeigen das echte Seitenmenü; beim Verlassen (auch Überspringen) schließen.
+    val wantsDrawer = step.phase == TourPhase.LIST_DRAWER
+    LaunchedEffect(wantsDrawer) { onListDrawerVisibleChange(wantsDrawer) }
+    DisposableEffect(Unit) { onDispose { onListDrawerVisibleChange(false) } }
 
     // System-Zurück blättert zurück, im ersten Schritt beendet es die Tour.
     BackHandler {
@@ -248,10 +286,15 @@ fun OnboardingTourOverlay(
         val cardMaxHeight = maxHeight * 0.7f
 
         // Ebene 1: Demo-Inhalt hinter der Abdunkelung (in der Listen-Phase scheint die echte Liste durch).
-        if (step.phase != TourPhase.LIST) {
-            DemoReader(
+        when (step.phase) {
+            TourPhase.LIST, TourPhase.LIST_DRAWER -> Unit
+            TourPhase.UNDO -> DemoUndoSnackbar(anchors)
+            else -> DemoReader(
                 anchors = anchors,
-                accent = accent,
+                accentColorHex = accentColorHex,
+                showHandsFreeButton = showHandsFreeButton,
+                showComments = showComments,
+                activeAnchor = step.anchor,
                 showMenu = step.phase == TourPhase.READER_MENU,
                 showHighlight = step.phase == TourPhase.HIGHLIGHTS,
             )
@@ -472,152 +515,198 @@ private fun AccentColorChooser(selectedHex: String, onPick: (String) -> Unit, mo
     }
 }
 
-// MARK: – Demo-Reader
+// MARK: – Demo-Snackbar
 
-/**
- * Beispielartikel mit Bottom-Bar wie im echten Reader, optional mit geöffnetem Seitenmenü
- * (von rechts) oder markiertem Satz. Texte aus `onboarding.demo.*`.
- */
+/** Snackbar wie nach dem Archivieren in der Artikelliste (Rückgängig + Schließen). */
 @Composable
-private fun DemoReader(
-    anchors: TourAnchors,
-    accent: Color,
-    showMenu: Boolean,
-    showHighlight: Boolean,
-) {
-    val onAccent = readableOn(accent)
-    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        Column(Modifier.fillMaxSize()) {
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .statusBarsPadding()
-                    .padding(horizontal = 22.dp, vertical = 16.dp),
-            ) {
-                Text(
-                    stringResource(R.string.onboarding_demo_sampleArticle_title),
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground,
-                )
-                Text(
-                    stringResource(R.string.onboarding_demo_sampleArticle_byline),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 8.dp),
-                )
-                Text(
-                    stringResource(R.string.onboarding_demo_sampleArticle_tag),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = onAccent,
-                    modifier = Modifier
-                        .padding(top = 10.dp)
-                        .background(accent, RoundedCornerShape(50))
-                        .padding(horizontal = 10.dp, vertical = 3.dp),
-                )
-                Text(
-                    stringResource(R.string.onboarding_demo_sampleArticle_teaser),
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onBackground,
-                    modifier = Modifier.padding(top = 16.dp),
-                )
-                if (showHighlight) {
-                    val text = stringResource(R.string.onboarding_demo_sampleHighlight)
-                    val phrase = stringResource(R.string.onboarding_demo_sampleHighlightPhrase)
-                    val start = text.indexOf(phrase)
-                    val annotated = buildAnnotatedString {
-                        if (start < 0) {
-                            withStyle(SpanStyle(background = HighlightYellow, color = Color.Black)) { append(text) }
-                        } else {
-                            append(text.substring(0, start))
-                            withStyle(SpanStyle(background = HighlightYellow, color = Color.Black)) { append(phrase) }
-                            append(text.substring(start + phrase.length))
-                        }
-                    }
-                    Text(
-                        annotated,
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onBackground,
-                        modifier = Modifier
-                            .padding(top = 16.dp)
-                            .tourAnchor(anchors, TourAnchor.DEMO_HIGHLIGHT),
-                    )
-                } else {
-                    Text(
-                        stringResource(R.string.onboarding_demo_sampleArticle_body),
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onBackground,
-                        modifier = Modifier.padding(top = 16.dp),
-                    )
-                }
-            }
-            // Bottom-Bar wie `ReaderBottomBar`: Archivieren | Menü, in der Akzentfarbe.
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(accent)
-                    .navigationBarsPadding()
-                    .height(54.dp),
-            ) {
-                Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Filled.Archive, contentDescription = null, tint = onAccent)
-                }
-                VerticalDivider(thickness = 0.5.dp, color = onAccent.copy(alpha = 0.25f))
-                Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
-                    Icon(
-                        Icons.Filled.Menu,
-                        contentDescription = null,
-                        tint = onAccent,
-                        modifier = Modifier
-                            .size(28.dp)
-                            .tourAnchor(anchors, TourAnchor.DEMO_READER_MENU_BUTTON),
-                    )
-                }
-            }
-        }
-
-        if (showMenu) {
-            Surface(
-                color = MaterialTheme.colorScheme.surfaceContainerLow,
-                shape = RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp),
-                modifier = Modifier
-                    .align(Alignment.CenterEnd)
-                    .fillMaxHeight()
-                    .width(280.dp)
-                    .tourAnchor(anchors, TourAnchor.DEMO_READER_MENU),
-            ) {
-                Column(Modifier.statusBarsPadding().padding(vertical = 12.dp)) {
-                    DemoMenuRow(Icons.Outlined.Star, R.string.articleReader_sideMenu_addFavorite)
-                    DemoMenuRow(Icons.Filled.Palette, R.string.articleReader_sideMenu_appearance, anchors, TourAnchor.DEMO_MENU_APPEARANCE)
-                    DemoMenuRow(Icons.Filled.Share, R.string.articleReader_sideMenu_share)
-                    HorizontalDivider(Modifier.padding(vertical = 6.dp, horizontal = 16.dp))
-                    DemoMenuRow(Icons.Filled.Tag, R.string.articleReader_sideMenu_editTags, anchors, TourAnchor.DEMO_MENU_TAGS)
-                    DemoMenuRow(Icons.Filled.NotificationAdd, R.string.articleReader_sideMenu_setReminder, anchors, TourAnchor.DEMO_MENU_REMINDER)
-                    DemoMenuRow(Icons.Outlined.Flag, R.string.articleReader_sideMenu_reportArticle, anchors, TourAnchor.DEMO_MENU_REPORT)
-                }
-            }
+private fun DemoUndoSnackbar(anchors: TourAnchors) {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
+        Snackbar(
+            action = {
+                TextButton(onClick = {}) { Text(stringResource(R.string.articleList_archiveToast_undoButton)) }
+            },
+            dismissAction = {
+                IconButton(onClick = {}) { Icon(Icons.Filled.Close, contentDescription = null) }
+            },
+            modifier = Modifier
+                .padding(12.dp)
+                .tourAnchor(anchors, TourAnchor.DEMO_UNDO_SNACKBAR),
+        ) {
+            Text(stringResource(R.string.articleList_archiveToast_archived))
         }
     }
 }
 
+// MARK: – Demo-Reader
+
+/**
+ * Beispielartikel mit der echten [ReaderBottomBar], optional mit geöffnetem Lesemenü (von
+ * rechts, dieselben Einträge wie in `ArticleReaderScreen` für einen Text-Artikel) oder
+ * markiertem Satz. Texte aus `onboarding.demo.*`.
+ */
 @Composable
-private fun DemoMenuRow(
-    icon: ImageVector,
-    @StringRes label: Int,
-    anchors: TourAnchors? = null,
-    anchor: TourAnchor? = null,
+private fun DemoReader(
+    anchors: TourAnchors,
+    accentColorHex: String,
+    showHandsFreeButton: Boolean,
+    showComments: Boolean,
+    activeAnchor: TourAnchor?,
+    showMenu: Boolean,
+    showHighlight: Boolean,
 ) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp)
-            .then(if (anchors != null && anchor != null) Modifier.tourAnchor(anchors, anchor) else Modifier)
-            .padding(horizontal = 16.dp, vertical = 16.dp),
+    val accent = remember(accentColorHex) { parseHexColor(accentColorHex).copy(alpha = 1f) }
+    val onAccent = remember(accentColorHex) { parseHexColor(PosterColors.onAccentHex(accentColorHex)) }
+    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 22.dp, vertical = 16.dp),
+        ) {
+            Text(
+                stringResource(R.string.onboarding_demo_sampleArticle_title),
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onBackground,
+            )
+            Text(
+                stringResource(R.string.onboarding_demo_sampleArticle_byline),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+            Text(
+                stringResource(R.string.onboarding_demo_sampleArticle_tag),
+                style = MaterialTheme.typography.labelMedium,
+                color = onAccent,
+                modifier = Modifier
+                    .padding(top = 10.dp)
+                    .background(accent, RoundedCornerShape(50))
+                    .padding(horizontal = 10.dp, vertical = 3.dp),
+            )
+            Text(
+                stringResource(R.string.onboarding_demo_sampleArticle_teaser),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onBackground,
+                modifier = Modifier.padding(top = 16.dp),
+            )
+            if (showHighlight) {
+                val text = stringResource(R.string.onboarding_demo_sampleHighlight)
+                val phrase = stringResource(R.string.onboarding_demo_sampleHighlightPhrase)
+                val start = text.indexOf(phrase)
+                val annotated = buildAnnotatedString {
+                    if (start < 0) {
+                        withStyle(SpanStyle(background = HighlightYellow, color = Color.Black)) { append(text) }
+                    } else {
+                        append(text.substring(0, start))
+                        withStyle(SpanStyle(background = HighlightYellow, color = Color.Black)) { append(phrase) }
+                        append(text.substring(start + phrase.length))
+                    }
+                }
+                Text(
+                    annotated,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    modifier = Modifier
+                        .padding(top = 16.dp)
+                        .tourAnchor(anchors, TourAnchor.DEMO_HIGHLIGHT),
+                )
+            } else {
+                Text(
+                    stringResource(R.string.onboarding_demo_sampleArticle_body),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    modifier = Modifier.padding(top = 16.dp),
+                )
+            }
+        }
+
+        // Die echte Bottom-Bar (Archivieren | Freihand | Menü), hier ohne Funktion.
+        Box(
+            Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth(),
+        ) {
+            ReaderBottomBar(
+                onArchiveAndBack = {},
+                onStartHandsFree = if (showHandsFreeButton) ({}) else null,
+                onOpenMenu = {},
+                accentColor = accent,
+                onAccentColor = onAccent,
+            )
+            // Spotlight auf das rechte Drittel bzw. die rechte Hälfte (Menü-Button).
+            Row(Modifier.matchParentSize()) {
+                Spacer(Modifier.weight(if (showHandsFreeButton) 2f else 1f))
+                Box(Modifier.weight(1f).fillMaxHeight().tourAnchor(anchors, TourAnchor.DEMO_READER_MENU_BUTTON))
+            }
+        }
+
+        if (showMenu) {
+            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.32f)))
+            DemoReaderMenu(
+                anchors = anchors,
+                activeAnchor = activeAnchor,
+                showComments = showComments,
+                modifier = Modifier.align(Alignment.CenterEnd),
+            )
+        }
+    }
+}
+
+/** Lesemenü wie in `ArticleReaderScreen` (Text-Artikel): gleiche Einträge, Reihenfolge, Symbole. */
+@Composable
+private fun DemoReaderMenu(
+    anchors: TourAnchors,
+    activeAnchor: TourAnchor?,
+    showComments: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val requesters = remember { TourAnchor.entries.associateWith { BringIntoViewRequester() } }
+    // Auf kleinen Bildschirmen passt das Menü nicht ganz: den erklärten Eintrag hineinscrollen.
+    LaunchedEffect(activeAnchor) {
+        activeAnchor?.let { requesters[it]?.bringIntoView() }
+    }
+    ModalDrawerSheet(
+        drawerShape = RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp),
+        modifier = modifier.fillMaxHeight(),
     ) {
-        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-        Spacer(Modifier.width(12.dp))
-        Text(stringResource(label), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurface)
+        Column(Modifier.verticalScroll(rememberScrollState()).padding(vertical = 12.dp)) {
+            @Composable
+            fun item(icon: ImageVector, label: String, anchor: TourAnchor? = null) {
+                NavigationDrawerItem(
+                    label = { Text(label) },
+                    icon = { Icon(icon, contentDescription = null) },
+                    selected = false,
+                    onClick = {},
+                    modifier = Modifier
+                        .padding(horizontal = 12.dp)
+                        .then(
+                            if (anchor != null) {
+                                Modifier
+                                    .bringIntoViewRequester(requesters.getValue(anchor))
+                                    .tourAnchor(anchors, anchor)
+                            } else {
+                                Modifier
+                            },
+                        ),
+                )
+            }
+            item(Icons.Outlined.Star, stringResource(R.string.articleReader_sideMenu_addFavorite))
+            item(Icons.Filled.Palette, stringResource(R.string.articleReader_sideMenu_appearance), TourAnchor.DEMO_MENU_APPEARANCE)
+            item(Icons.Filled.Share, stringResource(R.string.common_share))
+            item(Icons.AutoMirrored.Filled.OpenInNew, stringResource(R.string.articleReader_sideMenu_openInBrowser))
+            item(Icons.Filled.History, stringResource(R.string.articleReader_sideMenu_openViaArchive))
+            item(Icons.Filled.Link, stringResource(R.string.articleReader_sideMenu_copyLink))
+            item(Icons.Filled.Public, stringResource(R.string.android_shareLink_menu))
+            if (showComments) {
+                item(Icons.AutoMirrored.Outlined.Comment, stringResource(R.string.articleReader_comments_title))
+            }
+            item(Icons.Filled.Search, stringResource(R.string.articleReader_sideMenu_find))
+            item(Icons.Filled.Archive, stringResource(R.string.articleReader_sideMenu_archive))
+            item(Icons.Filled.Tag, stringResource(R.string.articleReader_sideMenu_editTags), TourAnchor.DEMO_MENU_TAGS)
+            item(Icons.Filled.NotificationAdd, stringResource(R.string.articleReader_sideMenu_setReminder), TourAnchor.DEMO_MENU_REMINDER)
+            item(Icons.Filled.Flag, stringResource(R.string.articleReader_sideMenu_reportArticle), TourAnchor.DEMO_MENU_REPORT)
+            item(Icons.Filled.Delete, stringResource(R.string.common_delete))
+        }
     }
 }
 

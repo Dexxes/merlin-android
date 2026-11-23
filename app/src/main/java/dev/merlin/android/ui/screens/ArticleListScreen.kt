@@ -210,6 +210,7 @@ fun ArticleListScreen(
     }
 
     val tourDone by viewModel.tourDone.collectAsState()
+    val readerHandsFreeButton by viewModel.readerHandsFreeButton.collectAsState()
     val tourAnchors = rememberTourAnchors()
 
     Box(Modifier.fillMaxSize()) {
@@ -240,6 +241,8 @@ fun ArticleListScreen(
                 onRemindersClick = { closeDrawer(onRemindersClick) },
                 onSettingsClick = { closeDrawer(onSettingsClick) },
                 onAppTourClick = { closeDrawer { viewModel.setTourDone(false) } },
+                modifier = Modifier.tourAnchor(tourAnchors, TourAnchor.LIST_DRAWER),
+                viewToggleModifier = Modifier.tourAnchor(tourAnchors, TourAnchor.VIEW_TOGGLE),
             )
         },
     ) {
@@ -503,6 +506,11 @@ fun ArticleListScreen(
             anchors = tourAnchors,
             isCardView = isCardView,
             accentColorHex = accentColorHex,
+            showHandsFreeButton = readerHandsFreeButton,
+            showComments = supportsNextcloudOnly,
+            onListDrawerVisibleChange = { open ->
+                scope.launch { if (open) drawerState.open() else drawerState.close() }
+            },
             onAccentColorChange = viewModel::setAccentColorHex,
             onAccentColorCommit = viewModel::syncAccentColorToServer,
             onFinish = { viewModel.setTourDone(true) },

@@ -150,11 +150,14 @@ fun ListDrawerContent(
     onSettingsClick: () -> Unit,
     /** „App-Tour“: startet die Tour erneut (wie `navigationMenu.appTour` in ListFlyoutModifier.swift). */
     onAppTourClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    /** Für den Zeilen-Spotlight der App-Tour („Ansicht wechseln“). */
+    viewToggleModifier: Modifier = Modifier,
 ) {
     var menuGroup by remember(initialGroup, resetKey) { mutableStateOf(initialGroup) }
     var tagsExpanded by rememberSaveable { mutableStateOf(false) }
 
-    ModalDrawerSheet(modifier = Modifier.width(300.dp)) {
+    ModalDrawerSheet(modifier = modifier.width(300.dp)) {
         Column(
             modifier = Modifier
                 .weight(1f)
@@ -244,6 +247,7 @@ fun ListDrawerContent(
                 icon = if (isCardView) Icons.AutoMirrored.Filled.ViewList else Icons.Filled.GridView,
                 label = stringResource(if (isCardView) R.string.navigationMenu_listView else R.string.navigationMenu_cardView),
                 onClick = onToggleCardView,
+                modifier = viewToggleModifier,
             )
 
             DrawerDivider()
@@ -274,11 +278,12 @@ private fun DrawerRow(
     selected: Boolean = false,
     indented: Boolean = false,
     tint: Color? = null,
+    modifier: Modifier = Modifier,
 ) {
     val color = tint ?: if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
             .padding(start = if (indented) 40.dp else 20.dp, end = 20.dp, top = 14.dp, bottom = 14.dp),

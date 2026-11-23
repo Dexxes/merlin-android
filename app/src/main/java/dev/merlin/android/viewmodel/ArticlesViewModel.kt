@@ -287,6 +287,10 @@ class ArticlesViewModel @Inject constructor(
         .map<Boolean, Boolean?> { it }
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
+    /** Ob die Reader-Bottom-Bar den Freihand-Button zeigt (für den Demo-Reader der Tour). */
+    val readerHandsFreeButton: StateFlow<Boolean> = preferencesStore.readerHandsFreeButton
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
+
     fun setTourDone(value: Boolean) {
         viewModelScope.launch { preferencesStore.setTourDone(value) }
     }
