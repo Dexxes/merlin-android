@@ -79,8 +79,8 @@ layout.
 ## Project status
 
 Onboarding/login, offline-first persistence, reminders, the article
-list/reader UI, share extension, and settings are complete. The TTS panel
-and onboarding tour are still outstanding. See [`CHANGELOG.md`](CHANGELOG.md)
+list/reader UI, share extension, and settings are complete, as is the onboarding
+tour. The TTS panel is still outstanding. See [`CHANGELOG.md`](CHANGELOG.md)
 for details.
 
 ## Privacy

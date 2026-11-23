@@ -11,7 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -77,6 +77,10 @@ import dev.merlin.android.R
 import dev.merlin.android.models.Article
 import dev.merlin.android.models.ArticleFilter
 import dev.merlin.android.models.Tag
+import dev.merlin.android.ui.tour.OnboardingTourOverlay
+import dev.merlin.android.ui.tour.TourAnchor
+import dev.merlin.android.ui.tour.rememberTourAnchors
+import dev.merlin.android.ui.tour.tourAnchor
 import dev.merlin.android.viewmodel.ArticlesViewModel
 import kotlinx.coroutines.launch
 
@@ -205,6 +209,10 @@ fun ArticleListScreen(
         return if (article.scrollUpdatedAt > local.second) article.scrollProgress else local.first
     }
 
+    val tourDone by viewModel.tourDone.collectAsState()
+    val tourAnchors = rememberTourAnchors()
+
+    Box(Modifier.fillMaxSize()) {
     ModalNavigationDrawer(
         drawerState = drawerState,
         // Nur zum Schließen per Wischen; Öffnen über den Menü-Button (siehe KDoc).
@@ -231,6 +239,7 @@ fun ArticleListScreen(
                 onToggleCardView = { closeDrawer { viewModel.setIsCardView(!isCardView) } },
                 onRemindersClick = { closeDrawer(onRemindersClick) },
                 onSettingsClick = { closeDrawer(onSettingsClick) },
+                onAppTourClick = { closeDrawer { viewModel.setTourDone(false) } },
             )
         },
     ) {
@@ -278,7 +287,10 @@ fun ArticleListScreen(
                     },
                     navigationIcon = {
                         Row {
-                            IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                            IconButton(
+                                onClick = { scope.launch { drawerState.open() } },
+                                modifier = Modifier.tourAnchor(tourAnchors, TourAnchor.MENU_BUTTON),
+                            ) {
                                 Icon(Icons.Filled.Menu, contentDescription = stringResource(R.string.android_common_menu))
                             }
                             // Suchfeld ein-/ausblenden; beim Ausblenden wird die Suche geleert,
@@ -326,7 +338,10 @@ fun ArticleListScreen(
                                 }
                             }
                         }
-                        IconButton(onClick = { showAddSheet = true }) {
+                        IconButton(
+                            onClick = { showAddSheet = true },
+                            modifier = Modifier.tourAnchor(tourAnchors, TourAnchor.PLUS_BUTTON),
+                        ) {
                             Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.addArticle_title))
                         }
                     },
@@ -412,7 +427,7 @@ fun ArticleListScreen(
                                     verticalArrangement = if (isCardView) Arrangement.spacedBy(12.dp) else Arrangement.Top,
                                     modifier = Modifier.fillMaxSize(),
                                 ) {
-                                    items(articles, key = { it.id }) { article ->
+                                    itemsIndexed(articles, key = { _, it -> it.id }) { index, article ->
                                         LaunchedEffect(article.id) { viewModel.loadMoreIfNeeded(article) }
                                         if (isCardView) {
                                             ArticleGridCard(
@@ -431,7 +446,10 @@ fun ArticleListScreen(
                                                 accentColorHex = accentColorHex,
                                             )
                                         } else {
-                                            Column {
+                                            Column(
+                                                // Erste Zeile für die Wisch-Schritte der App-Tour.
+                                                modifier = if (index == 0) Modifier.tourAnchor(tourAnchors, TourAnchor.FIRST_ARTICLE) else Modifier,
+                                            ) {
                                                 ArticleRow(
                                                     article = article,
                                                     imageLoader = viewModel.imageLoader,
@@ -477,6 +495,19 @@ fun ArticleListScreen(
                 }
             }
         }
+    }
+
+    // App-Tour beim ersten Start (und nach „App-Tour“ im Seitenmenü), wie in ArticleListView.swift.
+    if (tourDone == false) {
+        OnboardingTourOverlay(
+            anchors = tourAnchors,
+            isCardView = isCardView,
+            accentColorHex = accentColorHex,
+            onAccentColorChange = viewModel::setAccentColorHex,
+            onAccentColorCommit = viewModel::syncAccentColorToServer,
+            onFinish = { viewModel.setTourDone(true) },
+        )
+    }
     }
 
     // Tag-Editor: Chip-Auswahl + Inline-Erstellung neuer Tags (Äquivalent zu iOS' ArticleTagSheet).

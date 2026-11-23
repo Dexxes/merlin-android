@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- App tour on first start, as on iOS: a dimmed overlay with a spotlight on the
+  element being explained and a card with progress dots, Back/Next and "Skip
+  Tour". It covers adding articles (+), the navigation menu and view switch,
+  swipe actions and sharing (list view only), the reader menu with Appearance,
+  Tags, Reminders and Report on a demo article, highlights, undo via the
+  snackbar, and finally the accent color. It appears once after login and can be
+  started again from "App Tour" in the navigation menu.
+- Requests to the Merlin server (API and file uploads) now send the User-Agent
+  `MerlinApp-Android/<version>` instead of `okhttp/…`, matching
+  `MerlinApp-iOS/1.0`, so the server can tell the platform.
 - Quote card, as on iOS: selecting text (or tapping a highlight) shows a
   "Quote card" button above the color bar. It puts the passage on its own on
   blurred glass over the whole screen, with status and navigation bars hidden.

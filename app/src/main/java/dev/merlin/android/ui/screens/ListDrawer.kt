@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.Cancel
@@ -147,6 +148,8 @@ fun ListDrawerContent(
     onToggleCardView: () -> Unit,
     onRemindersClick: () -> Unit,
     onSettingsClick: () -> Unit,
+    /** „App-Tour“: startet die Tour erneut (wie `navigationMenu.appTour` in ListFlyoutModifier.swift). */
+    onAppTourClick: () -> Unit,
 ) {
     var menuGroup by remember(initialGroup, resetKey) { mutableStateOf(initialGroup) }
     var tagsExpanded by rememberSaveable { mutableStateOf(false) }
@@ -246,6 +249,7 @@ fun ListDrawerContent(
             DrawerDivider()
             DrawerRow(icon = Icons.Filled.Notifications, label = stringResource(R.string.reminders_list_title), onClick = onRemindersClick)
             DrawerRow(icon = Icons.Filled.Settings, label = stringResource(R.string.common_settings), onClick = onSettingsClick)
+            DrawerRow(icon = Icons.AutoMirrored.Filled.HelpOutline, label = stringResource(R.string.navigationMenu_appTour), onClick = onAppTourClick)
         }
 
         // Merlin-Logo, immer am unteren Rand sichtbar (wie im iOS-Seitenmenü).

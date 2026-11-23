@@ -14,6 +14,7 @@ import dev.merlin.android.data.ImageCacheService
 import dev.merlin.android.data.OfflineMutationQueue
 import dev.merlin.android.data.PdfCacheService
 import dev.merlin.android.data.PreferencesStore
+import dev.merlin.android.data.SettingsSyncQueue
 import dev.merlin.android.data.userMessage
 import dev.merlin.android.models.Article
 import dev.merlin.android.models.ArticleFilter
@@ -91,6 +92,7 @@ class ArticlesViewModel @Inject constructor(
     /** Äquivalent zu `HapticFeedback` (iOS) – Vibration-Feedback bei Favorit/Archiv/Löschen, siehe Aufrufe unten. */
     private val hapticUtil: HapticUtil,
     private val credentialsStore: CredentialsStore,
+    private val settingsSyncQueue: SettingsSyncQueue,
 ) : ViewModel() {
 
     /**
@@ -273,6 +275,44 @@ class ArticlesViewModel @Inject constructor(
     fun clearExcludedTags() {
         _excludedTagIds.value = emptySet()
         viewModelScope.launch { preferencesStore.setExcludedTagIds(emptySet()) }
+    }
+
+    // MARK: – App-Tour
+
+    /**
+     * App-Tour gesehen? `null`, bis der Wert geladen ist, damit die Tour nicht kurz aufblitzt
+     * (Äquivalent zu `@AppStorage("merlin_tour_done")` in ArticleListView.swift).
+     */
+    val tourDone: StateFlow<Boolean?> = preferencesStore.tourDone
+        .map<Boolean, Boolean?> { it }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    fun setTourDone(value: Boolean) {
+        viewModelScope.launch { preferencesStore.setTourDone(value) }
+    }
+
+    /** Akzentfarbe aus dem letzten Tour-Schritt (dieselbe Einstellung wie im Erscheinungsbild). */
+    fun setAccentColorHex(hex: String) {
+        viewModelScope.launch { preferencesStore.setAccentProgressColorHex(hex) }
+    }
+
+    /**
+     * Schickt eine in der Tour geänderte Akzentfarbe einmal an den Server (wie
+     * `ArticleReaderViewModel.syncAppearanceToServer`), offline später über [SettingsSyncQueue].
+     */
+    fun syncAccentColorToServer() {
+        viewModelScope.launch {
+            try {
+                api.updateSettings(preferencesStore.toServerSettings())
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                if (e is IOException) {
+                    settingsSyncQueue.markDirty()
+                    settingsSyncQueue.scheduleRetry()
+                }
+            }
+        }
     }
 
     /** Schaltet zwischen List- und Card-Ansicht um (Toggle sitzt im Hamburger-Menü, siehe `ArticleListScreen.kt`). */
