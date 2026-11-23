@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android-Sicherung bis Android 11 (android:fullBackupContent). Zugangsdaten bleiben draußen:
+     Sie sind mit einem Schlüssel aus dem Android-Keystore verschlüsselt, der nicht mitgesichert
+     wird. Auf einem neuen Gerät wären sie unlesbar (Absturz beim Start), außerdem sollen
+     App-Passwörter nicht in Cloud-Sicherungen landen. Nach einer Wiederherstellung meldet man
+     sich einfach neu an. Gleiche Regeln wie data_extraction_rules.xml (ab Android 12). -->
+<full-backup-content>
+    <exclude domain="sharedpref" path="merlin_credentials.xml" />
+    <exclude domain="sharedpref" path="__androidx_security_crypto_encrypted_prefs__.xml" />
+</full-backup-content>

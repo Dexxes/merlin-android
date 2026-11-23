@@ -71,6 +71,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Android backup no longer includes the login credentials. They are encrypted
+  with a key from the device's keystore that is not backed up, so a restored
+  copy could not be read on a new device. After a restore you log in again.
+- HTTP request logging (method and URL in logcat) now only runs in debug
+  builds.
 - The app now targets Android 16 (API level 36), as Google Play requires for
   new apps and updates. Android 15 and later always draw apps edge to edge, so
   the app now does that too: the system bars are transparent and the app paints
