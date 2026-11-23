@@ -411,6 +411,12 @@
     <string name="onboarding_accentColor_title">"Your Accent Color"</string>
     <string name="onboarding_buttons_getStarted">"Get Started"</string>
     <string name="onboarding_buttons_skip">"Skip Tour"</string>
+    <string name="onboarding_crossPromo_body">"Save from the share menu on the go, in the browser on your computer and from emails in Thunderbird. Then keep reading on any device where you left off, with the same highlights and tags."</string>
+    <string name="onboarding_crossPromo_shareLink">"Share link"</string>
+    <string name="onboarding_crossPromo_thunderbird">"Thunderbird: save links and entire emails"</string>
+    <string name="onboarding_crossPromo_title">"Merlin is better together"</string>
+    <string name="onboarding_crossPromo_web">"In the browser: your reading list on your server, with comments and sharing"</string>
+    <string name="onboarding_crossPromo_webAction">"Open"</string>
     <string name="onboarding_demo_leftFlyout_archive">"Archive (47)"</string>
     <string name="onboarding_demo_leftFlyout_cardView">"Card View"</string>
     <string name="onboarding_demo_leftFlyout_favorites">"Favorites (3)"</string>

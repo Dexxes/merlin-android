@@ -508,6 +508,7 @@ fun ArticleListScreen(
             accentColorHex = accentColorHex,
             showHandsFreeButton = readerHandsFreeButton,
             showComments = supportsNextcloudOnly,
+            webUrl = viewModel.webUrl,
             onListDrawerVisibleChange = { open ->
                 scope.launch { if (open) drawerState.open() else drawerState.close() }
             },

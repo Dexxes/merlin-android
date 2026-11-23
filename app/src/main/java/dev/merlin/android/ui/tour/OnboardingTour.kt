@@ -1,5 +1,7 @@
 package dev.merlin.android.ui.tour
 
+import android.content.Intent
+import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedContent
@@ -16,6 +18,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -59,6 +62,8 @@ import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.NotificationAdd
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Devices
+import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.SwipeLeft
@@ -107,6 +112,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -190,6 +196,8 @@ private data class TourStep(
     val listViewOnly: Boolean = false,
     /** Auswahl der Akzentfarbe in der Karte (letzter Schritt). */
     val showsAccentPicker: Boolean = false,
+    /** Die anderen Merlin-Apps (Web, Thunderbird, …) in der Karte. */
+    val showsCrossPromo: Boolean = false,
 )
 
 private fun tourSteps(isCardView: Boolean): List<TourStep> = listOf(
@@ -206,6 +214,7 @@ private fun tourSteps(isCardView: Boolean): List<TourStep> = listOf(
     TourStep(Icons.Filled.Flag, R.string.onboarding_step11_title, R.string.onboarding_step11_body, TourPhase.READER_MENU, TourAnchor.DEMO_MENU_REPORT),
     TourStep(Icons.Filled.BorderColor, R.string.onboarding_step12_title, R.string.onboarding_step12_body, TourPhase.HIGHLIGHTS, TourAnchor.DEMO_HIGHLIGHT),
     TourStep(Icons.AutoMirrored.Filled.Undo, R.string.android_onboarding_undo_title, R.string.android_onboarding_undo_body, TourPhase.UNDO, TourAnchor.DEMO_UNDO_SNACKBAR),
+    TourStep(Icons.Filled.Devices, R.string.onboarding_crossPromo_title, R.string.onboarding_crossPromo_body, TourPhase.LIST, null, showsCrossPromo = true),
     TourStep(Icons.Filled.Palette, R.string.onboarding_accentColor_title, R.string.onboarding_accentColor_body, TourPhase.LIST, null, showsAccentPicker = true),
 ).filter { !(isCardView && it.listViewOnly) }
 
@@ -237,6 +246,8 @@ fun OnboardingTourOverlay(
     showHandsFreeButton: Boolean,
     /** Kommentare im Lesemenü (nur merlin-nextcloud). */
     showComments: Boolean,
+    /** Web-Oberfläche des angemeldeten Servers für den Schritt „Zusammenspiel“, null ohne Server. */
+    webUrl: String?,
     /** Öffnet bzw. schließt das echte Seitenmenü der Artikelliste. */
     onListDrawerVisibleChange: (Boolean) -> Unit,
     onAccentColorChange: (String) -> Unit,
@@ -358,6 +369,7 @@ fun OnboardingTourOverlay(
                     accentChanged = true
                     onAccentColorChange(hex)
                 },
+                webUrl = webUrl,
                 maxCardHeight = cardMaxHeight,
             )
         }
@@ -374,6 +386,7 @@ private fun TourCard(
     onNext: () -> Unit,
     onSkip: () -> Unit,
     onPickAccent: (String) -> Unit,
+    webUrl: String?,
     maxCardHeight: Dp,
 ) {
     val step = steps[index]
@@ -448,6 +461,9 @@ private fun TourCard(
                 if (step.showsAccentPicker) {
                     AccentColorChooser(accentColorHex, onPickAccent, Modifier.padding(bottom = 24.dp))
                 }
+                if (step.showsCrossPromo) {
+                    CrossPromoList(webUrl, accent, Modifier.padding(bottom = 24.dp))
+                }
             }
 
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
@@ -485,6 +501,69 @@ private fun TourCard(
             } else {
                 Spacer(Modifier.height(20.dp))
             }
+        }
+    }
+}
+
+// MARK: – Andere Merlin-Apps
+
+/**
+ * Store-Seiten der anderen Merlin-Apps. Nur, was es öffentlich gibt: Die Firefox-Erweiterung ist
+ * noch nicht gelistet, Chrome unveröffentlicht. iOS wird hier bewusst nicht genannt (Store-Regeln
+ * zu anderen Mobilplattformen).
+ */
+private const val THUNDERBIRD_ADDON_URL = "https://addons.thunderbird.net/thunderbird/addon/merlin/"
+
+/**
+ * Die anderen Merlin-Apps, je Zeile Nutzen und Aktion. Die Web-Oberfläche öffnet sich direkt;
+ * Erweiterungen installiert man am Rechner, deshalb wird ihr Store-Link geteilt statt geöffnet.
+ */
+@Composable
+private fun CrossPromoList(webUrl: String?, accent: Color, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val shareTitle = stringResource(R.string.onboarding_crossPromo_shareLink)
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = modifier.fillMaxWidth()) {
+        if (webUrl != null) {
+            CrossPromoRow(Icons.Filled.Public, stringResource(R.string.onboarding_crossPromo_web),
+                stringResource(R.string.onboarding_crossPromo_webAction), accent) {
+                runCatching {
+                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(webUrl)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                }
+            }
+        }
+        CrossPromoRow(Icons.Filled.Email, stringResource(R.string.onboarding_crossPromo_thunderbird), shareTitle, accent) {
+            val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, THUNDERBIRD_ADDON_URL)
+            runCatching {
+                context.startActivity(Intent.createChooser(send, shareTitle).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            }
+        }
+    }
+}
+
+@Composable
+private fun CrossPromoRow(icon: ImageVector, text: String, action: String, accent: Color, onClick: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color.White.copy(alpha = 0.08f), RoundedCornerShape(12.dp))
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+    ) {
+        Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(24.dp))
+        Text(
+            text,
+            style = MaterialTheme.typography.bodySmall,
+            color = Color.White.copy(alpha = 0.9f),
+            modifier = Modifier.weight(1f),
+        )
+        Button(
+            onClick = onClick,
+            colors = ButtonDefaults.buttonColors(containerColor = accent, contentColor = readableOn(accent)),
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+            modifier = Modifier.heightIn(min = 32.dp),
+        ) {
+            Text(action, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
         }
     }
 }

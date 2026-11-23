@@ -411,6 +411,12 @@
     <string name="onboarding_accentColor_title">"Deine Akzentfarbe"</string>
     <string name="onboarding_buttons_getStarted">"Los geht's"</string>
     <string name="onboarding_buttons_skip">"Tour überspringen"</string>
+    <string name="onboarding_crossPromo_body">"Speichere unterwegs über das Teilen-Menü, am Rechner im Browser und aus E-Mails in Thunderbird. Lies dann auf jedem Gerät weiter, wo du aufgehört hast, mit denselben Markierungen und Schlagworten."</string>
+    <string name="onboarding_crossPromo_shareLink">"Link teilen"</string>
+    <string name="onboarding_crossPromo_thunderbird">"Thunderbird: Links und ganze E-Mails speichern"</string>
+    <string name="onboarding_crossPromo_title">"Merlin entfaltet sich im Zusammenspiel"</string>
+    <string name="onboarding_crossPromo_web">"Im Browser: deine Leseliste auf deinem Server, mit Kommentaren und Freigaben"</string>
+    <string name="onboarding_crossPromo_webAction">"Öffnen"</string>
     <string name="onboarding_demo_leftFlyout_archive">"Archiv (47)"</string>
     <string name="onboarding_demo_leftFlyout_cardView">"Kartenansicht"</string>
     <string name="onboarding_demo_leftFlyout_favorites">"Favoriten (3)"</string>

@@ -102,6 +102,14 @@ class ArticlesViewModel @Inject constructor(
     val supportsNextcloudOnlyFeatures: Boolean
         get() = credentialsStore.supportsNextcloudOnlyFeatures
 
+    /**
+     * Web-Oberfläche des angemeldeten Servers (Tour-Schritt „Zusammenspiel“): bei Nextcloud die App
+     * unter `/index.php/apps/merlin/`, beim Standalone-Server die Startseite; null ohne Server.
+     */
+    val webUrl: String?
+        get() = credentialsStore.nextcloudUrl.takeIf { it.isNotBlank() }
+            ?.let { it + if (credentialsStore.supportsNextcloudOnlyFeatures) "/index.php/apps/merlin/" else "/" }
+
     // MARK: – State
 
     private val _articles = MutableStateFlow<List<Article>>(emptyList())
