@@ -1250,7 +1250,7 @@ private fun ProgressBarOverlay(edge: ProgressEdge, progress: () -> Float, colorH
  * (Schalter im Erscheinungsbild-Sheet).
  */
 @Composable
-private fun ReaderBottomBar(
+internal fun ReaderBottomBar(
     onArchiveAndBack: () -> Unit,
     onStartHandsFree: (() -> Unit)?,
     onOpenMenu: () -> Unit,

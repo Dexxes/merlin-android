@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.Cancel
@@ -147,11 +148,16 @@ fun ListDrawerContent(
     onToggleCardView: () -> Unit,
     onRemindersClick: () -> Unit,
     onSettingsClick: () -> Unit,
+    /** „App-Tour“: startet die Tour erneut (wie `navigationMenu.appTour` in ListFlyoutModifier.swift). */
+    onAppTourClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    /** Für den Zeilen-Spotlight der App-Tour („Ansicht wechseln“). */
+    viewToggleModifier: Modifier = Modifier,
 ) {
     var menuGroup by remember(initialGroup, resetKey) { mutableStateOf(initialGroup) }
     var tagsExpanded by rememberSaveable { mutableStateOf(false) }
 
-    ModalDrawerSheet(modifier = Modifier.width(300.dp)) {
+    ModalDrawerSheet(modifier = modifier.width(300.dp)) {
         Column(
             modifier = Modifier
                 .weight(1f)
@@ -241,11 +247,13 @@ fun ListDrawerContent(
                 icon = if (isCardView) Icons.AutoMirrored.Filled.ViewList else Icons.Filled.GridView,
                 label = stringResource(if (isCardView) R.string.navigationMenu_listView else R.string.navigationMenu_cardView),
                 onClick = onToggleCardView,
+                modifier = viewToggleModifier,
             )
 
             DrawerDivider()
             DrawerRow(icon = Icons.Filled.Notifications, label = stringResource(R.string.reminders_list_title), onClick = onRemindersClick)
             DrawerRow(icon = Icons.Filled.Settings, label = stringResource(R.string.common_settings), onClick = onSettingsClick)
+            DrawerRow(icon = Icons.AutoMirrored.Filled.HelpOutline, label = stringResource(R.string.navigationMenu_appTour), onClick = onAppTourClick)
         }
 
         // Merlin-Logo, immer am unteren Rand sichtbar (wie im iOS-Seitenmenü).
@@ -270,11 +278,12 @@ private fun DrawerRow(
     selected: Boolean = false,
     indented: Boolean = false,
     tint: Color? = null,
+    modifier: Modifier = Modifier,
 ) {
     val color = tint ?: if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
             .padding(start = if (indented) 40.dp else 20.dp, end = 20.dp, top = 14.dp, bottom = 14.dp),

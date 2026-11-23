@@ -58,6 +58,7 @@ class PreferencesStore @Inject constructor(
         val PREFETCH_WIFI_ONLY = booleanPreferencesKey("prefetch_images_wifi_only")
         val DEVELOPER_MODE = booleanPreferencesKey("developer_mode")
         val IS_CARD_VIEW = booleanPreferencesKey("is_card_view")
+        val TOUR_DONE = booleanPreferencesKey("tour_done")
         val EXCLUDED_TAG_IDS = stringPreferencesKey("excluded_tag_ids")
         val EXPANDED_TAG_IDS = stringPreferencesKey("expanded_tag_ids")
         val REPORT_BACKEND_URL = stringPreferencesKey("report_backend_url")
@@ -216,6 +217,13 @@ class PreferencesStore @Inject constructor(
      */
     val isCardView: Flow<Boolean> = dataStore.data.map { it[Keys.IS_CARD_VIEW] ?: true }
     suspend fun setIsCardView(value: Boolean) = dataStore.edit { it[Keys.IS_CARD_VIEW] = value }
+
+    /**
+     * Äquivalent zu iOS' `merlin_tour_done`: App-Tour gesehen oder übersprungen. Lokal, nicht
+     * server-synchronisiert; „App-Tour“ im Seitenmenü setzt es zurück.
+     */
+    val tourDone: Flow<Boolean> = dataStore.data.map { it[Keys.TOUR_DONE] ?: false }
+    suspend fun setTourDone(value: Boolean) = dataStore.edit { it[Keys.TOUR_DONE] = value }
 
     /** Tag-IDs, deren Artikel in der Artikelliste ausgeblendet werden. */
     val excludedTagIds: Flow<Set<Int>> = dataStore.data.map { prefs ->

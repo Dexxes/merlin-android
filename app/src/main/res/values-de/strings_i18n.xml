@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Automatisch generiert von merlin-translations/export.py --platform android (de). -->
+<!-- Automatisch generiert von merlin-translations/export.py (Plattform android, de). -->
 <!-- Nicht direkt editieren - Änderungen gehen beim nächsten Export verloren. -->
 <resources>
     <string name="addArticle_tagsPlaceholder">"Tag suchen oder erstellen…"</string>
@@ -55,6 +55,10 @@
     <string name="android_login_error_failed">"Login fehlgeschlagen"</string>
     <string name="android_login_error_invalidServerUrl">"Ungültige Server-Adresse"</string>
     <string name="android_login_error_timeout">"Zeitüberschreitung bei der Anmeldung. Bitte versuche es erneut."</string>
+    <string name="android_onboarding_navigationMenu_body">"Tippe oben links auf den Menü-Button, um Artikel zu filtern, Tags zu durchsuchen und die Einstellungen zu öffnen."</string>
+    <string name="android_onboarding_readerMenu_body">"Tippe beim Lesen auf den Menü-Button in der unteren Leiste, um zu teilen, Tags zu bearbeiten, Erinnerungen zu setzen und mehr."</string>
+    <string name="android_onboarding_undo_body">"Versehentlich etwas archiviert oder gelöscht? Tippe in der Meldung unten am Bildschirm auf „Rückgängig“."</string>
+    <string name="android_onboarding_undo_title">"Rückgängig"</string>
     <string name="android_progressEdge_bottom">"Unten"</string>
     <string name="android_progressEdge_left">"Links"</string>
     <string name="android_progressEdge_off">"Aus"</string>
@@ -406,6 +410,7 @@
     <string name="onboarding_accentColor_custom">"Eigene Farbe"</string>
     <string name="onboarding_accentColor_title">"Deine Akzentfarbe"</string>
     <string name="onboarding_buttons_getStarted">"Los geht's"</string>
+    <string name="onboarding_buttons_skip">"Tour überspringen"</string>
     <string name="onboarding_demo_leftFlyout_archive">"Archiv (47)"</string>
     <string name="onboarding_demo_leftFlyout_cardView">"Kartenansicht"</string>
     <string name="onboarding_demo_leftFlyout_favorites">"Favoriten (3)"</string>
@@ -422,6 +427,7 @@
     <string name="onboarding_demo_sampleArticle_title">"Fischotter könnte in Berlin wieder heimisch werden"</string>
     <string name="onboarding_demo_sampleHighlight">"In einer Zeit endlosen Scrollens wirkt langsames Lesen fast schon radikal. Doch eine wachsende Zahl an Studien legt nahe, dass tiefes, bewusstes Lesen eine der wertvollsten Fähigkeiten sein könnte, die wir kultivieren können."</string>
     <string name="onboarding_demo_sampleHighlightPhrase">"tiefes, bewusstes Lesen eine der wertvollsten Fähigkeiten sein könnte, die wir kultivieren können"</string>
+    <string name="onboarding_progress">"Schritt %1$s von %2$s"</string>
     <plurals name="onboarding_retention_articles">
         <item quantity="one">"Archivierte Artikel werden %1$d Tag nach dem Archivieren gelöscht."</item>
         <item quantity="other">"Archivierte Artikel werden %1$d Tage nach dem Archivieren gelöscht."</item>

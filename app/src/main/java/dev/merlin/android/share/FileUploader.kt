@@ -1,6 +1,7 @@
 package dev.merlin.android.share
 
 import dev.merlin.android.network.MerlinApi
+import dev.merlin.android.network.MerlinUserAgent
 import dev.merlin.android.network.RegisterFileRequest
 import dev.merlin.android.network.RequestFileTargetRequest
 import java.io.File
@@ -181,7 +182,9 @@ class FileUploader(
 
     // ── HTTP-Helfer ─────────────────────────────────────────────────────────
 
-    private fun request(url: HttpUrl) = Request.Builder().url(url).header("Authorization", authorization)
+    private fun request(url: HttpUrl) = Request.Builder().url(url)
+        .header("Authorization", authorization)
+        .header("User-Agent", MerlinUserAgent.value)
 
     private suspend fun perform(client: OkHttpClient, request: Request) = withContext(Dispatchers.IO) {
         client.newCall(request).execute().use { response ->

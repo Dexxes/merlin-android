@@ -332,7 +332,7 @@ private fun ReaderFont.fontLabel(): Int = when (this) {
     ReaderFont.MONO -> R.string.android_appearance_font_mono
 }
 
-/** Feste Akzentfarb-Auswahl, identisch zur iOS-Palette im Erscheinungsbild-Sheet. */
-private val ACCENT_COLORS = listOf(
+/** Feste Akzentfarb-Auswahl, identisch zur iOS-Palette im Erscheinungsbild-Sheet (auch in der App-Tour). */
+internal val ACCENT_COLORS = listOf(
     "#FF3B30", "#FF9500", "#FFCC00", "#34C759", "#007AFF", "#5856D6", "#AF52DE",
 )

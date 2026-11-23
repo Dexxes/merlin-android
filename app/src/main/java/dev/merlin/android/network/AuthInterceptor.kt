@@ -1,6 +1,7 @@
 package dev.merlin.android.network
 
 import android.util.Base64
+import dev.merlin.android.BuildConfig
 import javax.inject.Inject
 import okhttp3.Interceptor
 import okhttp3.Response
@@ -18,6 +19,17 @@ interface CredentialsProvider {
     fun appPassword(): String?
 }
 
+/**
+ * User-Agent aller Anfragen an den eigenen Merlin-Server (Nextcloud bzw. merlin-server), damit der
+ * Server die Plattform erkennt – Gegenstück zu `MerlinApp-iOS/1.0` in `MerlinAPI.swift`. Ohne ihn
+ * schickte OkHttp nur `okhttp/<version>`. Anfragen an fremde Seiten (Bilder, PDFs, Melde-Backend)
+ * laufen über eigene Clients und bekommen ihn bewusst nicht.
+ */
+object MerlinUserAgent {
+    const val PREFIX = "MerlinApp-Android"
+    val value: String = "$PREFIX/${BuildConfig.VERSION_NAME}"
+}
+
 class AuthInterceptor @Inject constructor(
     private val credentialsProvider: CredentialsProvider,
 ) : Interceptor {
@@ -25,6 +37,7 @@ class AuthInterceptor @Inject constructor(
         val username = credentialsProvider.username()
         val password = credentialsProvider.appPassword()
         val request = chain.request().newBuilder().apply {
+            header("User-Agent", MerlinUserAgent.value)
             if (!username.isNullOrEmpty() && !password.isNullOrEmpty()) {
                 val credential = "$username:$password"
                 val encoded = Base64.encodeToString(credential.toByteArray(), Base64.NO_WRAP)
