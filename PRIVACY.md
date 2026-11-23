@@ -25,7 +25,7 @@ Für die Daten auf deinem Server ist verantwortlich, wer den Server betreibt, al
 
 Beim Abmelden werden die Zugangsdaten vom Gerät gelöscht. Zwischengespeicherte Artikel und Lesepositionen bleiben derzeit erhalten, bis du die App-Daten in den Android-Einstellungen löschst oder die App deinstallierst.
 
-Die App erlaubt die Android-Sicherung (`allowBackup`). Wenn du die Sicherung deines Geräts aktiviert hast, kann Android App-Daten in deine eigene Sicherung übernehmen, zum Beispiel bei Google. Das steuerst du in den Android-Einstellungen.
+Die App erlaubt die Android-Sicherung (`allowBackup`). Wenn du die Sicherung deines Geräts aktiviert hast, kann Android App-Daten in deine eigene Sicherung übernehmen, zum Beispiel bei Google. Deine Zugangsdaten sind davon ausgenommen, nach einer Wiederherstellung meldest du dich neu an. Die Sicherung steuerst du in den Android-Einstellungen.
 
 ### An deinen Server
 
@@ -100,7 +100,7 @@ Whoever runs your server is responsible for the data stored on it: you, or your 
 
 Logging out removes the login credentials from the device. Cached articles and reading positions are currently kept until you clear the app's data in Android settings or uninstall the app.
 
-The app allows Android backup (`allowBackup`). If you have turned on device backup, Android may include app data in your own backup, for example with Google. You control this in Android settings.
+The app allows Android backup (`allowBackup`). If you have turned on device backup, Android may include app data in your own backup, for example with Google. Your login credentials are excluded; after a restore you log in again. You control backup in Android settings.
 
 ### Sent to your server
 
