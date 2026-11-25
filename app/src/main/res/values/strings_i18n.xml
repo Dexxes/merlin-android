@@ -469,6 +469,12 @@
     <string name="onboarding_step8_title">"Appearance"</string>
     <string name="onboarding_step9_body">"Organize your reading list with tags. Add or remove them any time from the reader menu."</string>
     <string name="onboarding_step9_title">"Tags"</string>
+    <string name="readInMerlin_errorNoUrl">"No link was found in this content."</string>
+    <string name="readInMerlin_errorNotLoggedIn">"Please sign in to Merlin first, then try the link again."</string>
+    <string name="readInMerlin_errorOpenApp">"Merlin could not be opened. Open Merlin and add the link there."</string>
+    <string name="readInMerlin_errorSave">"The article could not be saved: %1$s"</string>
+    <string name="readInMerlin_menuTitle">"Read in Merlin"</string>
+    <string name="readInMerlin_tapToClose">"Tap to close."</string>
     <string name="reminders_error_permissionDenied">"Please allow notifications in Settings to set reminders."</string>
     <string name="reminders_list_emptyMessage">"Tap \"Set Reminder\" in the article menu to create one."</string>
     <string name="reminders_list_emptyTitle">"No Reminders"</string>

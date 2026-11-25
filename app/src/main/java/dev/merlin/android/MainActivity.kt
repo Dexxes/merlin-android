@@ -104,7 +104,9 @@ class MainActivity : ComponentActivity() {
         )
         // Kein grauer Kontrast-Schleier über der 3-Tasten-Navigation: dort liegt schon unsere Farbe.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) window.isNavigationBarContrastEnforced = false
-        handleIntent(intent)
+        // Nach einer Neuerstellung (Rotation o. Ä.) nicht erneut verarbeiten – sonst würde ein
+        // Link aus „Jetzt in Merlin lesen“ ein zweites Mal gespeichert.
+        if (savedInstanceState == null) handleIntent(intent)
         setContent {
             // Bisher fehlte diese Verbindung komplett: `MerlinTheme` fiel ohne Parameter immer
             // auf `isSystemInDarkTheme()` zurück, die "Erscheinungsbild"-Auswahl (AppearanceSheet)
@@ -163,10 +165,25 @@ class MainActivity : ComponentActivity() {
                                 appNavigator.consume()
                             }
 
+                            // „Jetzt in Merlin lesen“: zurück zur Liste, deren ViewModel den Link speichert
+                            // (bzw. findet) und dann den Reader öffnet – siehe LaunchedEffect in "list".
+                            val pendingReadUrl by appNavigator.urlToRead.collectAsState()
+                            LaunchedEffect(pendingReadUrl) {
+                                if (pendingReadUrl != null && navController.currentDestination?.route != "list") {
+                                    navController.popBackStack("list", inclusive = false)
+                                }
+                            }
+
                             NavHost(navController = navController, startDestination = "list") {
                                 composable("list") {
                                     val articlesViewModel: ArticlesViewModel = hiltViewModel()
                                     SideEffect { splashGate.viewModel = articlesViewModel }
+                                    LaunchedEffect(pendingReadUrl) {
+                                        val url = pendingReadUrl ?: return@LaunchedEffect
+                                        appNavigator.consumeRead()
+                                        val articleId = articlesViewModel.articleIdForReading(url)
+                                        if (articleId != null) navController.navigate("reader/$articleId")
+                                    }
                                     val settingsLoaded by articlesViewModel.settingsLoaded.collectAsState()
                                     if (settingsLoaded) {
                                         ArticleListScreen(
@@ -280,14 +297,19 @@ class MainActivity : ComponentActivity() {
         handleIntent(intent)
     }
 
-    /** Liest den Reminder-Deep-Link-Extra (siehe [ReminderBroadcastReceiver]) und reicht ihn an [AppNavigator] weiter. */
+    /**
+     * Liest den Reminder-Deep-Link-Extra (siehe [ReminderBroadcastReceiver]) bzw. den Link aus
+     * „Jetzt in Merlin lesen“ (siehe `ReadInMerlinActivity`) und reicht ihn an [AppNavigator] weiter.
+     */
     private fun handleIntent(intent: Intent) {
         val articleId = intent.getIntExtra(EXTRA_OPEN_ARTICLE_ID, -1)
         if (articleId != -1) appNavigator.open(articleId)
+        intent.getStringExtra(EXTRA_READ_URL)?.let(appNavigator::read)
     }
 
     companion object {
         const val EXTRA_OPEN_ARTICLE_ID = "open_article_id"
+        const val EXTRA_READ_URL = "read_url"
 
         /** Wie iOS: Splash mindestens 200 ms, Abfrage alle 80 ms, Offline-Frage nach 3 s. */
         private const val SPLASH_MIN_MILLIS = 200L
