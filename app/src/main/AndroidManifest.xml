@@ -91,6 +91,32 @@
             </intent-filter>
         </activity>
 
+        <!-- „Jetzt in Merlin lesen“, Äquivalent zur iOS-Action-Extension MerlinRead: eigener
+             Eintrag im Teilen-Menü (Links/Text, z. B. nach langem Drücken auf einen Link →
+             „Link teilen“) und im Menü einer Textauswahl (PROCESS_TEXT). Ohne Oberfläche:
+             reicht den Link an MainActivity weiter, die den Artikel speichert und direkt im
+             Reader öffnet (siehe ReadInMerlinActivity.kt). Bewusst kein VIEW-Filter für
+             http(s): Merlin würde sich sonst als Browser für alle Links anbieten. -->
+        <activity
+            android:name=".ui.share.ReadInMerlinActivity"
+            android:exported="true"
+            android:label="@string/readInMerlin_menuTitle"
+            android:theme="@style/Theme.Merlin.Share"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity="">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.PROCESS_TEXT" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+        </activity>
+
     </application>
 
 </manifest>

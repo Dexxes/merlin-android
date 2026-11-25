@@ -48,6 +48,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.supervisorScope
+import kotlinx.coroutines.withTimeoutOrNull
 import retrofit2.HttpException
 
 /** Äquivalent zu `UndoableAction` (Swift): merkt sich die letzte rückgängig machbare Mutation. */
@@ -782,7 +783,7 @@ class ArticlesViewModel @Inject constructor(
         pendingTagNames: List<String> = emptyList(),
         /** Eltern-Tag für neu angelegte Tags (verschachtelte Tags, nur merlin-nextcloud). */
         newTagParentId: Int? = null,
-    ) {
+    ): Article {
         val resolvedIds = resolveTagIds(pendingTagNames, newTagParentId)
         val allIds = withParentOf(tagIds + resolvedIds, newTagParentId.takeIf { resolvedIds.isNotEmpty() })
         val article = api.createArticle(CreateArticleRequest(url = url, tagIds = allIds.toList()))
@@ -792,6 +793,28 @@ class ArticlesViewModel @Inject constructor(
         prefetchImages(listOf(article))
         startProcessingListenerIfNeeded()
         if (pendingTagNames.isNotEmpty()) loadTags() // neu angelegte Tags sofort in allTags verfügbar machen
+        return article
+    }
+
+    /**
+     * „Jetzt in Merlin lesen“ (Äquivalent zu `ArticleListView.readURL` in Swift): die ID des Artikels
+     * zu [url] – aus der Liste, wenn er schon gespeichert ist, sonst frisch angelegt wie ein geteilter
+     * Link. Der Reader zeigt dann den Lade-Zustand, bis der Server den Inhalt extrahiert hat.
+     * Schlägt das Speichern fehl, erscheint die Meldung in [error] und das Ergebnis ist `null`.
+     */
+    suspend fun articleIdForReading(url: String): Int? {
+        // Kaltstart: den ersten Ladevorgang abwarten, damit ein gespeicherter Link gefunden wird.
+        withTimeoutOrNull(5_000) { isLoading.first { !it } }
+        _articles.value.firstOrNull { it.url == url }?.let { return it.id }
+        return try {
+            addArticle(url).id
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            val reason = e.userMessage(context) ?: context.getString(R.string.api_error_unknown)
+            _error.value = context.getString(R.string.readInMerlin_errorSave, reason)
+            null
+        }
     }
 
     /**
@@ -824,7 +847,7 @@ class ArticlesViewModel @Inject constructor(
         tagIds: Set<Int>,
         pendingTagNames: List<String> = emptyList(),
         newTagParentId: Int? = null,
-    ) {
+    ): Article {
         val resolvedIds = resolveTagIds(pendingTagNames, newTagParentId)
         // Erst Tags neu laden, damit doSetTags die neu angelegten Tag-Objekte kennt.
         if (resolvedIds.isNotEmpty()) refreshTags()

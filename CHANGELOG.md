@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- "Read in Merlin" ("Jetzt in Merlin lesen") as its own entry in the share
+  menu (e.g. after long-pressing a link and choosing "Share link") and in the
+  menu of selected text: the link is saved like a shared one and the article
+  opens in the reader right away (with its loading state while the server
+  is still extracting it). A link that is already in the list opens directly
+  without being saved twice. If nobody is signed in yet, the link waits until
+  after the login.
 - App tour on first start, as on iOS: a dimmed overlay with a spotlight on the
   element being explained and a card with progress dots, Back/Next and "Skip
   Tour". It covers adding articles (+), the navigation menu and view switch,

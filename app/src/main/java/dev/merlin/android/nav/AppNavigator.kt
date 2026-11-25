@@ -25,4 +25,20 @@ class AppNavigator @Inject constructor() {
     fun consume() {
         _articleIdToOpen.value = null
     }
+
+    /**
+     * Link aus „Jetzt in Merlin lesen“ (siehe `ReadInMerlinActivity`), Äquivalent zu
+     * `AppNavigator.urlToRead` (Swift). Die "list"-Route speichert ihn bzw. findet ihn in der
+     * Liste und öffnet den Reader. Bleibt bis nach dem Login liegen, falls noch niemand angemeldet ist.
+     */
+    private val _urlToRead = MutableStateFlow<String?>(null)
+    val urlToRead: StateFlow<String?> = _urlToRead
+
+    fun read(url: String) {
+        _urlToRead.value = url
+    }
+
+    fun consumeRead() {
+        _urlToRead.value = null
+    }
 }
